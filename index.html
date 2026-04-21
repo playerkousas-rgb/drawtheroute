@@ -27,12 +27,17 @@ function loadRrweb(){if(rrwebStarted)return;rrwebStarted=true;var s=document.cre
 window.addEventListener("message",function(e){if(!e.data||typeof e.data.type!=="string")return;if(e.data.type==="arena:init"){if(!meta)startTime=Date.now();meta={generationId:e.data.generationId||e.data.modelId,tournamentId:e.data.tournamentId};persist();loadRrweb();if(e.source)e.source.postMessage({type:"arena:init-ack",generationId:meta.generationId},"*");}if(e.data.type==="arena:flush"){var resp={type:"arena:recording-data",generationId:meta?meta.generationId:null,rrwebEvents:rrwebEvents,analytics:buildAnalytics()};try{sessionStorage.removeItem(SK);}catch(ex){}if(e.source)e.source.postMessage(resp,"*");}});
 loadRrweb();
 })();</script>
-  <script data-arena-views="true">(function(){var isTop=false;try{isTop=window.self===window.top;}catch(e){}if(!isTop)return;window.__ARENA_META={generationId:"claude-sonnet-4-6",tournamentId:"6cf7102a-7698-432b-8585-1b6eddd1b97a"};var payload={tournamentId:"6cf7102a-7698-432b-8585-1b6eddd1b97a",modelId:"claude-sonnet-4-6"};try{var r=document.referrer;if(r){var u=new URL(r);payload.referrerDomain=u.hostname;}}catch(e){}try{var vid=null;try{vid=localStorage.getItem('arena_vid');}catch(e){}if(!vid){vid=typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():(Date.now().toString(36)+Math.random().toString(36).slice(2)).slice(0,32);try{localStorage.setItem('arena_vid',vid);}catch(e){}}if(vid)payload.viewerId=vid;}catch(e){}try{fetch("https://www.designarena.ai/api/agon/page-views",{"method":"POST","headers":{"Content-Type":"application/json"},"body":JSON.stringify(payload),"keepalive":true});}catch(e){}})();</script>
+    <script data-arena-views="true">(function(){var isTop=false;try{isTop=window.self===window.top;}catch(e){}if(!isTop)return;window.__ARENA_META={generationId:"claude-sonnet-4-6",tournamentId:"6cf7102a-7698-432b-8585-1b6eddd1b97a"};var payload={tournamentId:"6cf7102a-7698-432b-8585-1b6eddd1b97a",modelId:"claude-sonnet-4-6"};try{var r=document.referrer;if(r){var u=new URL(r);payload.referrerDomain=u.hostname;}}catch(e){}try{var vid=null;try{vid=localStorage.getItem('arena_vid');}catch(e){}if(!vid){vid=typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():(Date.now().toString(36)+Math.random().toString(36).slice(2)).slice(0,32);try{localStorage.setItem('arena_vid',vid);}catch(e){}}if(vid)payload.viewerId=vid;}catch(e){}try{fetch("https://www.designarena.ai/api/agon/page-views",{"method":"POST","headers":{"Content-Type":"application/json"},"body":JSON.stringify(payload),"keepalive":true});}catch(e){}})();</script>
 </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-      <script data-element-picker>/**
+    
+    <footer style="position: fixed; bottom: 10px; width: 100%; text-align: center; font-family: sans-serif; font-size: 12px; color: #888; pointer-events: none; z-index: 999;">
+      COPYRIGHT 2026 SKWSCOUT
+    </footer>
+
+    <script data-element-picker>/**
  * Agon Element Picker — injected into the preview iframe.
  *
  * Listens for postMessage from the parent to toggle inspect mode.
@@ -40,8 +45,8 @@ loadRrweb();
  * the element's source location (from data-source-loc) back to the parent.
  *
  * Protocol:
- *   Parent -> iframe:  { type: 'inspect:mode', enabled: true/false }
- *   iframe -> Parent:  { type: 'element:selected', file, line, column, tag, text, classes, id }
+ * Parent -> iframe:  { type: 'inspect:mode', enabled: true/false }
+ * iframe -> Parent:  { type: 'element:selected', file, line, column, tag, text, classes, id }
  */
 (function () {
   'use strict';
