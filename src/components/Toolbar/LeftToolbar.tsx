@@ -1,0 +1,137 @@
+import { motion } from 'framer-motion';
+import { RouteIcon, Undo2, Trash2, Upload, Download, Map, Layers, Satellite, Footprints } from 'lucide-react';
+import { MapLayer } from '../../types';
+
+interface Props {
+  routingMode: 'hiking' | 'straight';
+  onRoutingMode: (m: 'hiking' | 'straight') => void;
+  mapLayer: MapLayer;
+  onMapLayer: (l: MapLayer) => void;
+  onUndo: () => void;
+  onClear: () => void;
+  onImportGPX: () => void;
+  onExportGPX: () => void;
+  hasRoute: boolean;
+  isProcessing: boolean;
+}
+
+export default function LeftToolbar({
+  routingMode, onRoutingMode,
+  mapLayer, onMapLayer,
+  onUndo, onClear, onImportGPX, onExportGPX,
+  hasRoute, isProcessing,
+}: Props) {
+  return (
+    <div
+      className="absolute left-3 top-1/2 -translate-y-1/2 z-[1000] flex flex-col gap-1"
+      style={{
+        background: 'rgba(8,14,28,0.94)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(148,163,184,0.12)',
+        borderRadius: 14,
+        padding: '8px 6px',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
+      }}
+    >
+      {/* 路由模式 */}
+      <Group label="路由">
+        <Btn
+          icon={<Footprints size={16} />}
+          label="山徑路由 (BRouter hiking-mountain)"
+          active={routingMode === 'hiking'}
+          onClick={() => onRoutingMode('hiking')}
+          color="emerald"
+        />
+        <Btn
+          icon={<RouteIcon size={16} />}
+          label="直線模式 (SRTM 高度補償)"
+          active={routingMode === 'straight'}
+          onClick={() => onRoutingMode('straight')}
+          color="amber"
+        />
+      </Group>
+
+      <Divider />
+
+      {/* 地圖圖層 */}
+      <Group label="圖層">
+        <Btn icon={<Map size={15} />}      label="街道圖 (OSM)"  active={mapLayer === 'osm'}       onClick={() => onMapLayer('osm')}       color="slate" small />
+        <Btn icon={<Layers size={15} />}   label="地形圖 (Topo)" active={mapLayer === 'topo'}      onClick={() => onMapLayer('topo')}      color="slate" small />
+        <Btn icon={<Satellite size={15} />} label="衛星圖 (Esri)" active={mapLayer === 'satellite'} onClick={() => onMapLayer('satellite')} color="slate" small />
+      </Group>
+
+      <Divider />
+
+      {/* 操作 */}
+      <Group label="操作">
+        <Btn icon={<Undo2 size={15} />}    label="撤銷上一段"  onClick={onUndo}       color="slate" small disabled={!hasRoute} />
+        <Btn icon={<Trash2 size={15} />}   label="清除全部"    onClick={onClear}      color="rose"  small disabled={!hasRoute} />
+        <Btn icon={<Upload size={15} />}   label="匯入 GPX"   onClick={onImportGPX}  color="slate" small />
+        <Btn icon={<Download size={15} />} label="匯出 GPX"   onClick={onExportGPX}  color="slate" small disabled={!hasRoute} />
+      </Group>
+
+      {/* Processing dot */}
+      {isProcessing && (
+        <div className="flex justify-center pt-1">
+          <motion.div
+            className="w-2 h-2 rounded-full bg-emerald-400"
+            animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
+            transition={{ duration: 1.2, repeat: Infinity }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────
+function Group({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-slate-600 text-[8px] font-mono uppercase tracking-widest text-center">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function Divider() {
+  return <div className="h-px bg-slate-700/50 mx-1 my-0.5" />;
+}
+
+type BtnColor = 'emerald' | 'amber' | 'slate' | 'rose';
+
+const COLORS: Record<BtnColor, { active: string; hover: string }> = {
+  emerald: { active: 'bg-emerald-500/25 border-emerald-500/50 text-emerald-300', hover: 'hover:bg-emerald-500/15 hover:text-emerald-400' },
+  amber:   { active: 'bg-amber-500/25  border-amber-500/50  text-amber-300',    hover: 'hover:bg-amber-500/15  hover:text-amber-400' },
+  slate:   { active: 'bg-slate-600/40  border-slate-500/40  text-slate-200',    hover: 'hover:bg-slate-700/40  hover:text-slate-300' },
+  rose:    { active: 'bg-rose-500/25   border-rose-500/50   text-rose-300',     hover: 'hover:bg-rose-500/15   hover:text-rose-400' },
+};
+
+function Btn({ icon, label, active = false, onClick, color = 'slate', small = false, disabled = false }: {
+  icon: React.ReactNode;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+  color?: BtnColor;
+  small?: boolean;
+  disabled?: boolean;
+}) {
+  const c  = COLORS[color];
+  const sz = small ? 'w-8 h-8' : 'w-9 h-9';
+  return (
+    <motion.button
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      whileHover={!disabled ? { scale: 1.08 } : {}}
+      whileTap={!disabled  ? { scale: 0.93 } : {}}
+      className={`${sz} rounded-lg flex items-center justify-center border transition-all ${
+        disabled ? 'opacity-25 cursor-not-allowed border-transparent text-slate-600'
+        : active  ? `${c.active} shadow-sm`
+        : `border-transparent text-slate-500 ${c.hover}`
+      }`}
+    >
+      {icon}
+    </motion.button>
+  );
+}
