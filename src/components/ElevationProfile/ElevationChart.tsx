@@ -87,73 +87,49 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
     );
   }
 
-const elevs = profile.map(p => p.elevation).filter(e => !isNaN(e));
-
+const elevs = profile.map(p => Number(p.elevation)).filter(e => !isNaN(e));
   const minE = Math.min(...elevs);
-
 const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
-
+  const roundedMax = Math.ceil(maxE / 100) * 100;
+  const finalMax = (roundedMax - maxE < 30) ? roundedMax + 100 : roundedMax;
   const pad = Math.max(20, (maxE - minE) * 0.12);
-
- const yDomain: [number, number] = [0, maxE + pad];
+ const yDomain: [number, number] = [0, finalMax];
 
 
 
   return (
-
     <div className="h-full flex flex-col">
-
       <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
-
         <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
-
         <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
-
         <StatBadge label="總下降" val={`-${stats.totalDescent.toFixed(0)} m`} color="#f87171" />
-
         <StatBadge label="最高" val={`${stats.maxElevation.toFixed(0)} m`} color="#fbbf24" />
-
         <StatBadge label="最低" val={`${stats.minElevation.toFixed(0)} m`} color="#22d3ee" />
-
         <StatBadge label="預計時間" val={formatTime(stats.estimatedTime)} color="#a78bfa" />
-
       </div>
 
 
 
       <div className="flex-1 min-h-0 px-1">
-
         <ResponsiveContainer width="100%" height="100%">
-
           <AreaChart
-
             data={profile}
-
             margin={{ top: 20, right: 16, left: 0, bottom: 4 }} // 增加 top 以容納標籤
-
             onMouseMove={onMove}
-
             onMouseLeave={onLeave}
-
           >
-
+            
             <defs>
-
               <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
-
                 <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.45} />
-
                 <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.03} />
-
               </linearGradient>
-
             </defs>
-
-
-
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" vertical={false} />
-
-
+           <CartesianGrid 
+  strokeDasharray="3 3" 
+  stroke="rgba(148,163,184,0.12)" // 稍微加深一點點，讓虛線可見
+  vertical={false} // 只留橫線
+/>
 
           <XAxis
               dataKey="distance"
@@ -167,127 +143,76 @@ const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
               minTickGap={40}
             />
 
-            <YAxis
-              dataKey="elevation"
-              domain={yDomain}
-              tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
-              tickFormatter={v => `${Math.round(v)}m`}
-              axisLine={false}
-              tickLine={false}
-              width={44}
-            />
-
-
-
+           <YAxis
+  dataKey="elevation"
+  domain={yDomain}
+  // 核心：手動指定刻度，讓它只顯示 0, 200, 400, 600, 800...
+  ticks={[0, 200, 400, 600, 800, 1000].filter(t => t <= yDomain[1])}
+  tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
+  tickFormatter={v => `${v}m`}
+  axisLine={false}
+  tickLine={false}
+  width={44}
+/>
 
             <Tooltip content={<CustomTooltip />} cursor={false} />
 
-
-
             {/* 3. 渲染 SP / CP / EP 標記線 */}
-
             {markers.map((m, i) => (
-
               <ReferenceLine
-
                 key={i}
-
                 x={m.x}
-
                 stroke={m.color}
-
                 strokeWidth={1.5}
-
                 strokeDasharray="3 3"
-
                 label={{
-
                   value: m.label,
-
                   position: 'top',
-
                   fill: m.color,
-
                   fontSize: 10,
-
                   fontWeight: 'bold',
-
                   fontFamily: 'monospace',
-
                   dy: -5
-
                 }}
-
               />
-
             ))}
 
 
 
             {hoverX !== null && (
-
               <ReferenceLine x={hoverX} stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4 3" />
-
             )}
 
-
-
             <Area
-
               type="monotone"
-
               dataKey="elevation"
-
               stroke="#60a5fa"
-
               strokeWidth={2}
-
               fill="url(#elev-grad)"
-
               dot={false}
-
               activeDot={{ r: 5, fill: '#60a5fa', stroke: '#fff', strokeWidth: 2 }}
-
               isAnimationActive={false}
-
             />
 
           </AreaChart>
-
         </ResponsiveContainer>
-
       </div>
-
     </div>
-
   );
-
 }
 
-
-
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
-
   return (
-
     <div style={{
-
       display: 'flex', alignItems: 'baseline', gap: 4,
-
       background: 'rgba(15,23,42,0.7)',
-
       border: '1px solid rgba(148,163,184,0.12)',
-
       borderRadius: 6, padding: '3px 8px',
-
     }}>
 
       <span style={{ color: '#475569', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-
       <span style={{ color, fontSize: 12, fontFamily: 'monospace', fontWeight: 600 }}>{val}</span>
-
     </div>
-
   );
 
 }
