@@ -155,33 +155,28 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
 
 
 
-         <YAxis
-  dataKey="elevation"
-  domain={yDomain}
-  // 增加寬度，確保海拔數字不會擠到 X 軸的起點
-  width={50} 
-  tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
-  tickFormatter={v => `${Math.round(v)}m`}
-  axisLine={false}
-  tickLine={false}
-/>
+          <XAxis
+              dataKey="distance"
+              type="number"
+              scale="linear"
+              domain={['dataMin', 'dataMax']}
+              tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
+              tickFormatter={v => `${Number(v).toFixed(1)}km`}
+              axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
+              tickLine={false}
+              minTickGap={40}
+            />
 
-<XAxis
-  dataKey="distance"
-  type="number"
-  // 1. 強制定義座標軸範圍
-  domain={[0, 'dataMax']} 
-  // 2. 「硬塞」刻度：這裡我們手動指定要顯示的刻度點
-  // 我們拿數據最大值，並在最前面硬塞一個 0
-  ticks={[0, stats.totalDistance * 0.25, stats.totalDistance * 0.5, stats.totalDistance * 0.75, stats.totalDistance]}
-  // 3. 防止數據溢出導致刻度消失
-  allowDataOverflow={false}
-  tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
-  tickFormatter={v => `${Number(v).toFixed(1)}km`}
-  axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
-  tickLine={false}
-  minTickGap={0}
-/>
+            <YAxis
+              dataKey="elevation"
+              domain={yDomain}
+              tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
+              tickFormatter={v => `${Math.round(v)}m`}
+              axisLine={false}
+              tickLine={false}
+              width={44}
+            />
+
 
 
 
