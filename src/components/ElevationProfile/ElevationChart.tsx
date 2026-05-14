@@ -10,7 +10,7 @@ import { formatTime } from '../../hooks/useTerrainAnalysis';
 interface Waypoint {
   id: string;
   name: string;
-  distanceFromStart: number; // 修正：對齊專案資料結構，確保 App.tsx 傳入時不報錯
+  distanceFromStart: number; // 修正：對齊專案資料結構
   elevation?: number;
 }
 
@@ -145,7 +145,7 @@ export default function ElevationChart({ profile, stats, waypoints = [], onHover
             {waypoints.map((wp, idx) => (
               <ReferenceLine
                 key={wp.id || idx}
-                x={wp.distanceFromStart} // 修正：對應 Waypoint 接口的 distanceFromStart
+                x={wp.distanceFromStart}
                 stroke="#fbbf24"
                 strokeWidth={2}
                 strokeOpacity={0.8}
