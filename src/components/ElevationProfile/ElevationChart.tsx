@@ -163,7 +163,7 @@ const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
       )}
     </div>
   );
-)
+}
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{
@@ -177,5 +177,4 @@ function StatBadge({ label, val, color }: { label: string; val: string; color: s
       <span style={{ color, fontSize: 12, fontFamily: 'monospace', fontWeight: 600 }}>{val}</span>
     </div>
   );
-
 }
