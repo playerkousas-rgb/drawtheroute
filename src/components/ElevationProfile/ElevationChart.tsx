@@ -163,7 +163,7 @@ const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
       )}
     </div>
   );
-
+)
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{
