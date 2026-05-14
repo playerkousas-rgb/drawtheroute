@@ -156,22 +156,17 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
 
 
             <XAxis
-
-              dataKey="distance"
-
-              type="number"
-
-              domain={['dataMin', 'dataMax']}
-
-              tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
-
-              tickFormatter={v => `${Number(v).toFixed(1)}km`}
-
-              axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
-
-              tickLine={false}
-
-            />
+  dataKey="distance"
+  type="number"
+  scale="linear"
+  // 修改這裡：將 'dataMin' 改為 0
+  domain={[0, 'dataMax']} 
+  tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
+  tickFormatter={v => `${Number(v).toFixed(1)}km`}
+  axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
+  tickLine={false}
+  minTickGap={40}
+/>
 
 
 
