@@ -8,7 +8,6 @@ export interface BRouterResult {
   descentM: number;
 }
 
-// BRouter public server — hiking-mountain profile follows footways, trails, steps
 const BROUTER = 'https://brouter.de/brouter';
 
 export function useBRouter() {
@@ -28,16 +27,29 @@ export function useBRouter() {
       const feature = geojson?.features?.[0];
       if (!feature) throw new Error('No feature in BRouter response');
 
-      // BRouter GeoJSON coords = [lon, lat, ele]
+      // ── 數據處理 ──
       const raw: [number, number, number][] = feature.geometry.coordinates;
-      const coordinates = raw.map(([lng, lat, ele]) => ({ lat, lng, ele: ele ?? 0 }));
+      
+      // 核心修改：確保這段路徑的「頭」和「尾」高度與傳入的 LatLng (來自地圖/右側欄) 完全一致
+      const coordinates = raw.map(([lng, lat, ele], idx) => {
+        let finalEle = ele ?? 0;
+        
+        // 如果是第一個點，強行對齊起點高度
+        if (idx === 0 && from.elevation !== undefined) {
+          finalEle = from.elevation;
+        } 
+        // 如果是最後一個點，強行對齊終點高度
+        else if (idx === raw.length - 1 && to.elevation !== undefined) {
+          finalEle = to.elevation;
+        }
 
-      // Parse stats from properties
+        return { lat, lng, ele: finalEle };
+      });
+
+      // 解析統計數據
       const props = feature.properties ?? {};
       const distanceM = parseFloat(props['track-length'] ?? '0');
-      // filtered ascend is the clean ascent (noise-filtered)
       const ascentM = parseFloat(props['filtered ascend'] ?? '0');
-      // plain-ascend can be negative = net descent
       const plainAscend = parseFloat(props['plain-ascend'] ?? '0');
       const descentM = plainAscend < 0 ? Math.abs(plainAscend) : 0;
 
