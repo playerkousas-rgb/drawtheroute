@@ -116,7 +116,7 @@ export function useRouteManager() {
   }, [getHikingRoute, fetchElevations]);
 
   // ── Add waypoint at end ───────────────────────────────────────────
-  const addWaypoint = useCallback(async (latlng: LatLng) => {
+ const addWaypoint = useCallback(async (latlng: LatLng) => {
     setIsProcessing(true);
     setLastError(null);
     try {
@@ -129,19 +129,35 @@ export function useRouteManager() {
       }
 
       const from = currentWps[currentWps.length - 1];
-      const [endEle] = await fetchElevations([latlng]);
       const seg = await buildSegment(from.latlng, latlng, routingMode);
 
+      // 從計算好的路徑中精確提取起點和終點的高度
+      const startElevation = seg.points[0]?.elevation ?? from.elevation;
+      const endElevation = seg.points.at(-1)?.elevation ?? 0;
+
       const newWp: WaypointMarker = {
-        id: uid('wp'), latlng,
-        elevation: endEle ?? seg.points.at(-1)?.elevation ?? 0,
+        id: uid('wp'),
+        latlng,
+        elevation: endElevation,
         type: 'end',
       };
 
-      setWaypoints(prev => reassignTypes([
-        ...prev.map((w, i) => i === prev.length - 1 ? { ...w, type: 'waypoint' as const } : w),
-        newWp,
-      ]));
+      setWaypoints(prev => {
+        // 1. 先複製一份目前的清單
+        const newWps = [...prev];
+        // 2. 更新即將變成「中間點」的那個點的高度與類型
+        if (newWps.length > 0) {
+          const lastIdx = newWps.length - 1;
+          newWps[lastIdx] = {
+            ...newWps[lastIdx],
+            elevation: startElevation,
+            type: 'waypoint'
+          };
+        }
+        // 3. 加上新的終點，並重新分配一次 type 確保萬無一失
+        return reassignTypes([...newWps, newWp]);
+      });
+
       setSegments(prev => [...prev, seg]);
     } catch (e) {
       setLastError(e instanceof Error ? e.message : '路線計算失敗');
