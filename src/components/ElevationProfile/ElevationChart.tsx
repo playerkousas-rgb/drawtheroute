@@ -105,7 +105,14 @@ const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
 
 
   return (
-    <div ref={chartRef} className={`flex flex-col bg-slate-950 transition-all ${isFullscreen ? 'fixed inset-0 z-50 p-6' : 'h-full relative'}`}>
+    <div 
+  ref={chartRef} 
+  className={`flex flex-col bg-slate-950 transition-all ${
+    isFullscreen 
+      ? 'fixed inset-0 z-[9999] bg-slate-950 p-6' // 這裡 z-[9999] 是關鍵，強制它站到最前面
+      : 'h-full relative'
+  }`}
+>
       
       {/* 頂部控制列 */}
       <div className="flex justify-between items-center px-4 py-2 border-b border-slate-800 bg-slate-900/30">
