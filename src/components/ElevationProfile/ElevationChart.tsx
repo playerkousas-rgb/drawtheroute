@@ -87,31 +87,53 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
     );
   }
 
-// 1. 提取海拔數值，並過濾掉無效數據 (防止 Math.min 出現 Infinity)
+// --- 終極防禦版邏輯：防止除以零導致的黑屏 ---
+  
+  // 1. 提取海拔數值，使用 Number() 強制轉型並排除所有非有限數字
   const elevs = useMemo(() => 
-    profile.map(p => p.elevation).filter(e => typeof e === 'number' && !isNaN(e)),
+    profile
+      .map(p => Number(p.elevation))
+      .filter(e => !isNaN(e) && isFinite(e)),
     [profile]
   );
 
-  // 2. 安全計算範圍
-  const minE = elevs.length > 0 ? Math.min(...elevs) : 0;
-  const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
-  const pad = Math.max(20, (maxE - minE) * 0.12);
-  const yDomain: [number, number] = [Math.max(0, minE - pad), maxE + pad];
+  // 2. 安全計算範圍：增加「等高檢查」防止除以零
+  const { yDomain, safeMin, safeMax } = useMemo(() => {
+    let min = elevs.length > 0 ? Math.min(...elevs) : 0;
+    let max = elevs.length > 0 ? Math.max(...elevs) : 100;
 
-  // 3. 安全計算水平高度線 (限制最多 20 條，防止死迴圈)
+    // 核心修復：如果最高與最低一樣（或數據不足），強制給予 10m 的高度差
+    if (min === max) {
+      max = min + 10;
+    }
+
+    const range = max - min;
+    const pad = Math.max(20, range * 0.15);
+    
+    return {
+      safeMin: min,
+      safeMax: max,
+      yDomain: [Math.max(0, Math.floor(min - pad)), Math.ceil(max + pad)] as [number, number]
+    };
+  }, [elevs]);
+
+  // 3. 安全計算水平高度線
   const horizontalLines = useMemo(() => {
     if (elevs.length === 0) return [];
     const lines = [];
-    const startH = Math.ceil(yDomain[0] / 100) * 100;
-    for (let h = startH; h < yDomain[1] && lines.length < 20; h += 100) {
+    const step = 100;
+    const startH = Math.ceil(yDomain[0] / step) * step;
+    
+    // 嚴格限制數量，防止異常情況下的死迴圈
+    for (let h = startH; h < yDomain[1]; h += step) {
+      if (lines.length >= 15) break; 
       lines.push(h);
     }
     return lines;
   }, [yDomain, elevs.length]);
 
-  // 4. 防禦性渲染：如果數據點少於 2 個，顯示載入狀態而非圖表，防止全黑
-  if (profile.length < 2) {
+  // 4. 防禦性渲染：如果數據點少於 2 個，或 Y 軸計算異常，直接回傳讀取中
+  if (profile.length < 2 || isNaN(yDomain[0])) {
     return (
       <div className="h-full flex flex-col items-center justify-center bg-slate-900/20 backdrop-blur-sm">
         <div className="text-4xl opacity-20 animate-pulse">🏔️</div>
@@ -149,12 +171,12 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
             </defs>
 
             {/* 方格紙背景：顯示垂直與水平線 */}
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={true} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" vertical={true} />
 
             <XAxis
               dataKey="distance"
               type="number"
-              domain={[0, 'dataMax']} // 強制由 0 公里開始
+              domain={[0, 'dataMax']} 
               tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
               tickFormatter={v => `${Number(v).toFixed(1)}km`}
               axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
@@ -173,14 +195,14 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
 
             <Tooltip content={<CustomTooltip />} cursor={false} />
 
-            {/* 自動生成整百米水平線 (如 500m, 600m...) */}
+            {/* 自動生成整百米水平線 */}
             {horizontalLines.map(h => (
               <ReferenceLine 
                 key={`h-line-${h}`} 
                 y={h} 
-                stroke="rgba(148,163,184,0.2)" 
+                stroke="rgba(148,163,184,0.25)" 
                 strokeWidth={1}
-                label={{ value: `${h}m`, position: 'insideLeft', fill: '#64748b', fontSize: 9, opacity: 0.7, dy: 10 }}
+                label={{ value: `${h}m`, position: 'insideLeft', fill: '#64748b', fontSize: 9, opacity: 0.8, dy: 10 }}
               />
             ))}
 
@@ -218,7 +240,8 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
               fill="url(#elev-grad)"
               dot={false}
               activeDot={{ r: 5, fill: '#60a5fa', stroke: '#fff', strokeWidth: 2 }}
-              isAnimationActive={false}
+              isAnimationActive={false} // 關閉動畫，進一步增加穩定性
+              connectNulls={true} // 防止數據中間有斷點
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -227,7 +250,6 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
   );
 }
 
-// 狀態標籤組件
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{
