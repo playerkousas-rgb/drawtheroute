@@ -38,6 +38,13 @@ const CustomTooltip = ({ active, payload }: {
 
 export default function ElevationChart({ profile, stats, waypoints, onHoverPoint }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null);
+  
+  // --- 在這裡加入這兩個新的 State 和一個 Ref ---
+  const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null); 
+  // -------------------------------------------
+
   const onHoverRef = useRef(onHoverPoint);
   onHoverRef.current = onHoverPoint;
 
@@ -98,108 +105,64 @@ const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
 
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
-        <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
-        <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
-        <StatBadge label="總下降" val={`-${stats.totalDescent.toFixed(0)} m`} color="#f87171" />
-        <StatBadge label="最高" val={`${stats.maxElevation.toFixed(0)} m`} color="#fbbf24" />
-        <StatBadge label="最低" val={`${stats.minElevation.toFixed(0)} m`} color="#22d3ee" />
-        <StatBadge label="預計時間" val={formatTime(stats.estimatedTime)} color="#a78bfa" />
+    <div ref={chartRef} className={`flex flex-col bg-slate-950 transition-all ${isFullscreen ? 'fixed inset-0 z-50 p-6' : 'h-full relative'}`}>
+      
+      {/* 頂部控制列 */}
+      <div className="flex justify-between items-center px-4 py-2 border-b border-slate-800 bg-slate-900/30">
+        <div className="flex gap-2">
+          <button onClick={() => setActiveTab('chart')} className={`px-3 py-1 text-xs rounded ${activeTab === 'chart' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>剖面圖</button>
+          <button onClick={() => setActiveTab('table')} className={`px-3 py-1 text-xs rounded ${activeTab === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>路程表</button>
+        </div>
+        <div className="flex gap-4 items-center">
+          <button onClick={() => alert('下載功能開發中')} className="text-slate-400 hover:text-white text-xs">💾 PNG</button>
+          <button onClick={() => setIsFullscreen(!isFullscreen)} className="text-slate-400 hover:text-white text-xs">
+            {isFullscreen ? '✕ 退出' : '⛶ 全屏確認'}
+          </button>
+        </div>
       </div>
 
+      {activeTab === 'chart' ? (
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* 原本的徽章數據區 */}
+          <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
+            <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
+            <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
+            <StatBadge label="總下降" val={`-${stats.totalDescent.toFixed(0)} m`} color="#f87171" />
+            <StatBadge label="最高" val={`${stats.maxElevation.toFixed(0)} m`} color="#fbbf24" />
+            <StatBadge label="最低" val={`${stats.minElevation.toFixed(0)} m`} color="#22d3ee" />
+            <StatBadge label="預計時間" val={formatTime(stats.estimatedTime)} color="#a78bfa" />
+          </div>
 
-
-      <div className="flex-1 min-h-0 px-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={profile}
-            margin={{ top: 20, right: 16, left: 0, bottom: 4 }} // 增加 top 以容納標籤
-            onMouseMove={onMove}
-            onMouseLeave={onLeave}
-          >
-            
-            <defs>
-              <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.45} />
-                <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.03} />
-              </linearGradient>
-            </defs>
-           <CartesianGrid 
-  strokeDasharray="3 3" 
-  stroke="rgba(148,163,184,0.12)" // 稍微加深一點點，讓虛線可見
-  vertical={false} // 只留橫線
-/>
-
-          <XAxis
-              dataKey="distance"
-              type="number"
-              scale="linear"
-              domain={['dataMin', 'dataMax']}
-              tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
-              tickFormatter={v => `${Number(v).toFixed(1)}km`}
-              axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
-              tickLine={false}
-              minTickGap={40}
-            />
-
-           <YAxis
-  dataKey="elevation"
-  domain={yDomain}
-  // 核心：手動指定刻度，讓它只顯示 0, 200, 400, 600, 800...
-  ticks={[0, 200, 400, 600, 800, 1000].filter(t => t <= yDomain[1])}
-  tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
-  tickFormatter={v => `${v}m`}
-  axisLine={false}
-  tickLine={false}
-  width={44}
-/>
-
-            <Tooltip content={<CustomTooltip />} cursor={false} />
-
-            {/* 3. 渲染 SP / CP / EP 標記線 */}
-            {markers.map((m, i) => (
-              <ReferenceLine
-                key={i}
-                x={m.x}
-                stroke={m.color}
-                strokeWidth={1.5}
-                strokeDasharray="3 3"
-                label={{
-                  value: m.label,
-                  position: 'top',
-                  fill: m.color,
-                  fontSize: 10,
-                  fontWeight: 'bold',
-                  fontFamily: 'monospace',
-                  dy: -5
-                }}
-              />
-            ))}
-
-
-
-            {hoverX !== null && (
-              <ReferenceLine x={hoverX} stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4 3" />
-            )}
-
-            <Area
-              type="monotone"
-              dataKey="elevation"
-              stroke="#60a5fa"
-              strokeWidth={2}
-              fill="url(#elev-grad)"
-              dot={false}
-              activeDot={{ r: 5, fill: '#60a5fa', stroke: '#fff', strokeWidth: 2 }}
-              isAnimationActive={false}
-            />
-
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+          {/* 原本的圖表區 */}
+          <div className="flex-1 min-h-0 px-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={profile} margin={{ top: 20, right: 16, left: 0, bottom: 4 }} onMouseMove={onMove} onMouseLeave={onLeave}>
+                <defs>
+                  <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.03} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" vertical={false} />
+                <XAxis dataKey="distance" type="number" scale="linear" domain={['dataMin', 'dataMax']} tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }} tickFormatter={v => `${Number(v).toFixed(1)}km`} axisLine={{ stroke: 'rgba(148,163,184,0.15)' }} tickLine={false} minTickGap={40} />
+                <YAxis dataKey="elevation" domain={yDomain} ticks={[0, 200, 400, 600, 800, 1000].filter(t => t <= yDomain[1])} tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} width={44} />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                {markers.map((m, i) => (
+                  <ReferenceLine key={i} x={m.x} stroke={m.color} strokeWidth={1.5} strokeDasharray="3 3" label={{ value: m.label, position: 'top', fill: m.color, fontSize: 10, fontWeight: 'bold', fontFamily: 'monospace', dy: -5 }} />
+                ))}
+                {hoverX !== null && <ReferenceLine x={hoverX} stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4 3" />}
+                <Area type="monotone" dataKey="elevation" stroke="#60a5fa" strokeWidth={2} fill="url(#elev-grad)" dot={false} activeDot={{ r: 5, fill: '#60a5fa', stroke: '#fff', strokeWidth: 2 }} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 p-10 text-slate-500 text-center text-sm italic">
+          路程表數據研究中...
+        </div>
+      )}
     </div>
   );
-}
 
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
