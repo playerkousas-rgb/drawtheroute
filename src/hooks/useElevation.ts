@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { LatLng } from '../types';
 
-const TOPO_API = 'https://api.opentopodata.org/v1/srtm90m';
+const TOPO_API = 'https://api.opentopodata.org/v1/mapzen';
 
 export function useElevation() {
   const fetchElevations = useCallback(async (points: LatLng[]): Promise<number[]> => {
