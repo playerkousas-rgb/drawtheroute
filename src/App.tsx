@@ -137,10 +137,11 @@ export default function App() {
           </div>
           <div className="h-44">
             <ElevationChart
-              profile={elevationProfile}
-              stats={stats}
-              onHoverPoint={setHoveredPt}
-            />
+  profile={elevationProfile}
+  stats={stats}
+  waypoints={waypoints}
+  onHoverPoint={setHoveredPt}
+/>
           </div>
         </div>
 
