@@ -87,11 +87,21 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
     );
   }
 
-  const elevs = profile.map(p => p.elevation);
+ const elevs = profile.map(p => p.elevation);
   const minE = Math.min(...elevs);
   const maxE = Math.max(...elevs);
   const pad = Math.max(20, (maxE - minE) * 0.12);
   const yDomain: [number, number] = [Math.max(0, minE - pad), maxE + pad];
+
+  // 額外計算：找出區間內所有的整百米高度（例如 500, 600...）用於繪製水平參考線
+  const horizontalLines = useMemo(() => {
+    const lines = [];
+    const startH = Math.ceil(yDomain[0] / 100) * 100;
+    for (let h = startH; h < yDomain[1]; h += 100) {
+      lines.push(h);
+    }
+    return lines;
+  }, [yDomain]);
 
   return (
     <div className="h-full flex flex-col">
@@ -108,7 +118,7 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={profile}
-            margin={{ top: 20, right: 16, left: 0, bottom: 4 }} // 增加 top 以容納標籤
+            margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
           >
@@ -119,12 +129,13 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
               </linearGradient>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" vertical={false} />
+            {/* 變更：開啟垂直線並加深透明度，方便列印看清方格 */}
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" vertical={true} />
 
             <XAxis
               dataKey="distance"
               type="number"
-              domain={['dataMin', 'dataMax']}
+              domain={[0, 'dataMax']} // 修改：強制從 0 開始
               tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
               tickFormatter={v => `${Number(v).toFixed(1)}km`}
               axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
@@ -143,7 +154,17 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
 
             <Tooltip content={<CustomTooltip />} cursor={false} />
 
-            {/* 3. 渲染 SP / CP / EP 標記線 */}
+            {/* 新增：整百米水平高度線（列印輔助） */}
+            {horizontalLines.map(h => (
+              <ReferenceLine 
+                key={`h-line-${h}`} 
+                y={h} 
+                stroke="rgba(148,163,184,0.15)" 
+                strokeWidth={0.5}
+                label={{ value: `${h}m`, position: 'insideLeft', fill: '#475569', fontSize: 8, opacity: 0.5 }}
+              />
+            ))}
+
             {markers.map((m, i) => (
               <ReferenceLine
                 key={i}
