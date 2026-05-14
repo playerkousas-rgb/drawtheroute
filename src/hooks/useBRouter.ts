@@ -27,30 +27,30 @@ export function useBRouter() {
       const feature = geojson?.features?.[0];
       if (!feature) throw new Error('No feature in BRouter response');
 
-      // ── 數據處理 ──
       const raw: [number, number, number][] = feature.geometry.coordinates;
-      
-      // 核心修改：確保這段路徑的「頭」和「尾」高度與傳入的 LatLng (來自地圖/右側欄) 完全一致
+
+      // ── 在這裡替換了原本的那行代碼 ──
       const coordinates = raw.map(([lng, lat, ele], idx) => {
         let finalEle = ele ?? 0;
         
-        // 如果是第一個點，強行對齊起點高度
-        if (idx === 0 && from.elevation !== undefined) {
-          finalEle = from.elevation;
+        // 使用 as any 避開 TypeScript 對 elevation 屬性的檢查報錯
+        const startPoint = from as any;
+        const endPoint = to as any;
+
+        if (idx === 0 && startPoint.elevation !== undefined) {
+          finalEle = startPoint.elevation;
         } 
-        // 如果是最後一個點，強行對齊終點高度
-        else if (idx === raw.length - 1 && to.elevation !== undefined) {
-          finalEle = to.elevation;
+        else if (idx === raw.length - 1 && endPoint.elevation !== undefined) {
+          finalEle = endPoint.elevation;
         }
 
         return { lat, lng, ele: finalEle };
       });
 
-      // 解析統計數據
       const props = feature.properties ?? {};
       const distanceM = parseFloat(props['track-length'] ?? '0');
       const ascentM = parseFloat(props['filtered ascend'] ?? '0');
-      const plainAscend = parseFloat(props['plain-ascend'] ?? '0');
+      const plainAscend = parseFloat(props['plain-asc-desc'] || props['plain-ascend'] || '0');
       const descentM = plainAscend < 0 ? Math.abs(plainAscend) : 0;
 
       return { coordinates, distanceM, ascentM, descentM };
