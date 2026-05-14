@@ -9,6 +9,8 @@ import { formatTime } from '../../hooks/useTerrainAnalysis';
 interface Props {
   profile: ElevationProfilePoint[];
   stats: RouteStats;
+  // 增：加入 waypoints 接口
+  waypoints?: any[]; 
   onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
@@ -34,7 +36,8 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
-export default function ElevationChart({ profile, stats, onHoverPoint }: Props) {
+// 增：在解構賦值加入 waypoints = []
+export default function ElevationChart({ profile, stats, waypoints = [], onHoverPoint }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
   onHoverRef.current = onHoverPoint;
@@ -70,7 +73,7 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
   const pad = Math.max(20, (maxE - minE) * 0.12);
   const yDomain: [number, number] = [Math.max(0, minE - pad), maxE + pad];
 
-  return (
+ return (
     <div className="h-full flex flex-col">
       {/* Stats badges */}
       <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
@@ -83,26 +86,23 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
       </div>
 
       {/* Chart */}
-      <div className="flex-1 min-h-0 px-1">
+     <div className="flex-1 min-h-0 px-1">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={profile}
-            margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+            // 增：將 top margin 從 4 改為 30，為了給圖 1 頂部的文字留空間，其餘不動
+            margin={{ top: 30, right: 16, left: 0, bottom: 4 }}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
           >
-            <defs>
+         <defs>
               <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.45} />
                 <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.03} />
               </linearGradient>
             </defs>
 
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="rgba(148,163,184,0.08)"
-              vertical={false}
-            />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" vertical={false} />
 
             <XAxis
               dataKey="distance"
@@ -131,6 +131,26 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
               cursor={{ stroke: 'rgba(96,165,250,0.4)', strokeWidth: 1.5, strokeDasharray: '4 3' }}
             />
 
+            {/* 增：新增 CP 標記邏輯，仿照圖 1 的垂直線與頂部文字 */}
+            {waypoints.map((wp, idx) => (
+              <ReferenceLine
+                key={wp.id || idx}
+                x={wp.distanceFromStart}
+                stroke="white"
+                strokeWidth={1}
+                strokeOpacity={0.3}
+              >
+                <Label
+                  value={idx === 0 ? "START" : idx === waypoints.length - 1 ? "END" : `CP${idx}`}
+                  position="top"
+                  fill="white"
+                  fontSize={10}
+                  offset={10}
+                />
+              </ReferenceLine>
+            ))}
+
+            {/* ... hoverX 判斷完全不動 */}
             {hoverX !== null && (
               <ReferenceLine
                 x={hoverX}
@@ -141,6 +161,7 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
               />
             )}
 
+            {/* ... Area 屬性完全不動 */}
             <Area
               type="monotone"
               dataKey="elevation"
