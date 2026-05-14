@@ -169,17 +169,18 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
 <XAxis
   dataKey="distance"
   type="number"
-  domain={[0, 'dataMax']}
-  // 強制讓刻度不要貼邊，這會讓 0.0km 往右移一點，變得可見
-  padding={{ left: 10, right: 10 }} 
-  // 增加這個設定，防止 Recharts 為了美觀自動隱藏 0
-  hide={false}
+  // 1. 強制定義座標軸範圍
+  domain={[0, 'dataMax']} 
+  // 2. 「硬塞」刻度：這裡我們手動指定要顯示的刻度點
+  // 我們拿數據最大值，並在最前面硬塞一個 0
+  ticks={[0, stats.totalDistance * 0.25, stats.totalDistance * 0.5, stats.totalDistance * 0.75, stats.totalDistance]}
+  // 3. 防止數據溢出導致刻度消失
+  allowDataOverflow={false}
   tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
   tickFormatter={v => `${Number(v).toFixed(1)}km`}
   axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
   tickLine={false}
-  // 確保 0 這個刻度一定會被考慮渲染
-  minTickGap={0} 
+  minTickGap={0}
 />
 
 
