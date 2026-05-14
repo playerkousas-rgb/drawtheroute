@@ -87,15 +87,15 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
     );
   }
 
- const elevs = profile.map(p => p.elevation);
+const elevs = profile.map(p => p.elevation).filter(e => !isNaN(e));
 
   const minE = Math.min(...elevs);
 
-  const maxE = Math.max(...elevs);
+const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
 
   const pad = Math.max(20, (maxE - minE) * 0.12);
 
-  const yDomain: [number, number] = [Math.max(0, minE - pad), maxE + pad];
+ const yDomain: [number, number] = [0, maxE + pad];
 
 
 
