@@ -158,14 +158,16 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
             <XAxis
   dataKey="distance"
   type="number"
-  scale="linear"
-  // 修改這裡：將 'dataMin' 改為 0
+  // 強制 X 軸從 0 開始，到數據最大值結束
   domain={[0, 'dataMax']} 
+  // 增加這個：讓數據點不要緊貼邊緣
+  padding={{ left: 0, right: 10 }} 
   tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
   tickFormatter={v => `${Number(v).toFixed(1)}km`}
   axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
   tickLine={false}
-  minTickGap={40}
+  // 如果數據量大，可以加上這個防止刻度擠在一起
+  interval="preserveStartEnd"
 />
 
 
