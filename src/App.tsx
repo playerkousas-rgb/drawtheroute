@@ -136,11 +136,12 @@ export default function App() {
             </button>
           </div>
           <div className="h-44">
-            <ElevationChart
-              profile={elevationProfile}
-              stats={stats}
-              onHoverPoint={setHoveredPt}
-            />
+           <ElevationChart
+  profile={elevationProfile}
+  stats={stats}
+  waypoints={waypoints} // 加上這一行
+  onHoverPoint={setHoveredPt}
+/>
           </div>
         </div>
 
