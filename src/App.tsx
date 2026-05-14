@@ -136,9 +136,11 @@ export default function App() {
             </button>
           </div>
           <div className="h-44">
+            {/* 這裡我們把 waypoints 傳進去，讓圖表能顯示 CP 標記 */}
             <ElevationChart
               profile={elevationProfile}
               stats={stats}
+              waypoints={waypoints} 
               onHoverPoint={setHoveredPt}
             />
           </div>
