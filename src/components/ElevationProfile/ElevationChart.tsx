@@ -1,23 +1,14 @@
 import { useState, useCallback, useRef } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, Label
+  Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
 import { ElevationProfilePoint, RouteStats } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
 
-// 定義 Waypoint 結構，確保能接收地圖上的 CP 點
-interface Waypoint {
-  id: string;
-  name: string;
-  distanceFromStart: number; // 修正：對齊專案資料結構
-  elevation?: number;
-}
-
 interface Props {
   profile: ElevationProfilePoint[];
   stats: RouteStats;
-  waypoints?: Waypoint[]; // 新增：接收來自 useRouteManager 的 CP 點
   onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
@@ -36,7 +27,6 @@ const CustomTooltip = ({ active, payload }: {
       fontSize: 11,
       fontFamily: 'monospace',
       boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
-      zIndex: 1000,
     }}>
       <div style={{ color: '#60a5fa' }}>📍 {d.distance.toFixed(3)} km</div>
       <div style={{ color: '#34d399' }}>⛰️ {d.elevation} m</div>
@@ -44,12 +34,12 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
-export default function ElevationChart({ profile, stats, waypoints = [], onHoverPoint }: Props) {
+export default function ElevationChart({ profile, stats, onHoverPoint }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
   onHoverRef.current = onHoverPoint;
 
-  // 滑鼠移動邏輯
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onMove = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {
       const pt = e.activePayload[0].payload as ElevationProfilePoint;
@@ -73,7 +63,7 @@ export default function ElevationChart({ profile, stats, waypoints = [], onHover
     );
   }
 
-  // 設定 Y 軸高度範圍
+  // Dynamic Y domain with padding
   const elevs = profile.map(p => p.elevation);
   const minE = Math.min(...elevs);
   const maxE = Math.max(...elevs);
@@ -82,7 +72,7 @@ export default function ElevationChart({ profile, stats, waypoints = [], onHover
 
   return (
     <div className="h-full flex flex-col">
-      {/* 頂部數據面板 */}
+      {/* Stats badges */}
       <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
         <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
         <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
@@ -92,12 +82,12 @@ export default function ElevationChart({ profile, stats, waypoints = [], onHover
         <StatBadge label="預計時間" val={formatTime(stats.estimatedTime)} color="#a78bfa" />
       </div>
 
-      {/* 圖表本體 */}
+      {/* Chart */}
       <div className="flex-1 min-h-0 px-1">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={profile}
-            margin={{ top: 25, right: 20, left: 0, bottom: 4 }}
+            margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
           >
@@ -141,28 +131,6 @@ export default function ElevationChart({ profile, stats, waypoints = [], onHover
               cursor={{ stroke: 'rgba(96,165,250,0.4)', strokeWidth: 1.5, strokeDasharray: '4 3' }}
             />
 
-            {/* 核心強化：自動在圖表上標記 CP 點 */}
-            {waypoints.map((wp, idx) => (
-              <ReferenceLine
-                key={wp.id || idx}
-                x={wp.distanceFromStart}
-                stroke="#fbbf24"
-                strokeWidth={2}
-                strokeOpacity={0.8}
-              >
-                <Label
-                  value={wp.name || (idx === 0 ? "起點" : idx === waypoints.length - 1 ? "終點" : `CP${idx}`)}
-                  position="top"
-                  fill="#fbbf24"
-                  fontSize={11}
-                  fontWeight={600}
-                  fontFamily="monospace"
-                  offset={10}
-                />
-              </ReferenceLine>
-            ))}
-
-            {/* 鼠標懸停線 */}
             {hoverX !== null && (
               <ReferenceLine
                 x={hoverX}
