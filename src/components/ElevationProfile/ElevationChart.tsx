@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine
+  Tooltip, ResponsiveContainer, ReferenceLine, Label // <--- 只有這裡：補上 Label
 } from 'recharts';
 import { ElevationProfilePoint, RouteStats } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
