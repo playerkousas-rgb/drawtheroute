@@ -3,13 +3,13 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { ElevationProfilePoint, RouteStats, WaypointMarker } from '../../types'; // 確認 WaypointMarker 已匯入
+import { ElevationProfilePoint, RouteStats, WaypointMarker } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
 
 interface Props {
   profile: ElevationProfilePoint[];
   stats: RouteStats;
-  waypoints: WaypointMarker[]; // 1. 新增 waypoints 入口
+  waypoints: WaypointMarker[];
   onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
@@ -38,17 +38,15 @@ const CustomTooltip = ({ active, payload }: {
 
 export default function ElevationChart({ profile, stats, waypoints, onHoverPoint }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null);
-  
-  // --- 在這裡加入這兩個新的 State 和一個 Ref ---
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // 新增：控制高度的 State，原本是 boolean，現在改用來控制 CSS 高度
+  const [isExpanded, setIsExpanded] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null); 
-  // -------------------------------------------
 
   const onHoverRef = useRef(onHoverPoint);
   onHoverRef.current = onHoverPoint;
 
-  // 2. 計算標記點位置 (SP / CP / EP)
   const markers = useMemo(() => {
     if (!profile.length || !waypoints.length) return [];
     return waypoints.map((wp, idx) => {
@@ -89,48 +87,46 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
       <div className="flex flex-col items-center justify-center h-full gap-2">
         <div className="text-4xl opacity-15">🏔️</div>
         <p className="text-slate-500 text-sm">點擊地圖上任意兩點開始規劃山徑</p>
-        <p className="text-slate-600 text-xs">左側工具列可切換山徑路由 / 直線模式</p>
       </div>
     );
   }
 
-const elevs = profile.map(p => Number(p.elevation)).filter(e => !isNaN(e));
-  const minE = Math.min(...elevs);
-const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
+  const elevs = profile.map(p => Number(p.elevation)).filter(e => !isNaN(e));
+  const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
   const roundedMax = Math.ceil(maxE / 100) * 100;
   const finalMax = (roundedMax - maxE < 30) ? roundedMax + 100 : roundedMax;
-  const pad = Math.max(20, (maxE - minE) * 0.12);
- const yDomain: [number, number] = [0, finalMax];
-
-
+  const yDomain: [number, number] = [0, finalMax];
 
   return (
+    /* 這裡用了動態高度：isExpanded 為真時佔螢幕 70% 高度，否則保持原本高度 */
     <div 
-  ref={chartRef} 
-  className={`flex flex-col bg-slate-950 transition-all ${
-    isFullscreen 
-      ? 'fixed inset-0 z-[9999] bg-slate-950 p-6' // 這裡 z-[9999] 是關鍵，強制它站到最前面
-      : 'h-full relative'
-  }`}
->
+      ref={chartRef} 
+      className={`flex flex-col bg-slate-950 transition-all duration-300 border-t border-slate-800 ${
+        isExpanded ? 'h-[70vh]' : 'h-full'
+      }`}
+    >
       
-      {/* 頂部控制列 */}
       <div className="flex justify-between items-center px-4 py-2 border-b border-slate-800 bg-slate-900/30">
         <div className="flex gap-2">
           <button onClick={() => setActiveTab('chart')} className={`px-3 py-1 text-xs rounded ${activeTab === 'chart' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>剖面圖</button>
           <button onClick={() => setActiveTab('table')} className={`px-3 py-1 text-xs rounded ${activeTab === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>路程表</button>
         </div>
+        
         <div className="flex gap-4 items-center">
           <button onClick={() => alert('下載功能開發中')} className="text-slate-400 hover:text-white text-xs">💾 PNG</button>
-          <button onClick={() => setIsFullscreen(!isFullscreen)} className="text-slate-400 hover:text-white text-xs">
-            {isFullscreen ? '✕ 退出' : '⛶ 全屏確認'}
+          
+          {/* 這個按鈕負責把整個面板拉高 */}
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)} 
+            className="text-blue-400 hover:text-blue-300 text-xs font-bold border border-blue-900/50 px-2 py-0.5 rounded bg-blue-950/30"
+          >
+            {isExpanded ? '🔽 縮小面板' : '🔼 展開拉高'}
           </button>
         </div>
       </div>
 
       {activeTab === 'chart' ? (
         <div className="flex-1 flex flex-col min-h-0">
-          {/* 原本的徽章數據區 */}
           <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
             <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
             <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
@@ -140,7 +136,6 @@ const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
             <StatBadge label="預計時間" val={formatTime(stats.estimatedTime)} color="#a78bfa" />
           </div>
 
-          {/* 原本的圖表區 */}
           <div className="flex-1 min-h-0 px-1">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={profile} margin={{ top: 20, right: 16, left: 0, bottom: 4 }} onMouseMove={onMove} onMouseLeave={onLeave}>
@@ -171,6 +166,7 @@ const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
     </div>
   );
 }
+
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{
@@ -179,7 +175,6 @@ function StatBadge({ label, val, color }: { label: string; val: string; color: s
       border: '1px solid rgba(148,163,184,0.12)',
       borderRadius: 6, padding: '3px 8px',
     }}>
-
       <span style={{ color: '#475569', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
       <span style={{ color, fontSize: 12, fontFamily: 'monospace', fontWeight: 600 }}>{val}</span>
     </div>
