@@ -155,37 +155,32 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
 
 
 
-           <XAxis
-  dataKey="distance"
-  type="number"
-  domain={[0, 'dataMax']} 
-  // 核心改動：增加內部邊距，這會強制讓數據向右縮，留出起點空間
-  padding={{ left: 20, right: 20 }} 
-  // 強制顯示起點刻度
-  allowTickCountVariance={false}
-  tick={{ fill: '#475569', fontSize: 10 }}
-  tickFormatter={v => `${Number(v).toFixed(1)}km`}
+         <YAxis
+  dataKey="elevation"
+  domain={yDomain}
+  // 增加寬度，確保海拔數字不會擠到 X 軸的起點
+  width={50} 
+  tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
+  tickFormatter={v => `${Math.round(v)}m`}
+  axisLine={false}
+  tickLine={false}
 />
 
-
-
-            <YAxis
-
-              dataKey="elevation"
-
-              domain={yDomain}
-
-              tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
-
-              tickFormatter={v => `${Math.round(v)}m`}
-
-              axisLine={false}
-
-              tickLine={false}
-
-              width={44}
-
-            />
+<XAxis
+  dataKey="distance"
+  type="number"
+  domain={[0, 'dataMax']}
+  // 強制讓刻度不要貼邊，這會讓 0.0km 往右移一點，變得可見
+  padding={{ left: 10, right: 10 }} 
+  // 增加這個設定，防止 Recharts 為了美觀自動隱藏 0
+  hide={false}
+  tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
+  tickFormatter={v => `${Number(v).toFixed(1)}km`}
+  axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
+  tickLine={false}
+  // 確保 0 這個刻度一定會被考慮渲染
+  minTickGap={0} 
+/>
 
 
 
