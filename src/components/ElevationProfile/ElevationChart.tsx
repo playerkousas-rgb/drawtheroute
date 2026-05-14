@@ -1,14 +1,15 @@
-import { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { ElevationProfilePoint, RouteStats } from '../../types';
+import { ElevationProfilePoint, RouteStats, WaypointMarker } from '../../types'; // 確認 WaypointMarker 已匯入
 import { formatTime } from '../../hooks/useTerrainAnalysis';
 
 interface Props {
   profile: ElevationProfilePoint[];
   stats: RouteStats;
+  waypoints: WaypointMarker[]; // 1. 新增 waypoints 入口
   onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
@@ -27,6 +28,7 @@ const CustomTooltip = ({ active, payload }: {
       fontSize: 11,
       fontFamily: 'monospace',
       boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+      zIndex: 1000
     }}>
       <div style={{ color: '#60a5fa' }}>📍 {d.distance.toFixed(3)} km</div>
       <div style={{ color: '#34d399' }}>⛰️ {d.elevation} m</div>
@@ -34,12 +36,34 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
-export default function ElevationChart({ profile, stats, onHoverPoint }: Props) {
+export default function ElevationChart({ profile, stats, waypoints, onHoverPoint }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
   onHoverRef.current = onHoverPoint;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // 2. 計算標記點位置 (SP / CP / EP)
+  const markers = useMemo(() => {
+    if (!profile.length || !waypoints.length) return [];
+    return waypoints.map((wp, idx) => {
+      let closest = profile[0];
+      let minDiff = Infinity;
+      for (const p of profile) {
+        const diff = Math.pow(p.lat - wp.latlng.lat, 2) + Math.pow(p.lng - wp.latlng.lng, 2);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = p;
+        }
+      }
+      const isSP = idx === 0;
+      const isEP = idx === waypoints.length - 1;
+      return {
+        x: closest.distance,
+        label: isSP ? 'SP' : (isEP ? 'EP' : `CP${idx}`),
+        color: isSP ? '#10b981' : (isEP ? '#f87171' : '#fbbf24')
+      };
+    });
+  }, [profile, waypoints]);
+
   const onMove = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {
       const pt = e.activePayload[0].payload as ElevationProfilePoint;
@@ -63,7 +87,6 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
     );
   }
 
-  // Dynamic Y domain with padding
   const elevs = profile.map(p => p.elevation);
   const minE = Math.min(...elevs);
   const maxE = Math.max(...elevs);
@@ -72,7 +95,6 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
 
   return (
     <div className="h-full flex flex-col">
-      {/* Stats badges */}
       <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
         <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
         <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
@@ -82,12 +104,11 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
         <StatBadge label="預計時間" val={formatTime(stats.estimatedTime)} color="#a78bfa" />
       </div>
 
-      {/* Chart */}
       <div className="flex-1 min-h-0 px-1">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={profile}
-            margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+            margin={{ top: 20, right: 16, left: 0, bottom: 4 }} // 增加 top 以容納標籤
             onMouseMove={onMove}
             onMouseLeave={onLeave}
           >
@@ -98,22 +119,16 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
               </linearGradient>
             </defs>
 
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="rgba(148,163,184,0.08)"
-              vertical={false}
-            />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" vertical={false} />
 
             <XAxis
               dataKey="distance"
               type="number"
-              scale="linear"
               domain={['dataMin', 'dataMax']}
               tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
               tickFormatter={v => `${Number(v).toFixed(1)}km`}
               axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
               tickLine={false}
-              minTickGap={40}
             />
 
             <YAxis
@@ -126,19 +141,30 @@ export default function ElevationChart({ profile, stats, onHoverPoint }: Props) 
               width={44}
             />
 
-            <Tooltip
-              content={<CustomTooltip />}
-              cursor={{ stroke: 'rgba(96,165,250,0.4)', strokeWidth: 1.5, strokeDasharray: '4 3' }}
-            />
+            <Tooltip content={<CustomTooltip />} cursor={false} />
+
+            {/* 3. 渲染 SP / CP / EP 標記線 */}
+            {markers.map((m, i) => (
+              <ReferenceLine
+                key={i}
+                x={m.x}
+                stroke={m.color}
+                strokeWidth={1.5}
+                strokeDasharray="3 3"
+                label={{
+                  value: m.label,
+                  position: 'top',
+                  fill: m.color,
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  fontFamily: 'monospace',
+                  dy: -5
+                }}
+              />
+            ))}
 
             {hoverX !== null && (
-              <ReferenceLine
-                x={hoverX}
-                stroke="#60a5fa"
-                strokeWidth={1.5}
-                strokeDasharray="4 3"
-                strokeOpacity={0.8}
-              />
+              <ReferenceLine x={hoverX} stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4 3" />
             )}
 
             <Area
