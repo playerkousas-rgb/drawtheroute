@@ -87,24 +87,42 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
     );
   }
 
- const elevs = profile.map(p => p.elevation);
-  const minE = Math.min(...elevs);
-  const maxE = Math.max(...elevs);
+// 1. 提取海拔數值，並過濾掉無效數據 (防止 Math.min 出現 Infinity)
+  const elevs = useMemo(() => 
+    profile.map(p => p.elevation).filter(e => typeof e === 'number' && !isNaN(e)),
+    [profile]
+  );
+
+  // 2. 安全計算範圍
+  const minE = elevs.length > 0 ? Math.min(...elevs) : 0;
+  const maxE = elevs.length > 0 ? Math.max(...elevs) : 100;
   const pad = Math.max(20, (maxE - minE) * 0.12);
   const yDomain: [number, number] = [Math.max(0, minE - pad), maxE + pad];
 
-  // 額外計算：找出區間內所有的整百米高度（例如 500, 600...）用於繪製水平參考線
+  // 3. 安全計算水平高度線 (限制最多 20 條，防止死迴圈)
   const horizontalLines = useMemo(() => {
+    if (elevs.length === 0) return [];
     const lines = [];
     const startH = Math.ceil(yDomain[0] / 100) * 100;
-    for (let h = startH; h < yDomain[1]; h += 100) {
+    for (let h = startH; h < yDomain[1] && lines.length < 20; h += 100) {
       lines.push(h);
     }
     return lines;
-  }, [yDomain]);
+  }, [yDomain, elevs.length]);
+
+  // 4. 防禦性渲染：如果數據點少於 2 個，顯示載入狀態而非圖表，防止全黑
+  if (profile.length < 2) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-slate-900/20 backdrop-blur-sm">
+        <div className="text-4xl opacity-20 animate-pulse">🏔️</div>
+        <p className="text-slate-500 text-sm mt-2 font-medium">山徑規劃中...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
+      {/* 數據統計欄位 */}
       <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
         <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
         <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
@@ -114,11 +132,12 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
         <StatBadge label="預計時間" val={formatTime(stats.estimatedTime)} color="#a78bfa" />
       </div>
 
+      {/* 圖表區域 */}
       <div className="flex-1 min-h-0 px-1">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={profile}
-            margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
+            margin={{ top: 25, right: 16, left: 0, bottom: 4 }}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
           >
@@ -129,13 +148,13 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
               </linearGradient>
             </defs>
 
-            {/* 變更：開啟垂直線並加深透明度，方便列印看清方格 */}
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" vertical={true} />
+            {/* 方格紙背景：顯示垂直與水平線 */}
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={true} />
 
             <XAxis
               dataKey="distance"
               type="number"
-              domain={[0, 'dataMax']} // 修改：強制從 0 開始
+              domain={[0, 'dataMax']} // 強制由 0 公里開始
               tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }}
               tickFormatter={v => `${Number(v).toFixed(1)}km`}
               axisLine={{ stroke: 'rgba(148,163,184,0.15)' }}
@@ -154,23 +173,24 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
 
             <Tooltip content={<CustomTooltip />} cursor={false} />
 
-            {/* 新增：整百米水平高度線（列印輔助） */}
+            {/* 自動生成整百米水平線 (如 500m, 600m...) */}
             {horizontalLines.map(h => (
               <ReferenceLine 
                 key={`h-line-${h}`} 
                 y={h} 
-                stroke="rgba(148,163,184,0.15)" 
-                strokeWidth={0.5}
-                label={{ value: `${h}m`, position: 'insideLeft', fill: '#475569', fontSize: 8, opacity: 0.5 }}
+                stroke="rgba(148,163,184,0.2)" 
+                strokeWidth={1}
+                label={{ value: `${h}m`, position: 'insideLeft', fill: '#64748b', fontSize: 9, opacity: 0.7, dy: 10 }}
               />
             ))}
 
+            {/* 標註 SP / CP / EP 垂直線 */}
             {markers.map((m, i) => (
               <ReferenceLine
                 key={i}
                 x={m.x}
                 stroke={m.color}
-                strokeWidth={1.5}
+                strokeWidth={2}
                 strokeDasharray="3 3"
                 label={{
                   value: m.label,
@@ -179,15 +199,17 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
                   fontSize: 10,
                   fontWeight: 'bold',
                   fontFamily: 'monospace',
-                  dy: -5
+                  dy: -8
                 }}
               />
             ))}
 
+            {/* 滑鼠懸停指示線 */}
             {hoverX !== null && (
               <ReferenceLine x={hoverX} stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4 3" />
             )}
 
+            {/* 海拔主要曲線 */}
             <Area
               type="monotone"
               dataKey="elevation"
@@ -205,6 +227,7 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
   );
 }
 
+// 狀態標籤組件
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{
