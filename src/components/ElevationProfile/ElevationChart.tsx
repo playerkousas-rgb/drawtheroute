@@ -161,7 +161,7 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
           </ResponsiveContainer>
         </div>
       ) : (
-         <div className="overflow-x-auto flex-1 flex flex-col gap-4">
+       <div className="overflow-x-auto flex-1 flex flex-col gap-4">
           {/* 1. 行程基本資訊 (Excel 頂部欄位) */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-3 bg-slate-900/80 rounded-lg border border-slate-700 text-[11px]">
             <div className="flex items-center gap-2">
@@ -287,6 +287,10 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
 
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
