@@ -1,70 +1,66 @@
 import React from 'react';
+// 這裡的引進路徑，我改為相對路徑，請確保檔案在 src/hooks/useItineraryData.ts
 import { useItineraryData } from '../hooks/useItineraryData';
 
-// 這裡接收來自 App.tsx 的所有原始材料
+/**
+ * 我們這裡的 Props 名稱，嚴格對齊你在 App.tsx 傳進來的名字
+ */
 export default function DataInspector({ waypoints, segments, naismithSettings }: any) {
   
-  // 呼叫我們剛才寫好的「大總管」Hook，進行加工
-  const { materials, weather, settings } = useItineraryData(
+  // 我們將傳進來的 naismithSettings 給大總管處理
+  const { materials, weather } = useItineraryData(
     waypoints, 
     segments, 
     naismithSettings
   );
 
-  return (
-    <div className="fixed bottom-0 left-0 w-full z-[9999] bg-black/90 text-green-400 p-4 font-mono text-[10px] border-t-2 border-green-500 max-h-[40vh] overflow-auto">
-      <div className="flex justify-between items-center mb-2 border-b border-green-900 pb-1">
-        <h2 className="text-white font-bold">🛠️ 數據加工廠驗收儀 (Raw Materials Test)</h2>
-        <div className="flex gap-4">
-          <span>天氣狀態: {weather ? '✅ 已連通' : '❌ 未連通'}</span>
-          <span>右側欄同步: {settings ? '✅ 已同步' : '❌ 斷開'}</span>
-        </div>
+  if (!waypoints || waypoints.length === 0) {
+    return (
+      <div className="fixed bottom-4 left-4 z-[2000] bg-slate-900 p-4 rounded-lg border border-slate-700 text-slate-400 text-xs font-mono">
+        等待地圖點位輸入...
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-3 gap-4">
-        {/* 第一欄：氣象與參數驗收 */}
-        <div className="border-r border-green-900/50 pr-2">
-          <h3 className="text-blue-400 mb-1 underline">1. 外部服務數據</h3>
-          <pre className="text-[9px]">
-            {weather ? JSON.stringify({
-              temp: `${weather.temp}°C`,
-              wind: `${weather.windSpeed}km/h`,
-              sun: `${weather.sunrise}/${weather.sunset}`
-            }, null, 2) : '等待數據...'}
-          </pre>
-          <h3 className="text-violet-400 mt-2 mb-1 underline">2. Naismith 參數</h3>
-          <p>時速: {settings?.baseSpeedKmh} km/h</p>
-          <p>上升加時: {settings?.ascentPer20m} min</p>
+  return (
+    <div className="fixed bottom-4 left-4 z-[2000] bg-slate-900/95 text-emerald-400 p-4 rounded-xl border border-emerald-500/30 shadow-2xl font-mono text-[10px] w-[500px] max-h-[300px] overflow-auto">
+      <h2 className="text-white border-b border-slate-700 pb-2 mb-2 flex justify-between">
+        <span>🧪 材料加工驗收儀</span>
+        <span className="text-slate-500">點位總數: {waypoints.length}</span>
+      </h2>
+
+      <div className="space-y-4">
+        {/* 驗收天氣 */}
+        <div className="flex gap-4 items-center bg-slate-800/50 p-2 rounded">
+          <span className="text-slate-400">🌦️ 起點天氣:</span>
+          {weather ? (
+            <span className="text-blue-300">{weather.temp}°C / {weather.description}</span>
+          ) : (
+            <span className="text-slate-600 italic">獲取中...</span>
+          )}
         </div>
 
-        {/* 第二及第三欄：行程點計算驗收 */}
-        <div className="col-span-2">
-          <h3 className="text-amber-400 mb-1 underline">3. 行程點加工結果 (Waypoints Processed)</h3>
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-slate-500 border-b border-slate-800">
-                <th>標記</th>
-                <th>KK 網格</th>
-                <th>高度</th>
-                <th>方位</th>
-                <th>累積距離</th>
-                <th>預計到達</th>
+        {/* 驗收點位加工 */}
+        <table className="w-full text-left">
+          <thead className="text-slate-500 border-b border-slate-800">
+            <tr>
+              <th>ID</th>
+              <th>KK Grid (網格)</th>
+              <th>Alt (高度)</th>
+              <th>Bearing (方位)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {materials.map((m: any, i: number) => (
+              <tr key={i} className="border-b border-slate-800/50">
+                <td className="py-1 text-white">{m.id}</td>
+                <td className="py-1 text-blue-400">{m.grid}</td>
+                <td className="py-1 text-emerald-500">{m.ele.toFixed(0)}m</td>
+                <td className="py-1 text-yellow-500">{m.bearing !== null ? `${m.bearing}°` : '--'}</td>
               </tr>
-            </thead>
-            <tbody>
-              {materials.map((m: any, i: number) => (
-                <tr key={i} className="border-b border-slate-900">
-                  <td className="text-white">{m.id}</td>
-                  <td className="text-blue-300">{m.grid}</td>
-                  <td className="text-emerald-300">{m.ele.toFixed(0)}m</td>
-                  <td className="text-yellow-500">{m.bearing ?? '--'}°</td>
-                  <td className="text-purple-400">{m.accDist.toFixed(2)}km</td>
-                  <td className="text-orange-400 font-bold">{m.predictedArrival}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
