@@ -3,15 +3,13 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { ElevationProfilePoint, RouteStats, WaypointMarker, RouteSegment, NaismithSettings } from '../../types';
+import { ElevationProfilePoint, RouteStats, WaypointMarker } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
 
 interface Props {
   profile: ElevationProfilePoint[];
   stats: RouteStats;
   waypoints: WaypointMarker[];
-  segments: RouteSegment[]; // 👈 新增這行
-  naismithSettings: NaismithSettings; // 👈 新增這行
   onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
@@ -38,7 +36,7 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
-export default function ElevationChart({ profile, stats, waypoints, segments, naismithSettings, onHoverPoint }: Props) {
+export default function ElevationChart({ profile, stats, waypoints, onHoverPoint }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
