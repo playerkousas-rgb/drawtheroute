@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { ElevationProfilePoint, RouteStats, WaypointMarker, RouteSegment, NaismithSettings } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
+import { calculateBearing } from '../../utils/coordUtils';
 
 interface Props {
   profile: ElevationProfilePoint[];
@@ -267,8 +268,18 @@ export default function ElevationChart({
         <td className="p-0 border border-slate-700 bg-white/5 text-center">
           <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
         </td>
-        <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">--°</td>
-
+        <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">
+  {segment && waypoints[i + 1] ? (
+    `${calculateBearing(
+      wp.latlng.lat,
+      wp.latlng.lng,
+      waypoints[i + 1].latlng.lat,
+      waypoints[i + 1].latlng.lng
+    )}°`
+  ) : (
+    "--°"
+  )}
+</td>
         {/* 分段距離 (KM) */}
         <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
           {segment ? segment.distance.toFixed(2) : "0.00"}
