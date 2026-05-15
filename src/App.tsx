@@ -30,7 +30,7 @@ export default function App() {
     addWaypoint, deleteWaypoint, undoLastSegment, clearAll, importGPX,
   } = useRouteManager();
 
-  const { stats, elevationProfile } = useTerrainAnalysis(segments, naismith);
+  const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismithSettings);
 
   const handleMapClick = useCallback((latlng: LatLng) => {
     if (isProcessing) return;
