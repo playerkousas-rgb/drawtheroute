@@ -91,7 +91,7 @@ export default function App() {
       {/* ── Right info panel ── */}
       <RightPanel
         stats={stats}
-        segments={segments}
+        segments={analyzedSegments}
         waypoints={waypoints}
         onDeleteWaypoint={deleteWaypoint}
         naismithSettings={naismith}
