@@ -37,7 +37,6 @@ const CustomTooltip = ({ active, payload }: {
 };
 
 export default function ElevationChart({ profile, stats, waypoints, onHoverPoint }: Props) {
-  const { materials, weather } = useItineraryData(waypoints, segments);
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
