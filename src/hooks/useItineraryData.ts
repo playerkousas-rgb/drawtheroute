@@ -1,59 +1,68 @@
 import { useState, useEffect } from 'react';
-// 1. 從根目錄的 services 抓取工具
 import { getKKGrid, fetchWeatherData } from '../../services/weatherService';
-// 2. 從 src/utils 抓取地理運算工具
-import { calculateBearing } from '../utils/coordUtils';
-// 3. 引入類型定義
-import { WaypointMarker, RouteSegment } from '../types';
+import { calculateBearing, addMinutesToTime } from '../utils/coordUtils'; // 補上 addMinutesToTime
+import { WaypointMarker, RouteSegment, NaismithSettings } from '../types';
 
-export const useItineraryData = (waypoints: WaypointMarker[], segments: RouteSegment[]) => {
+export const useItineraryData = (
+  waypoints: WaypointMarker[], 
+  segments: RouteSegment[],
+  naismith: NaismithSettings // 傳入 Naismith 設定
+) => {
   const [weather, setWeather] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
 
   useEffect(() => {
     const processData = async () => {
-      // 如果還沒有點位，就什麼都不做
       if (!waypoints || waypoints.length === 0) return;
 
-      // 【加工 1：抓天氣】
-      // 只在還沒有天氣資料時，抓一次起點的天氣
+      // 1. 抓天氣
       if (!weather) {
         const startLoc = waypoints[0].latlng;
         const data = await fetchWeatherData(startLoc.lat, startLoc.lng);
         setWeather(data);
       }
 
-      // 【加工 2：拼裝路書食材】
+      // 2. 加工全數據
+      let cumulativeDist = 0;
+      // 初始時間：使用天氣的日出時間，若無則預設 08:00
+      let currentTime = weather?.sunrise || "08:00"; 
+
       const result = waypoints.map((wp, i) => {
-        // 計算這一站看向下一站的「方位角」
+        const prevSeg = i > 0 ? segments[i - 1] : null;
+        
+        // 累計里程 (km)
+        if (prevSeg) cumulativeDist += prevSeg.distance;
+
+        // 方位角
         let bearing = 0;
         if (i < waypoints.length - 1) {
-          const currentLoc = wp.latlng;
           const nextLoc = waypoints[i + 1].latlng;
-          bearing = calculateBearing(
-            currentLoc.lat, currentLoc.lng, 
-            nextLoc.lat, nextLoc.lng
-          );
+          bearing = calculateBearing(wp.latlng.lat, wp.latlng.lng, nextLoc.lat, nextLoc.lng);
         }
 
-        // 回傳這一站加工後的完整資訊
+        // 預計抵達時間 (ETA)
+        if (prevSeg) {
+          // 這裡對齊 Naismith 算法：(距離 / 時速) * 60 分鐘
+          // 後續可以再加上高度加權，目前先做里程累加
+          const segmentMinutes = (prevSeg.distance / naismith.baseSpeedKmh) * 60;
+          currentTime = addMinutesToTime(currentTime, segmentMinutes);
+        }
+
         return {
           id: wp.id,
-          // 這裡呼叫 services 裡的網格轉換
-          grid: getKKGrid(wp.latlng.lat, wp.latlng.lng), 
+          grid: getKKGrid(wp.latlng.lat, wp.latlng.lng),
           bearing: bearing,
           elevation: wp.elevation,
+          cumDist: cumulativeDist.toFixed(2), // 補上里程
+          eta: currentTime,                  // 補上時間
         };
       });
 
-      // 把加工好的成品存起來
       setMaterials(result);
     };
 
     processData();
-    // 當點位有變動、或者路段有變動時，重新加工
-  }, [waypoints, segments]);
+  }, [waypoints, segments, naismith, weather?.sunrise]);
 
-  // 對外輸出：天氣成品、點位加工成品
   return { weather, materials };
 };
