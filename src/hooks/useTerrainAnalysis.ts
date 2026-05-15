@@ -3,88 +3,104 @@ import { RouteSegment, RouteStats, NaismithSettings, ElevationProfilePoint } fro
 
 export function useTerrainAnalysis(segments: RouteSegment[], settings: NaismithSettings) {
   
-  // ── 1. 完美的 Elevation profile ───────────────────────────────────────────────────
-  // 維持你原本寫得最讚的橫切面點位計算，確保跟畫面 100% 同步
-  const elevationProfile: ElevationProfilePoint[] = useMemo(() => {
-    const out: ElevationProfilePoint[] = [];
+  // ── 1. 同步分析路段與橫切面 ──────────────────────────────────────────────────────
+  // 遵照你的最高指導原則：既然橫切面數據最準，我們在產出橫切面的同時，順便把每一段的爬升下降重算乾淨！
+  const { elevationProfile, analyzedSegments } = useMemo(() => {
+    const outProfile: ElevationProfilePoint[] = [];
+    const outSegments: RouteSegment[] = [];
     let cumulativeKm = 0;
 
     for (let si = 0; si < segments.length; si++) {
       const seg = segments[si];
+      
+      // 現場為這一個獨立路段建立局部的爬升與下降計數器
+      let segAsc = 0;
+      let segDesc = 0;
+
       for (let i = 0; i < seg.points.length; i++) {
-        if (i === 0 && si > 0) continue; // Skip duplicate junction point
         const p = seg.points[i];
+        
+        // 現場重算這一段內部的點位高度起伏，解決 BRouter 欄位下山變 0 的問題
+        if (i > 0) {
+          const prevP = seg.points[i - 1];
+          const diff = p.elevation - prevP.elevation;
+          if (diff > 0) segAsc += diff;
+          else segDesc += Math.abs(diff);
+        }
+
+        // 原本寫得最讚的橫切面攤平邏輯
+        if (i === 0 && si > 0) continue; 
         const d = parseFloat((cumulativeKm + p.distanceFromStart).toFixed(3));
-        out.push({
+        outProfile.push({
           distance: d,
           elevation: Math.round(p.elevation),
           lat: p.lat,
           lng: p.lng,
         });
       }
+
+      // 將這個路段複製一份，但把原本髒掉、壞掉的 ascent / descent 用剛才現場算好的精準數值強行覆蓋！
+      outSegments.push({
+        ...seg,
+        ascent: Math.round(segAsc),
+        descent: Math.round(segDesc)
+      });
+
       if (seg.points.length > 0) {
         cumulativeKm += seg.distance;
       }
     }
 
+    // 原本寫得最讚的去重疊邏輯
     const deduped: ElevationProfilePoint[] = [];
     let lastD = -1;
-    for (const pt of out) {
+    for (const pt of outProfile) {
       if (pt.distance > lastD) {
         deduped.push(pt);
         lastD = pt.distance;
       }
     }
-    return deduped;
+
+    return { elevationProfile: deduped, analyzedSegments: outSegments };
   }, [segments]);
 
-  // ── 2. 修正後的 Route Stats ──────────────────────────────────────────────────────
-  // 遵照你的意見：直接用現在橫切面（elevationProfile）的真實數據來算總高度起伏
+  // ── 2. 完美的總統計 ──────────────────────────────────────────────────────
   const stats: RouteStats = useMemo(() => {
     const empty = { totalDistance: 0, totalAscent: 0, totalDescent: 0, maxElevation: 0, minElevation: 0, estimatedTime: 0 };
     if (!elevationProfile.length) return empty;
 
-    let dist = 0, asc = 0, desc = 0;
+    let dist = elevationProfile[elevationProfile.length - 1].distance;
     let maxE = -Infinity, minE = Infinity;
+    
+    // 總和直接從我們剛剛洗乾淨的 analyzedSegments 累加，確保總體與分段數據在物理上絕對對齊
+    let totalAsc = 0;
+    let totalDesc = 0;
+    for (const seg of analyzedSegments) {
+      totalAsc += seg.ascent;
+      totalDesc += seg.descent;
+    }
 
-    // 取得最後一個點的累積總距離
-    dist = elevationProfile[elevationProfile.length - 1].distance;
-
-    // 直接遍歷橫切面的每一個精準點位，現場累加
-    for (let i = 0; i < elevationProfile.length; i++) {
-      const p = elevationProfile[i];
-      
-      // 計算最高與最低點
+    for (const p of elevationProfile) {
       if (p.elevation > maxE) maxE = p.elevation;
       if (p.elevation < minE) minE = p.elevation;
-
-      // 現場計算點與點之間的真實高度差
-      if (i > 0) {
-        const prevP = elevationProfile[i - 1];
-        const diff = p.elevation - prevP.elevation;
-        if (diff > 0) {
-          asc += diff;            // 上坡
-        } else {
-          desc += Math.abs(diff); // 下坡
-        }
-      }
     }
 
     const baseMin = (dist / settings.baseSpeedKmh) * 60;
-    const ascMin = (asc / 20) * settings.ascentPer20m;
-    const descMin = (desc / 20) * settings.descentPer20m;
+    const ascMin = (totalAsc / 20) * settings.ascentPer20m;
+    const descMin = (totalDesc / 20) * settings.descentPer20m;
 
     return {
       totalDistance: dist,
-      totalAscent: Math.round(asc),
-      totalDescent: Math.round(desc),
+      totalAscent: totalAsc,
+      totalDescent: totalDesc,
       maxElevation: maxE === -Infinity ? 0 : maxE,
       minElevation: minE === Infinity ? 0 : minE,
       estimatedTime: baseMin + ascMin + descMin,
     };
-  }, [elevationProfile, settings]); // 當橫切面數據更新，這裡就跟著即時重算
+  }, [elevationProfile, analyzedSegments, settings]);
 
-  return { stats, elevationProfile };
+  // 🔴 妙招在這裡：我們除了原本的東西，順便把洗乾淨的 analyzedSegments 也回傳出去！
+  return { stats, elevationProfile, analyzedSegments };
 }
 
 export function formatTime(min: number): string {
