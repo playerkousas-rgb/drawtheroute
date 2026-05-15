@@ -34,20 +34,24 @@ export default function DataInspector({ waypoints, segments }: Props) {
 
       {/* 點位加工數據 */}
       <div className="space-y-1">
-        <div className="grid grid-cols-4 text-slate-500 border-b border-slate-800 pb-1 px-1">
-          <span>站點</span>
-          <span>KK Grid</span>
-          <span>方位</span>
-          <span>高度</span>
-        </div>
-        {materials.map((m, i) => (
-          <div key={m.id} className="grid grid-cols-4 px-1 py-0.5 hover:bg-emerald-500/5 rounded transition-colors">
-            <span className="text-slate-400">#{i}</span>
-            <span className="text-emerald-300 font-bold">{m.grid}</span>
-            <span className="text-amber-300">{m.bearing}°</span>
-            <span className="text-slate-300">{m.elevation.toFixed(0)}m</span>
-          </div>
-        ))}
+       <div className="grid grid-cols-6 text-slate-500 border-b border-slate-800 pb-1 px-1">
+  <span>站點</span>
+  <span>KK Grid</span>
+  <span>方位</span>
+  <span>里程</span>
+  <span>ETA</span>
+  <span>高度</span>
+</div>
+{materials.map((m, i) => (
+  <div key={m.id} className="grid grid-cols-6 px-1 py-0.5 hover:bg-emerald-500/5">
+    <span className="text-slate-400">#{i}</span>
+    <span className="text-emerald-300">{m.grid}</span>
+    <span className="text-amber-300">{m.bearing}°</span>
+    <span className="text-blue-300">{m.cumDist}k</span>
+    <span className="text-violet-300">{m.eta}</span>
+    <span className="text-slate-300">{m.elevation.toFixed(0)}m</span>
+  </div>
+))}
       </div>
     </div>
   );
