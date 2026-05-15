@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { ElevationProfilePoint, RouteStats, WaypointMarker } from '../../types';
+import { ElevationProfilePoint, RouteStats, WaypointMarker, RouteSegment, NaismithSettings } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
 
 interface Props {
