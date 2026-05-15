@@ -161,68 +161,95 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full border-collapse text-[11px] border border-slate-700 min-w-[1200px]">
-            <thead className="bg-slate-900 sticky top-0 z-10 text-red-400">
-              <tr>
-                <th rowSpan={2} className="border border-slate-700 p-2">檢查站</th>
-                <th className="border border-slate-700 p-2 text-left">地名 / 地理特徵</th>
-                <th className="border border-slate-700 p-2">網格座標 / 高度</th>
-                <th rowSpan={2} className="border border-slate-700 p-2 text-center">前視<br/>方位</th>
-                <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">距離 (KM)</th>
-                <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">上升 (M)</th>
-                <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">下降 (M)</th>
-                <th rowSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">路段<br/>需時</th>
-                <th colSpan={2} className="border border-slate-700 p-2 text-center">休息 (MIN)</th>
-                <th colSpan={2} className="border border-slate-700 p-2 text-center">預計時間</th>
-                <th rowSpan={2} className="border border-slate-700 p-2 text-left">備註/工務</th>
-              </tr>
-              <tr className="text-slate-500">
-                <th className="border border-slate-700 p-1 font-normal text-left">(白色填寫)</th>
-                <th className="border border-slate-700 p-1 font-normal text-center">(系統自動)</th>
-                <th className="border border-slate-700 p-1 font-normal">分段</th><th className="border border-slate-700 p-1 font-normal">累積</th>
-                <th className="border border-slate-700 p-1 font-normal">分段</th><th className="border border-slate-700 p-1 font-normal">累積</th>
-                <th className="border border-slate-700 p-1 font-normal">分段</th><th className="border border-slate-700 p-1 font-normal">累積</th>
-                <th className="border border-slate-700 p-1 font-normal">路段</th><th className="border border-slate-700 p-1 font-normal">站點</th>
-                <th className="border border-slate-700 p-1 font-normal">出發</th><th className="border border-slate-700 p-1 font-normal">到達</th>
-              </tr>
-            </thead>
-            <tbody>
-              {waypoints.map((wp, i) => (
-                <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
-                  <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
-                    {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
-                  </td>
-                  <td className="p-0 border border-slate-700 bg-white/5">
-                    <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="輸入地理特徵..." />
-                  </td>
-                  <td className="p-2 border border-slate-700 text-purple-400 font-mono text-[10px] text-center">
-                    <div className="opacity-70">{wp.latlng.lat.toFixed(4)}, {wp.latlng.lng.toFixed(4)}</div>
-                    <div className="text-purple-300 font-bold">{(wp as any).elevation || 0}m</div>
-                  </td>
-                  <td className="p-0 border border-slate-700 bg-white/5 w-12 text-center">
-                    <input className="w-full bg-transparent p-2 text-center outline-none text-white" placeholder="--" />
-                  </td>
-                  <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">0.0</td>
-                  <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">0.0</td>
-                  <td className="p-2 border border-slate-700 text-center text-emerald-400">+0</td>
-                  <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">+0</td>
-                  <td className="p-2 border border-slate-700 text-center text-rose-400">-0</td>
-                  <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">-0</td>
-                  <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
-                  <td className="p-0 border border-slate-700 bg-white/5 w-12 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-                  <td className="p-0 border border-slate-700 bg-white/5 w-12 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-                  <td className="p-0 border border-slate-700 bg-white/5 text-center">
-                    <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
-                  </td>
-                  <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">--:--</td>
-                  <td className="p-0 border border-slate-700 bg-white/5">
-                    <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+       <div className="overflow-x-auto flex-1">
+    <table className="w-full border-collapse text-[11px] border border-slate-700 min-w-[1400px]">
+      <thead className="bg-slate-900 sticky top-0 z-10 text-red-400">
+        <tr>
+          <th rowSpan={2} className="border border-slate-700 p-2">檢查站</th>
+          <th className="border border-slate-700 p-2 text-left w-40">地名 / 地理特徵</th>
+          <th className="border border-slate-700 p-2">網格座標 / 高度</th>
+          <th rowSpan={2} className="border border-slate-700 p-2 text-center w-12">領航員</th>
+          <th rowSpan={2} className="border border-slate-700 p-2 text-center w-12">前視<br/>方位</th>
+          <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">距離 (KM)</th>
+          <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">上升 (M)</th>
+          <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">下降 (M)</th>
+          <th rowSpan={2} className="border border-slate-700 p-2 text-emerald-400 text-center">累積上升<br/>及下降</th>
+          <th rowSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">路段<br/>需時</th>
+          <th colSpan={2} className="border border-slate-700 p-2 text-center">休息及工需時 (MIN)</th>
+          <th rowSpan={2} className="border border-slate-700 p-2 text-amber-400 text-center">共需時<br/>(分鐘)</th>
+          <th colSpan={2} className="border border-slate-700 p-2 text-center">預計時間</th>
+          <th colSpan={2} className="border border-slate-700 p-2 text-slate-500 text-center">實際時間 (手寫)</th>
+          <th rowSpan={2} className="border border-slate-700 p-2 text-left">備註/工務</th>
+        </tr>
+        <tr className="text-slate-500">
+          <th className="border border-slate-700 p-1 font-normal text-left">(白色填寫)</th>
+          <th className="border border-slate-700 p-1 font-normal text-center">(系統自動)</th>
+          <th className="border border-slate-700 p-1 font-normal">分段</th><th className="border border-slate-700 p-1 font-normal">累積</th>
+          <th className="border border-slate-700 p-1 font-normal">分段</th><th className="border border-slate-700 p-1 font-normal">累積</th>
+          <th className="border border-slate-700 p-1 font-normal">分段</th><th className="border border-slate-700 p-1 font-normal">累積</th>
+          <th className="border border-slate-700 p-1 font-normal">路段</th><th className="border border-slate-700 p-1 font-normal">檢查點</th>
+          <th className="border border-slate-700 p-1 font-normal">出發</th><th className="border border-slate-700 p-1 font-normal">到達</th>
+          <th className="border border-slate-700 p-1 font-normal">出發</th><th className="border border-slate-700 p-1 font-normal">到達</th>
+        </tr>
+      </thead>
+      <tbody>
+        {waypoints.map((wp, i) => (
+          <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
+            {/* 檢查站 */}
+            <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
+              {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
+            </td>
+            {/* 地理特徵 */}
+            <td className="p-0 border border-slate-700 bg-white/5">
+              <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="輸入特徵..." />
+            </td>
+            {/* 座標高度 */}
+            <td className="p-2 border border-slate-700 text-purple-400 font-mono text-[10px] text-center">
+              <div className="opacity-70 text-[9px]">{wp.latlng.lat.toFixed(4)}, {wp.latlng.lng.toFixed(4)}</div>
+              <div className="text-purple-300 font-bold">{(wp as any).elevation || 0}m</div>
+            </td>
+            {/* 領航員 */}
+            <td className="p-0 border border-slate-700 bg-white/5 w-12 text-center">
+              <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
+            </td>
+            {/* 前視方位 */}
+            <td className="p-0 border border-slate-700 bg-white/5 w-12 text-center text-amber-500 font-bold">
+              --°
+            </td>
+            {/* 距離 */}
+            <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">0.0</td>
+            <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">0.0</td>
+            {/* 上升 */}
+            <td className="p-2 border border-slate-700 text-center text-emerald-400">+0</td>
+            <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">+0</td>
+            {/* 下降 */}
+            <td className="p-2 border border-slate-700 text-center text-rose-400">-0</td>
+            <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">-0</td>
+            {/* 累積上升下降 (Total Gain+Loss) */}
+            <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono">0</td>
+            {/* 路段需時 */}
+            <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
+            {/* 休息 */}
+            <td className="p-0 border border-slate-700 bg-white/5 w-12 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
+            <td className="p-0 border border-slate-700 bg-white/5 w-12 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
+            {/* 共需時 */}
+            <td className="p-2 border border-slate-700 text-center font-bold text-amber-400">0</td>
+            {/* 預計時間 */}
+            <td className="p-0 border border-slate-700 bg-white/5 text-center">
+              <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
+            </td>
+            <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">--:--</td>
+            {/* 實際時間 (空白供手寫) */}
+            <td className="p-2 border border-slate-700 text-center text-slate-600">--:--</td>
+            <td className="p-2 border border-slate-700 text-center text-slate-600">--:--</td>
+            {/* 備註 */}
+            <td className="p-0 border border-slate-700 bg-white/5">
+              <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
 
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg border border-purple-900/30">
             <div className="flex flex-col"><span className="text-red-400 text-[10px] uppercase font-bold">太陽 (Sun)</span><span className="text-purple-400 text-sm">🌅 06:14 / 🌇 18:39</span></div>
