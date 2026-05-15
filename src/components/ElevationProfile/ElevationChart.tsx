@@ -274,8 +274,8 @@ const handleDownload = () => {
                       <input className="w-full bg-transparent p-2 text-center outline-none text-red-400 font-bold" defaultValue={i === 0 ? "08:30" : ""} />
                     </td>
                     <td className="p-2 border-r border-slate-700 text-center text-blue-400 font-bold">--:--</td>
-                    <td className="p-0 bg-white/5">
-                      <input className="w-full bg-transparent p-2 outline-none text-[10px] text-slate-400 italic" placeholder="備註/撤退..." />
+                   <td className="p-0 bg-white/5">
+                      <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="備註..." />
                     </td>
                   </tr>
                 ))}
@@ -286,3 +286,18 @@ const handleDownload = () => {
       )}
     </div>
   );
+} // <--- 這是 ElevationChart 組件的結束
+
+function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'baseline', gap: 4,
+      background: 'rgba(15,23,42,0.7)',
+      border: '1px solid rgba(148,163,184,0.12)',
+      borderRadius: 6, padding: '3px 8px',
+    }}>
+      <span style={{ color: '#475569', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ color, fontSize: 12, fontFamily: 'monospace', fontWeight: 600 }}>{val}</span>
+    </div>
+  );
+} // <--- 這是
