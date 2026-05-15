@@ -137,22 +137,21 @@ const handleDownload = () => {
           <button onClick={() => setActiveTab('table')} className={`px-3 py-1 text-xs rounded ${activeTab === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>路程表</button>
         </div>
         
-      <div className="flex gap-4 items-center">
-          {/* 1. 原有的 PNG 下載 */}
-          <button onClick={handleDownload} className="text-slate-400 hover:text-white text-xs">
-            💾 PNG (SVG)
-          </button>
-          
-          {/* 2. 新增的導出按鈕 */}
-          <button 
-            onClick={() => alert('路程表導出框架已就緒')} 
-            className="text-blue-400 hover:text-blue-300 text-xs font-medium border border-blue-900/30 px-2 py-0.5 rounded bg-blue-900/10"
-          >
-            📊 導出 Excel (CSV)
-          </button>
-        </div> {/* 這裡一個結尾，剛好對應上面的開頭 */}
-          
-          {/* 這個按鈕負責把整個面板拉高 */}
+        <div className="flex gap-4 items-center">
+          {/* 下載與導出組 */}
+          <div className="flex gap-3 items-center">
+            <button onClick={handleDownload} className="text-slate-400 hover:text-white text-xs">
+              💾 PNG (SVG)
+            </button>
+            <button 
+              onClick={() => alert('路程表導出框架已就緒')} 
+              className="text-blue-400 hover:text-blue-300 text-xs font-medium border border-blue-900/30 px-2 py-0.5 rounded bg-blue-900/10"
+            >
+              📊 導出 Excel (CSV)
+            </button>
+          </div>
+
+          {/* 展開拉高按鈕 */}
           <button 
             onClick={() => setIsExpanded(!isExpanded)} 
             className="text-blue-400 hover:text-blue-300 text-xs font-bold border border-blue-900/50 px-2 py-0.5 rounded bg-blue-950/30"
