@@ -10,6 +10,7 @@ import { useTerrainAnalysis } from './hooks/useTerrainAnalysis';
 import { exportGPX } from './lib/gpxExport';
 import { saveAs } from 'file-saver';
 import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './types';
+import DataInspector from './components/Toolbar/DataInspector';
 
 
 const DEFAULT_NAISMITH: NaismithSettings = { baseSpeedKmh: 3.5, ascentPer20m: 7, descentPer20m: 2 };
@@ -60,6 +61,10 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen relative overflow-hidden" style={{ background: '#0a0f1e' }}>
+      {/* 數據驗收視窗：放在右下角，避開你的 RightPanel */}
+<div className="fixed bottom-24 right-80 z-[3000] w-64">
+  <DataInspector waypoints={waypoints} segments={segments} />
+</div>
      
 
       {/* ── Map ── */}
