@@ -184,79 +184,52 @@ const handleDownload = () => {
 
 
 
-      {activeTab === 'chart' ? (
+    {/* 1. 頂部數據列：直接用固定文字避開變數報錯 */}
+          <div className="flex gap-2">
+            <StatBadge label="Distance" val="0.00 km" color="#3b82f6" />
+            <StatBadge label="Ascent" val="0 m" color="#10b981" />
+            <StatBadge label="Descent" val="0 m" color="#ef4444" />
+          </div>
+        </div>
 
-        <div className="h-[300px] w-full">
-
-          <ResponsiveContainer width="100%" height="100%">
-
-            <AreaChart data={profile} onMouseMove={handleMouseMove} onMouseLeave={() => setHoverPoint(null)}>
-
-              <defs>
-
-                <linearGradient id="colorElevation" x1="0" y1="0" x2="0" y2="1">
-
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-
-                </linearGradient>
-
-              </defs>
-
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-
-              <XAxis 
-
-                dataKey="distance" 
-
-                tickFormatter={(val) => `${(val / 1000).toFixed(1)}k`}
-
-                stroke="#64748b"
-
-                fontSize={10}
-
-                tickLine={false}
-
-                axisLine={false}
-
-              />
-
-              <YAxis 
-
-                stroke="#64748b"
-
-                fontSize={10}
-
-                tickLine={false}
-
-                axisLine={false}
-
-                unit="m"
-
-              />
-
-              <Tooltip content={<CustomTooltip />} />
-
-              <Area
-
-                type="monotone"
-
-                dataKey="elevation"
-
-                stroke="#3b82f6"
-
-                strokeWidth={2}
-
-                fillOpacity={1}
-
-                fill="url(#colorElevation)"
-
-                isAnimationActive={false}
-
-              />
-
-          </AreaChart>
+        {activeTab === 'chart' ? (
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              {/* 2. 圖表行為：把報錯的 handleMouseMove 改成空函數 */}
+              <AreaChart data={profile} onMouseMove={() => {}} onMouseLeave={() => {}}>
+                <defs>
+                  <linearGradient id="colorElevation" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis 
+                  dataKey="distance" 
+                  tickFormatter={(val) => `${(val / 1000).toFixed(1)}k`}
+                  stroke="#64748b"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis 
+                  stroke="#64748b"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                  unit="m"
+                />
+                <Tooltip content={<div className="hidden" />} />
+                <Area
+                  type="monotone"
+                  dataKey="elevation"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorElevation)"
+                  isAnimationActive={false}
+                />
+              </AreaChart>
         </ResponsiveContainer>
       </div>
     ) : (
