@@ -60,7 +60,7 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen relative overflow-hidden" style={{ background: '#0a0f1e' }}>
-      <DataInspector waypoints={waypoints} segments={segments} naismithSettings={naismithSettings} />
+     
 
       {/* ── Map ── */}
       <MapCore
