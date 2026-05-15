@@ -276,7 +276,7 @@ export default function ElevationChart({
           {segment ? segment.distance.toFixed(2) : "0.00"}
         </td>
 
-       {/* 2. 累積距離 (KM) - 使用剛才算出的 cumulativeDist */}
+      {/* 2. 累積距離 (KM) */}
 <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
   {cumulativeDist.toFixed(2)}
 </td>
@@ -286,16 +286,19 @@ export default function ElevationChart({
           {segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
         </td>
 
-        {/* 累積上升 (暫放 +0) */}
-        <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">+0</td>
-
+      {/* 累積上升 (原本是 +0) */}
+<td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
+  +{cumulativeAscent.toFixed(0)}
+</td>
         {/* 4. 分段下降 (M) */}
         <td className="p-2 border border-slate-700 text-center text-rose-400">
           {segment ? `-${segment.descent.toFixed(0)}` : "-0"}
         </td>
 
-        {/* 累積下降 (暫放 -0) */}
-        <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">-0</td>
+       {/* 累積下降 (原本是 -0) */}
+<td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
+  -{cumulativeDescent.toFixed(0)}
+</td>
 
         {/* 後續的步時、時間、輸入框 (暫時保留你的原始佔位) */}
         <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">0</td>
