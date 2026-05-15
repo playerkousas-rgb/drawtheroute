@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { ElevationProfilePoint, RouteStats, WaypointMarker } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
+import { useItineraryData } from '../../hooks/useItineraryData';
 
 interface Props {
   profile: ElevationProfilePoint[];
@@ -37,6 +38,8 @@ const CustomTooltip = ({ active, payload }: {
 };
 
 export default function ElevationChart({ profile, stats, waypoints, onHoverPoint }: Props) {
+  const segments = (stats as any).segments || [];
+  const { materials, weather } = useItineraryData(waypoints, segments);
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
