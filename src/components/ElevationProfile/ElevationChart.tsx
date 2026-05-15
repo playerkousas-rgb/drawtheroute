@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { ElevationProfilePoint, RouteStats, WaypointMarker } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
+import { latLngToKKGrid,  calculateBearing,  calculateNaismithTime,  // 如果還有其他的，比如格式化時間的工具，也一起進來} from '../../utils/itineraryUtils';
 
 interface Props {
   profile: ElevationProfilePoint[];
