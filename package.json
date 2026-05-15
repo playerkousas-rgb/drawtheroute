@@ -25,7 +25,10 @@
     "react-router-dom": "^7.13.1",
     "recharts": "^3.8.1",
     "tailwindcss": "^4.2.1",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "axios": "^1.6.0",
+    "proj4": "^2.11.0",
+    "suncalc": "^1.9.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
