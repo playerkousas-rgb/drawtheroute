@@ -235,6 +235,7 @@ export default function ElevationChart({
   {waypoints.map((wp, i) => {
     // 獲取當前路段數據 (如果是起點 i=0 則沒有前一段)
     const segment = i > 0 ? segments[i - 1] : null;
+    const cumulativeDist = profile.find(p => p.isWaypoint && p.lat === wp.latlng.lat && p.lng === wp.latlng.lng)?.distanceFromStart || 0;
 
     return (
       <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
@@ -265,10 +266,10 @@ export default function ElevationChart({
           {segment ? segment.distance.toFixed(2) : "0.00"}
         </td>
 
-        {/* 2. 累積距離 (KM) */}
-        <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
-          {wp.distanceFromStart ? wp.distanceFromStart.toFixed(2) : "0.00"}
-        </td>
+       {/* 2. 累積距離 (KM) - 使用剛才算出的 cumulativeDist */}
+<td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
+  {cumulativeDist.toFixed(2)}
+</td>
 
         {/* 3. 分段上升 (M) */}
         <td className="p-2 border border-slate-700 text-center text-emerald-400">
