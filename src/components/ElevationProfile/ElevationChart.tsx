@@ -10,6 +10,8 @@ interface Props {
   profile: ElevationProfilePoint[];
   stats: RouteStats;
   waypoints: WaypointMarker[];
+  segments: RouteSegment[]; // 👈 新增這行
+  naismithSettings: NaismithSettings; // 👈 新增這行
   onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
@@ -36,7 +38,8 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
-export default function ElevationChart({ profile, stats, waypoints, onHoverPoint }: Props) {
+export default function ElevationChart({ profile, stats, waypoints, segments, // 👈 新增
+  naismithSettings, // 👈 新增onHoverPoint }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
