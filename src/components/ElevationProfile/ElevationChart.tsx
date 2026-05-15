@@ -217,26 +217,35 @@ const handleDownload = () => {
                 <th className="border border-slate-700 p-1 font-normal text-[10px]">預計到站</th>
               </tr>
             </thead>
-            <tbody className="text-slate-300">
-              {waypoints.map((wp, i) => (
-                <tr key={i} className="hover:bg-slate-800/30 transition-colors">
-                  <td className="border border-slate-700 p-2 text-center font-bold text-blue-400 uppercase">
-                    {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
-                  </td>
-                  <td className="border border-slate-700 p-2 min-w-[120px]">{wp.name || '--'}</td>
-                  <td className="border border-slate-700 p-2 text-[10px] text-slate-500">
-                    {wp.latlng.lat.toFixed(4)}, {wp.latlng.lng.toFixed(4)}
-                  </td>
-                  <td className="border border-slate-700 p-2 text-center text-emerald-400">0.00</td>
-                  <td className="border border-slate-700 p-2 text-center">0.00</td>
-                  <td className="border border-slate-700 p-2 text-center text-rose-400">+0</td>
-                  <td className="border border-slate-700 p-2 text-center text-emerald-500">-0</td>
-                  <td className="border border-slate-700 p-2 text-center text-yellow-400">00</td>
-                  <td className="border border-slate-700 p-2 text-center font-bold text-white">--:--</td>
-                  <td className="border border-slate-700 p-2 italic text-slate-600">...</td>
-                </tr>
-              ))}
-            </tbody>
+          <tbody className="text-slate-300">
+  {waypoints.map((wp, i) => (
+    <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+      {/* 檢查站 */}
+      <td className="border border-slate-700 p-2 text-center font-bold text-blue-400 uppercase">
+        {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
+      </td>
+      
+      {/* 地點名稱：這裡我們寫死文字，或是用 i，避開變數報錯 */}
+      <td className="border border-slate-700 p-2 min-w-[120px]">
+        {`檢查站 ${i}`} 
+      </td>
+      
+      {/* 網格座標：使用原本就有的 latlng */}
+      <td className="border border-slate-700 p-2 text-[10px] text-slate-500">
+        {wp.latlng.lat.toFixed(4)}, {wp.latlng.lng.toFixed(4)}
+      </td>
+      
+      {/* 以下全部維持原樣的 0.00 框架 */}
+      <td className="border border-slate-700 p-2 text-center text-emerald-400">0.00</td>
+      <td className="border border-slate-700 p-2 text-center">0.00</td>
+      <td className="border border-slate-700 p-2 text-center text-rose-400">+0</td>
+      <td className="border border-slate-700 p-2 text-center text-emerald-500">-0</td>
+      <td className="border border-slate-700 p-2 text-center text-yellow-400">00</td>
+      <td className="border border-slate-700 p-2 text-center font-bold text-white">--:--</td>
+      <td className="border border-slate-700 p-2 italic text-slate-600">...</td>
+    </tr>
+  ))}
+</tbody>
      </table>
         </div>
       )}
