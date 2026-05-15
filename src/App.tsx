@@ -159,12 +159,14 @@ export default function App() {
 
           {/* Chart Area */}
           <div className={isExpanded ? "h-[calc(70vh-42px)]" : "h-44"}>
-            <ElevationChart
-              profile={elevationProfile}
-              stats={stats}
-              waypoints={waypoints}
-              onHoverPoint={setHoveredPt}
-            />
+           <ElevationChart
+  profile={elevationProfile}
+  stats={stats}
+  waypoints={waypoints}
+  segments={segments}
+  naismithSettings={naismith}
+  onHoverPoint={setHoveredPt}
+/>
           </div>
         </div>
 
