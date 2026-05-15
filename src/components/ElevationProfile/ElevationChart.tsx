@@ -161,97 +161,98 @@ const handleDownload = () => {
         </div>
       </div>
 
-      {activeTab === 'chart' ? (
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex items-center gap-1.5 px-4 pt-2 pb-1.5 flex-wrap">
-            <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
-            <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
-            <StatBadge label="總下降" val={`-${stats.totalDescent.toFixed(0)} m`} color="#f87171" />
-            <StatBadge label="最高" val={`${stats.maxElevation.toFixed(0)} m`} color="#fbbf24" />
-            <StatBadge label="最低" val={`${stats.minElevation.toFixed(0)} m`} color="#22d3ee" />
-            <StatBadge label="預計時間" val={formatTime(stats.estimatedTime)} color="#a78bfa" />
-          </div>
+     {activeTab === 'table' && (
+  <div className="overflow-x-auto">
+    <table className="w-full border-collapse text-[12px] border border-slate-700">
+      {/* 🔴 紅色區域：寫死表頭 (Static Headers) */}
+      <thead className="bg-slate-900 sticky top-0 z-10 text-red-400">
+        <tr>
+          <th rowSpan={2} className="border border-slate-700 p-2">檢查站</th>
+          <th className="border border-slate-700 p-2">地名</th>
+          <th className="border border-slate-700 p-2">網格座標</th>
+          <th rowSpan={2} className="border border-slate-700 p-2">前視<br/>方位</th>
+          <th className="border border-slate-700 p-2">分段距離</th>
+          <th className="border border-slate-700 p-2">累積上升</th>
+          <th className="border border-slate-700 p-2">路段需時</th>
+          <th colSpan={2} className="border border-slate-700 p-2">預計時間</th>
+          <th rowSpan={2} className="border border-slate-700 p-2">備註/工務</th>
+        </tr>
+        <tr>
+          <th className="border border-slate-700 p-1 font-normal text-slate-500">地理特徵</th>
+          <th className="border border-slate-700 p-1 font-normal text-slate-500">高度(m)</th>
+          <th className="border border-slate-700 p-1 font-normal text-slate-500">(公里)</th>
+          <th className="border border-slate-700 p-1 font-normal text-slate-500">(公尺)</th>
+          <th className="border border-slate-700 p-1 font-normal text-slate-500">(分鐘)</th>
+          <th className="border border-slate-700 p-1 font-normal text-slate-500">出發</th>
+          <th className="border border-slate-700 p-1 font-normal text-slate-500">到達</th>
+        </tr>
+      </thead>
 
-          <div className="flex-1 min-h-0 px-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={profile} margin={{ top: 20, right: 16, left: 0, bottom: 4 }} onMouseMove={onMove} onMouseLeave={onLeave}>
-                <defs>
-                  <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.45} />
-                    <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.03} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" vertical={false} />
-                <XAxis dataKey="distance" type="number" scale="linear" domain={['dataMin', 'dataMax']} tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }} tickFormatter={v => `${Number(v).toFixed(1)}km`} axisLine={{ stroke: 'rgba(148,163,184,0.15)' }} tickLine={false} minTickGap={40} />
-                <YAxis dataKey="elevation" domain={yDomain} ticks={[0, 200, 400, 600, 800, 1000].filter(t => t <= yDomain[1])} tick={{ fill: '#475569', fontSize: 10, fontFamily: 'monospace' }} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} width={44} />
-                <Tooltip content={<CustomTooltip />} cursor={false} />
-                {markers.map((m, i) => (
-                  <ReferenceLine key={i} x={m.x} stroke={m.color} strokeWidth={1.5} strokeDasharray="3 3" label={{ value: m.label, position: 'top', fill: m.color, fontSize: 10, fontWeight: 'bold', fontFamily: 'monospace', dy: -5 }} />
-                ))}
-                {hoverX !== null && <ReferenceLine x={hoverX} stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4 3" />}
-                <Area type="monotone" dataKey="elevation" stroke="#60a5fa" strokeWidth={2} fill="url(#elev-grad)" dot={false} activeDot={{ r: 5, fill: '#60a5fa', stroke: '#fff', strokeWidth: 2 }} isAnimationActive={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      ) : (
-      <div className="flex-1 overflow-auto bg-[#0a0f1e] p-4 custom-scrollbar">
-          <table className="w-full text-[11px] font-mono border-collapse border border-slate-700">
-            <thead className="bg-slate-900 sticky top-0 z-20">
-              <tr className="text-slate-400">
-                <th className="border border-slate-700 p-1" rowSpan={2}>檢查站</th>
-                <th className="border border-slate-700 p-1" colSpan={2}>地點 / 座標</th>
-                <th className="border border-slate-700 p-1" colSpan={2}>里程 (km)</th>
-                <th className="border border-slate-700 p-1" colSpan={2}>垂直變化 (m)</th>
-                <th className="border border-slate-700 p-1" colSpan={2}>Naismith 需時</th>
-                <th className="border border-slate-700 p-1" rowSpan={2}>備註</th>
-              </tr>
-              <tr className="text-slate-500 bg-slate-900/50">
-                <th className="border border-slate-700 p-1 font-normal text-[10px]">名稱</th>
-                <th className="border border-slate-700 p-1 font-normal text-[10px]">網格座標</th>
-                <th className="border border-slate-700 p-1 font-normal text-[10px]">分段</th>
-                <th className="border border-slate-700 p-1 font-normal text-[10px]">累計</th>
-                <th className="border border-slate-700 p-1 font-normal text-[10px]">上升</th>
-                <th className="border border-slate-700 p-1 font-normal text-[10px]">下降</th>
-                <th className="border border-slate-700 p-1 font-normal text-[10px]">段需時</th>
-                <th className="border border-slate-700 p-1 font-normal text-[10px]">預計到站</th>
-              </tr>
-            </thead>
-          <tbody className="text-slate-300">
-  {waypoints.map((wp, i) => (
-    <tr key={i} className="hover:bg-slate-800/30 transition-colors">
-      {/* 檢查站 */}
-      <td className="border border-slate-700 p-2 text-center font-bold text-blue-400 uppercase">
-        {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
-      </td>
-      
-      {/* 地點名稱：這裡我們寫死文字，或是用 i，避開變數報錯 */}
-      <td className="border border-slate-700 p-2 min-w-[120px]">
-        {`檢查站 ${i}`} 
-      </td>
-      
-      {/* 網格座標：使用原本就有的 latlng */}
-      <td className="border border-slate-700 p-2 text-[10px] text-slate-500">
-        {wp.latlng.lat.toFixed(4)}, {wp.latlng.lng.toFixed(4)}
-      </td>
-      
-      {/* 以下全部維持原樣的 0.00 框架 */}
-      <td className="border border-slate-700 p-2 text-center text-emerald-400">0.00</td>
-      <td className="border border-slate-700 p-2 text-center">0.00</td>
-      <td className="border border-slate-700 p-2 text-center text-rose-400">+0</td>
-      <td className="border border-slate-700 p-2 text-center text-emerald-500">-0</td>
-      <td className="border border-slate-700 p-2 text-center text-yellow-400">00</td>
-      <td className="border border-slate-700 p-2 text-center font-bold text-white">--:--</td>
-      <td className="border border-slate-700 p-2 italic text-slate-600">...</td>
-    </tr>
-  ))}
-</tbody>
-     </table>
-        </div>
-      )}
+      <tbody>
+        {waypoints.map((wp, i) => (
+          <tr key={i} className="border-b border-slate-800">
+            {/* 🔴 紅色：標籤 */}
+            <td className="p-2 text-center font-bold text-red-500 bg-red-500/5">
+              {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
+            </td>
+
+            {/* ⚪ 白色：手動填寫區 (暫以 Input 示意) */}
+            <td className="p-0 border border-slate-700 bg-white/5">
+              <input className="w-full bg-transparent p-2 outline-none text-white focus:bg-blue-500/20" placeholder="填寫特徵..." />
+            </td>
+
+            {/* 🟣 紫色：系統變量 (對接點位數據) */}
+            <td className="p-2 border border-slate-700 text-purple-400 font-mono">
+              {wp.latlng.lat.toFixed(3)}, {wp.latlng.lng.toFixed(3)}
+            </td>
+
+            {/* ⚪ 白色：前視方位 */}
+            <td className="p-0 border border-slate-700 bg-white/5 w-12">
+              <input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0°" />
+            </td>
+
+            {/* 🟣 紫色：距離/上升/需時 (這裡之後接計算邏輯) */}
+            <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">0.0</td>
+            <td className="p-2 border border-slate-700 text-center text-purple-300">+0</td>
+            <td className="p-2 border border-slate-700 text-center text-purple-400">0</td>
+
+            {/* ⚪ 白色：預計出發 (手動) */}
+            <td className="p-0 border border-slate-700 bg-white/5">
+              <input className="w-full bg-transparent p-2 text-center outline-none" defaultValue={i === 0 ? "08:00" : ""} />
+            </td>
+            {/* 🟣 紫色：預計到達 (自動計算) */}
+            <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">--:--</td>
+
+            {/* ⚪ 白色：備註 */}
+            <td className="p-0 border border-slate-700 bg-white/5">
+              <input className="w-full bg-transparent p-2 outline-none" placeholder="領航/工務..." />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+
+    {/* 🟣 紫色：底部環境自動數據區 */}
+    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg border border-purple-900/30">
+      <div className="flex flex-col">
+        <span className="text-red-400 text-[10px] uppercase font-bold">太陽 (Sun)</span>
+        <span className="text-purple-400 text-sm">🌅 06:14 / 🌇 18:39</span>
+      </div>
+      <div className="flex flex-col">
+        <span className="text-red-400 text-[10px] uppercase font-bold">月亮 (Moon)</span>
+        <span className="text-purple-400 text-sm">🌙 20:41 / 🌑 01:31</span>
+      </div>
+      <div className="flex flex-col">
+        <span className="text-red-400 text-[10px] uppercase font-bold">月相 (Phase)</span>
+        <span className="text-purple-400 text-sm">🌓 上弦月 (52%)</span>
+      </div>
+      <div className="flex flex-col border-l border-slate-700 pl-4">
+        <span className="text-red-400 text-[10px] uppercase font-bold">潮汐預測 (Tides)</span>
+        <span className="text-purple-300 text-[11px]">🌊 10:25 (2.1m) | 16:44 (0.7m)</span>
+      </div>
     </div>
-  );
-}
+  </div>
+)}
 
 // 確保 StatBadge 函數是在 ElevationChart 括號之外定義的
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
