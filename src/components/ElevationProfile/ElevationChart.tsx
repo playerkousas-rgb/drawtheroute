@@ -231,21 +231,19 @@ export default function ElevationChart({
                   <th className="border border-slate-700 p-1 font-normal w-18">出發</th><th className="border border-slate-700 p-1 font-normal w-18">到達</th>
                 </tr>
               </thead>
-          <tbody>
+         <tbody>
   {waypoints.map((wp, i) => {
-    // 🟢 【核心修正 1：數據往前移一格】
-    // 讓每一列顯示的是「從這個點出發，前往下一個點」的路段數據。最後一點（EP）則沒有下一步路段。
+    // 1. 獲取當前點出發的下一個路段（數據往前移一格，對齊出發點）
     const segment = i < segments.length ? segments[i] : null;
 
-    // 🟢 【核心修正 2：精準累積計算】
-    // 既然數據往前移了，當前列顯示的是下一個路段，那麼「累積數據」就應該包含當前這段路。
+    // 2. 計算累積數據（當前列顯示的是下一個路段，累積數據包含當前這段路）
     const cumulativeDist = segments.slice(0, i + 1).reduce((sum, s) => sum + s.distance, 0);
     const cumulativeAscent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.ascent, 0);
     const cumulativeDescent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.descent, 0);
 
-    // 🟢 【核心修正 3：累積上升及下降】
-    // 這一欄的標準物理定義就是：該路段的（累積上升 + 累積下降）總和
-    const totalAccumulatedClimb = cumulativeAscent + cumulativeDescent;
+    // 🟢 【精準修正：累積上升及下降欄位】
+    // 根據香港標準行程表規範，此欄位代表的是「當前這一段路的分段上升加上分段下降」之總和
+    const currentSegmentVertMovement = segment ? (segment.ascent + segment.descent) : 0;
 
     return (
       <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
@@ -301,9 +299,9 @@ export default function ElevationChart({
           {segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
         </td>
 
-        {/* 🟢 累積上升及下降 (告別常駐 0) */}
+        {/* 🟢 累積上升及下降 (精準對齊標準：分段上+分段下) */}
         <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
-          {segment ? totalAccumulatedClimb.toFixed(0) : "0"}
+          {segment ? currentSegmentVertMovement.toFixed(0) : "0"}
         </td>
 
         {/* 後續的步時、時間、輸入框 */}
