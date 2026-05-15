@@ -231,44 +231,80 @@ export default function ElevationChart({
                   <th className="border border-slate-700 p-1 font-normal w-18">出發</th><th className="border border-slate-700 p-1 font-normal w-18">到達</th>
                 </tr>
               </thead>
-              <tbody>
-                {waypoints.map((wp, i) => (
-                  <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
-                    <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
-                      {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
-                    </td>
-                    <td className="p-0 border border-slate-700 bg-white/5">
-                      <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
-                    </td>
-                    <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
-                      <div className="opacity-70 text-[9px] mb-1">{wp.latlng.lat.toFixed(5)}, {wp.latlng.lng.toFixed(5)}</div>
-                      <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">{(wp as any).elevation || 0} m</div>
-                    </td>
-                    <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none text-white" /></td>
-                    <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">--°</td>
-                    <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">0.0</td>
-                    <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">0.0</td>
-                    <td className="p-2 border border-slate-700 text-center text-emerald-400">+0</td>
-                    <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">+0</td>
-                    <td className="p-2 border border-slate-700 text-center text-rose-400">-0</td>
-                    <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">-0</td>
-                    <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">0</td>
-                    <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
-                    <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-                    <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-                    <td className="p-2 border border-slate-700 text-center font-bold text-amber-400">0</td>
-                    <td className="p-0 border border-slate-700 bg-white/5 text-center">
-                      <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
-                    </td>
-                    <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">--:--</td>
-                    <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-                    <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-                    <td className="p-0 border border-slate-700 bg-white/5">
-                      <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+             <tbody>
+  {waypoints.map((wp, i) => {
+    // 獲取當前路段數據 (如果是起點 i=0 則沒有前一段)
+    const segment = i > 0 ? segments[i - 1] : null;
+
+    return (
+      <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
+        {/* CP 名稱 */}
+        <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
+          {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
+        </td>
+        
+        {/* 位置名稱輸入 */}
+        <td className="p-0 border border-slate-700 bg-white/5">
+          <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
+        </td>
+
+        {/* 網格座標與海拔 (自動) */}
+        <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
+          <div className="opacity-70 text-[9px] mb-1">{wp.latlng.lat.toFixed(5)}, {wp.latlng.lng.toFixed(5)}</div>
+          <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">{(wp as any).elevation || 0} m</div>
+        </td>
+
+        {/* 原本有的輸入框 (保留樣式) */}
+        <td className="p-0 border border-slate-700 bg-white/5 text-center">
+          <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
+        </td>
+        <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">--°</td>
+
+        {/* 1. 分段距離 (KM) */}
+        <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
+          {segment ? segment.distance.toFixed(2) : "0.00"}
+        </td>
+
+        {/* 2. 累積距離 (KM) */}
+        <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
+          {wp.distanceFromStart ? wp.distanceFromStart.toFixed(2) : "0.00"}
+        </td>
+
+        {/* 3. 分段上升 (M) */}
+        <td className="p-2 border border-slate-700 text-center text-emerald-400">
+          {segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
+        </td>
+
+        {/* 累積上升 (暫放 +0) */}
+        <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">+0</td>
+
+        {/* 4. 分段下降 (M) */}
+        <td className="p-2 border border-slate-700 text-center text-rose-400">
+          {segment ? `-${segment.descent.toFixed(0)}` : "-0"}
+        </td>
+
+        {/* 累積下降 (暫放 -0) */}
+        <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">-0</td>
+
+        {/* 後續的步時、時間、輸入框 (暫時保留你的原始佔位) */}
+        <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">0</td>
+        <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
+        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
+        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
+        <td className="p-2 border border-slate-700 text-center font-bold text-amber-400">0</td>
+        <td className="p-0 border border-slate-700 bg-white/5 text-center">
+          <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
+        </td>
+        <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">--:--</td>
+        <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
+        <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
+        <td className="p-0 border border-slate-700 bg-white/5">
+          <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
             </table>
           </div>
 
