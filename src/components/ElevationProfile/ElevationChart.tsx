@@ -235,7 +235,17 @@ export default function ElevationChart({
   {waypoints.map((wp, i) => {
     // 獲取當前路段數據 (如果是起點 i=0 則沒有前一段)
     const segment = i > 0 ? segments[i - 1] : null;
-    const cumulativeDist = profile.find(p => p.isWaypoint && p.lat === wp.latlng.lat && p.lng === wp.latlng.lng)?.distanceFromStart || 0;
+    {waypoints.map((wp, i) => {
+  const segment = i > 0 ? segments[i - 1] : null;
+
+  // 計算累積距離：把當前索引之前的所有 segments 距離加總
+  const cumulativeDist = segments.slice(0, i).reduce((sum, s) => sum + s.distance, 0);
+  
+  // 計算累積上升：把當前索引之前的所有 segments 上升加總
+  const cumulativeAscent = segments.slice(0, i).reduce((sum, s) => sum + s.ascent, 0);
+
+  // 計算累積下降：把當前索引之前的所有 segments 下降加總
+  const cumulativeDescent = segments.slice(0, i).reduce((sum, s) => sum + s.descent, 0);
 
     return (
       <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
