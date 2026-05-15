@@ -43,6 +43,7 @@ function interpolate(from: LatLng, to: LatLng, n = 30): LatLng[] {
   }));
 }
 
+// Re-assign waypoint types based on position in array
 function reassignTypes(wps: WaypointMarker[]): WaypointMarker[] {
   return wps.map((w, i) => ({
     ...w,
@@ -85,6 +86,7 @@ export function useRouteManager() {
         ascentM = result.ascentM;
         descentM = result.descentM;
       } else {
+        // BRouter fallback
         const coords = interpolate(from, to, 40);
         const elevs = await fetchElevations(coords);
         pts = buildPoints(coords.map((c, i) => ({ ...c, ele: elevs[i] ?? 0 })));
@@ -114,7 +116,7 @@ export function useRouteManager() {
   }, [getHikingRoute, fetchElevations]);
 
   // ── Add waypoint at end ───────────────────────────────────────────
-  const addWaypoint = useCallback(async (latlng: LatLng) => {
+ const addWaypoint = useCallback(async (latlng: LatLng) => {
     setIsProcessing(true);
     setLastError(null);
     try {
@@ -129,8 +131,8 @@ export function useRouteManager() {
       const from = currentWps[currentWps.length - 1];
       const seg = await buildSegment(from.latlng, latlng, routingMode);
 
-      // 【修復 Bug 1】高度對齊防篡改：優先使用高精度地圖高度，抓不到再用 BRouter
-      const startElevation = from.elevation > 0 ? from.elevation : (seg.points[0]?.elevation ?? 0);
+      // 從計算好的路徑中精確提取起點和終點的高度
+      const startElevation = seg.points[0]?.elevation ?? from.elevation;
       const endElevation = seg.points.at(-1)?.elevation ?? 0;
 
       const newWp: WaypointMarker = {
@@ -141,7 +143,9 @@ export function useRouteManager() {
       };
 
       setWaypoints(prev => {
+        // 1. 先複製一份目前的清單
         const newWps = [...prev];
+        // 2. 更新即將變成「中間點」的那個點的高度與類型
         if (newWps.length > 0) {
           const lastIdx = newWps.length - 1;
           newWps[lastIdx] = {
@@ -150,6 +154,7 @@ export function useRouteManager() {
             type: 'waypoint'
           };
         }
+        // 3. 加上新的終點，並重新分配一次 type 確保萬無一失
         return reassignTypes([...newWps, newWp]);
       });
 
@@ -162,43 +167,51 @@ export function useRouteManager() {
   }, [routingMode, buildSegment, fetchElevations]);
 
   // ── Delete a specific waypoint by index ──────────────────────────
+  // Logic:
+  //   - If deleting index 0 (start): remove wp[0] + seg[0]
+  //   - If deleting last index (end): remove wp[last] + seg[last]
+  //   - If deleting middle index i: remove wp[i] + seg[i-1] + seg[i],
+  //     then rebuild the bridging segment between wp[i-1] and wp[i+1]
   const deleteWaypoint = useCallback(async (wpIndex: number) => {
     const wps = waypointsRef.current;
+    const segs = segmentsRef.current;
     if (wps.length === 0) return;
 
     setIsProcessing(true);
     setLastError(null);
     try {
       if (wps.length === 1) {
+        // Only one point, just clear
         setWaypoints([]);
         setSegments([]);
         return;
       }
 
       if (wpIndex === 0) {
+        // Remove first waypoint + first segment
         setWaypoints(prev => reassignTypes(prev.slice(1)));
         setSegments(prev => prev.slice(1));
         return;
       }
 
       if (wpIndex === wps.length - 1) {
+        // Remove last waypoint + last segment
         setWaypoints(prev => reassignTypes(prev.slice(0, -1)));
         setSegments(prev => prev.slice(0, -1));
         return;
       }
 
-      // 【修復 Bug 2】重新整理精確的陣列裁切邏輯，完美縫合中段
+      // Middle waypoint: remove it and rebuild bridge segment
       const prevWp = wps[wpIndex - 1];
       const nextWp = wps[wpIndex + 1];
 
+      // Build new segment bridging prev → next
       const bridgeSeg = await buildSegment(prevWp.latlng, nextWp.latlng, routingMode);
 
       setWaypoints(prev => reassignTypes([
         ...prev.slice(0, wpIndex),
         ...prev.slice(wpIndex + 1),
       ]));
-
-      // 修正後的精準裁切：刪除 wpIndex 時，要移除 prev.slice 中的第 wpIndex - 1 和第 wpIndex 個舊 Seg
       setSegments(prev => [
         ...prev.slice(0, wpIndex - 1),
         bridgeSeg,
