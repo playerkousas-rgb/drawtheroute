@@ -157,15 +157,15 @@ export default function App() {
           </div>
 
           {/* Chart Area */}
-          <div className={isExpanded ? "h-[calc(70vh-42px)]" : "h-44"}>
-           <ElevationChart
-  profile={elevationProfile}
-  stats={stats}
-  waypoints={waypoints}
-  segments={segments}
-  naismithSettings={naismith}
-  onHoverPoint={setHoveredPt}
-/>
+         <div className={isExpanded ? "h-[calc(70vh-42px)]" : "h-44"}>
+            <ElevationChart
+              profile={elevationProfile}
+              stats={stats}
+              waypoints={waypoints}
+              segments={analyzedSegments} // 🟢 原本是 segments，請換成經由 Mapzen 修正後的 analyzedSegments！
+              naismithSettings={naismith}
+              onHoverPoint={setHoveredPt}
+            />
           </div>
         </div>
 
