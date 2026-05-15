@@ -224,37 +224,31 @@ const handleDownload = () => {
                   <th className="border border-slate-700 p-1 text-center text-blue-400">出發 (Dep)</th>
                 </tr>
               </thead>
-              <tbody>
-                {waypoints.map((wp, i) => (
-                  <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
-                    <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
-                      {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
-                    </td>
-                    <td className="p-0 border border-slate-700 bg-white/5">
-                      <input className="w-full bg-transparent p-2 outline-none text-white focus:bg-blue-500/20" defaultValue={wp.name || ""} placeholder="輸入地理特徵..." />
-                    </td>
-                    <td className="p-2 border border-slate-700 text-purple-300 font-mono text-center font-bold text-[12px]">
-                      KK 1234 5678 
-                      <div className="text-[8px] text-slate-500 font-normal">{(wp as any).elevation || 0}m ASL</div>
-                    </td>
-                    <td className="p-2 border border-slate-700 text-center text-purple-400 font-mono text-[12px]">125°</td>
-                    <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">0.8</td>
-                    <td className="p-2 border border-slate-700 text-center text-slate-500">1.2</td>
-                    <td className="p-2 border border-slate-700 text-center text-emerald-400 font-bold">+120</td>
-                    <td className="p-2 border border-slate-700 text-center text-slate-500">+450</td>
-                    <td className="p-2 border border-slate-700 text-center text-rose-400 font-bold">-20</td>
-                    <td className="p-2 border border-slate-700 text-center text-slate-500">-80</td>
-                    <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 bg-purple-400/5">25'</td>
-                    <td className="p-0 border border-slate-700 bg-white/5 w-14 text-center text-slate-400">0</td>
-                    <td className="p-0 border border-slate-700 bg-white/5 w-14 text-center text-slate-400">0</td>
-                    <td className="p-2 border border-slate-700 text-center text-red-400 font-bold bg-red-400/5">09:15</td>
-                    <td className="p-2 border border-slate-700 text-center text-blue-400 font-bold bg-blue-400/5">09:30</td>
-                    <td className="p-0 border border-slate-700 bg-white/5 min-w-[200px]">
-                      <input className="w-full bg-transparent p-2 outline-none text-[10px] text-slate-300" placeholder="輸入備註..." />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+            <tbody>
+  {waypoints.map((_, i) => (
+    <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
+      {/* 🔴 檢查站編號 (這個可以根據 index 自動產生) */}
+      <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
+        {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
+      </td>
+
+      {/* ⚪ 地名 / 地理特徵：純輸入框，不讀取任何資料 */}
+      <td className="p-0 border border-slate-700 bg-white/5">
+        <input 
+          className="w-full bg-transparent p-2 outline-none text-white focus:bg-blue-500/20" 
+          placeholder="點擊輸入地名..." 
+        />
+      </td>
+
+      {/* 🟣 系統輔助資訊 (這部分如果不需要從變數拿，也可以改成 input) */}
+      <td className="p-2 border border-slate-700 text-purple-300 font-mono text-center font-bold text-[12px]">
+        KK ---- ----
+      </td>
+
+      {/* 方位、距離等欄位全部保持純手動輸入或預設空白 */}
+      <td className="p-2 border border-slate-700 text-center text-purple-400 font-mono text-[12px]">---°</td>
+      <td className="p-2 border border-slate-700 text-center text-purple-400">0.0</td>
+      <td className="p-2 border border-slate-700 text-center text-slate-500">0.0</td>
             </table>
           </div>
 
