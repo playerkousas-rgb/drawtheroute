@@ -10,6 +10,7 @@ import { useTerrainAnalysis } from './hooks/useTerrainAnalysis';
 import { exportGPX } from './lib/gpxExport';
 import { saveAs } from 'file-saver';
 import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './types';
+import DataInspector from './components/DataInspector';
 
 const DEFAULT_NAISMITH: NaismithSettings = { baseSpeedKmh: 3.5, ascentPer20m: 7, descentPer20m: 2 };
 
@@ -59,6 +60,7 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen relative overflow-hidden" style={{ background: '#0a0f1e' }}>
+      <DataInspector waypoints={waypoints} segments={segments} naismithSettings={naismithSettings} />
 
       {/* ── Map ── */}
       <MapCore
