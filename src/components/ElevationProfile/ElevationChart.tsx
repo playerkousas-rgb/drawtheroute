@@ -195,7 +195,7 @@ const handleDownload = () => {
         </tr>
       </thead>
 
-      <tbody>
+    <tbody>
         {waypoints.map((wp, i) => (
           <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
             {/* 🔴 紅色：標籤 */}
@@ -205,7 +205,7 @@ const handleDownload = () => {
 
             {/* ⚪ 白色：手動填寫區 */}
             <td className="p-0 border border-slate-700 bg-white/5">
-              <input className="w-full bg-transparent p-2 outline-none text-white" placeholder="輸入地理特徵..." />
+              <input className="w-full bg-transparent p-2 outline-none text-white focus:bg-blue-500/20" placeholder="輸入地理特徵..." />
             </td>
 
             {/* 🟣 紫色：系統自動變量 */}
@@ -235,14 +235,14 @@ const handleDownload = () => {
             <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
 
             {/* ⚪ 白色：休息時間 (路段/檢查站) */}
-            <td className="p-0 border border-slate-700 bg-white/5 w-12">
+            <td className="p-0 border border-slate-700 bg-white/5 w-12 border-r-0">
               <input className="w-full bg-transparent p-2 text-center outline-none text-white" placeholder="0" />
             </td>
             <td className="p-0 border border-slate-700 bg-white/5 w-12">
               <input className="w-full bg-transparent p-2 text-center outline-none text-white" placeholder="0" />
             </td>
 
-            {/* ⚪ 白色：出發時間 (SP 必填，其餘連動) */}
+            {/* ⚪ 白色：出發時間 */}
             <td className="p-0 border border-slate-700 bg-white/5">
               <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
             </td>
@@ -251,15 +251,26 @@ const handleDownload = () => {
 
             {/* ⚪ 白色：備註 */}
             <td className="p-0 border border-slate-700 bg-white/5">
-              <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="領航員/工務..." />
+              <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="領航/工務..." />
             </td>
           </tr>
         ))}
       </tbody>
     </table>
-    {/* 底部天文/潮汐區域保持不變... */}
+
+    {/* 🟣 紫色：底部環境自動數據區 */}
+    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg border border-purple-900/30">
+      <div className="flex flex-col"><span className="text-red-400 text-[10px] uppercase font-bold">太陽 (Sun)</span><span className="text-purple-400 text-sm">🌅 06:14 / 🌇 18:39</span></div>
+      <div className="flex flex-col"><span className="text-red-400 text-[10px] uppercase font-bold">月亮 (Moon)</span><span className="text-purple-400 text-sm">🌙 20:41 / 🌑 01:31</span></div>
+      <div className="flex flex-col"><span className="text-red-400 text-[10px] uppercase font-bold">月相 (Phase)</span><span className="text-purple-400 text-sm">🌓 上弦月 (52%)</span></div>
+      <div className="flex flex-col border-l border-slate-700 pl-4"><span className="text-red-400 text-[10px] uppercase font-bold">潮汐預測 (Tides)</span><span className="text-purple-300 text-[11px]">🌊 10:25 (2.1m) | 16:44 (0.7m)</span></div>
+    </div>
   </div>
 )}
+    </div>
+  );
+}
+
 // 確保 StatBadge 函數是在 ElevationChart 括號之外定義的
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
