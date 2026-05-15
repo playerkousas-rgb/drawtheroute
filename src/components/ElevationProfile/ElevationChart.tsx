@@ -137,13 +137,20 @@ const handleDownload = () => {
           <button onClick={() => setActiveTab('table')} className={`px-3 py-1 text-xs rounded ${activeTab === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>路程表</button>
         </div>
         
-        <div className="flex gap-4 items-center">
-        <button 
-  onClick={handleDownload} 
-  className="text-slate-400 hover:text-white text-xs"
->
-  💾 PNG (SVG)
-</button>
+       <div className="flex gap-4 items-center">
+  {/* 原有的 PNG 下載 */}
+  <button onClick={handleDownload} className="text-slate-400 hover:text-white text-xs">
+    💾 PNG (SVG)
+  </button>
+  
+  {/* 新增：路程表 Excel 下載入口 */}
+  <button 
+    onClick={() => alert('路程表導出框架已就緒')} 
+    className="text-blue-400 hover:text-blue-300 text-xs font-medium border border-blue-900/30 px-2 py-0.5 rounded bg-blue-900/10"
+  >
+    📊 導出 Excel (CSV)
+  </button>
+</div>
           
           {/* 這個按鈕負責把整個面板拉高 */}
           <button 
@@ -189,14 +196,54 @@ const handleDownload = () => {
           </div>
         </div>
       ) : (
-        <div className="flex-1 p-10 text-slate-500 text-center text-sm italic">
-          路程表數據研究中...
+      <div className="flex-1 overflow-auto bg-[#0a0f1e] p-4 custom-scrollbar">
+          <table className="w-full text-[11px] font-mono border-collapse border border-slate-700">
+            <thead className="bg-slate-900 sticky top-0 z-20">
+              <tr className="text-slate-400">
+                <th className="border border-slate-700 p-1" rowSpan={2}>檢查站</th>
+                <th className="border border-slate-700 p-1" colSpan={2}>地點 / 座標</th>
+                <th className="border border-slate-700 p-1" colSpan={2}>里程 (km)</th>
+                <th className="border border-slate-700 p-1" colSpan={2}>垂直變化 (m)</th>
+                <th className="border border-slate-700 p-1" colSpan={2}>Naismith 需時</th>
+                <th className="border border-slate-700 p-1" rowSpan={2}>備註</th>
+              </tr>
+              <tr className="text-slate-500 bg-slate-900/50">
+                <th className="border border-slate-700 p-1 font-normal text-[10px]">名稱</th>
+                <th className="border border-slate-700 p-1 font-normal text-[10px]">網格座標</th>
+                <th className="border border-slate-700 p-1 font-normal text-[10px]">分段</th>
+                <th className="border border-slate-700 p-1 font-normal text-[10px]">累計</th>
+                <th className="border border-slate-700 p-1 font-normal text-[10px]">上升</th>
+                <th className="border border-slate-700 p-1 font-normal text-[10px]">下降</th>
+                <th className="border border-slate-700 p-1 font-normal text-[10px]">段需時</th>
+                <th className="border border-slate-700 p-1 font-normal text-[10px]">預計到站</th>
+              </tr>
+            </thead>
+            <tbody className="text-slate-300">
+              {waypoints.map((wp, i) => (
+                <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+                  <td className="border border-slate-700 p-2 text-center font-bold text-blue-400 uppercase">
+                    {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
+                  </td>
+                  <td className="border border-slate-700 p-2 min-w-[120px]">{wp.name || '--'}</td>
+                  <td className="border border-slate-700 p-2 text-[10px] text-slate-500">
+                    {wp.latlng.lat.toFixed(4)}, {wp.latlng.lng.toFixed(4)}
+                  </td>
+                  <td className="border border-slate-700 p-2 text-center text-emerald-400">0.00</td>
+                  <td className="border border-slate-700 p-2 text-center">0.00</td>
+                  <td className="border border-slate-700 p-2 text-center text-rose-400">+0</td>
+                  <td className="border border-slate-700 p-2 text-center text-emerald-500">-0</td>
+                  <td className="border border-slate-700 p-2 text-center text-yellow-400">00</td>
+                  <td className="border border-slate-700 p-2 text-center font-bold text-white">--:--</td>
+                  <td className="border border-slate-700 p-2 italic text-slate-600">...</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
-
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{
