@@ -38,8 +38,7 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
-export default function ElevationChart({ profile, stats, waypoints, segments, // 👈 新增
-  naismithSettings, // 👈 新增onHoverPoint }: Props) {
+export default function ElevationChart({ profile, stats, waypoints, segments, naismithSettings, onHoverPoint }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
