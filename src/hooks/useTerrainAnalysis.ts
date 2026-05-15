@@ -2,40 +2,9 @@ import { useMemo } from 'react';
 import { RouteSegment, RouteStats, NaismithSettings, ElevationProfilePoint } from '../types';
 
 export function useTerrainAnalysis(segments: RouteSegment[], settings: NaismithSettings) {
-  const stats: RouteStats = useMemo(() => {
-    const empty = { totalDistance: 0, totalAscent: 0, totalDescent: 0, maxElevation: 0, minElevation: 0, estimatedTime: 0 };
-    if (!segments.length) return empty;
-
-    let dist = 0, asc = 0, desc = 0;
-    let maxE = -Infinity, minE = Infinity;
-
-    for (const s of segments) {
-      dist += s.distance;
-      asc += s.ascent;
-      desc += s.descent;
-      for (const p of s.points) {
-        if (p.elevation > maxE) maxE = p.elevation;
-        if (p.elevation < minE) minE = p.elevation;
-      }
-    }
-
-    const baseMin = (dist / settings.baseSpeedKmh) * 60;
-    const ascMin = (asc / 20) * settings.ascentPer20m;
-    const descMin = (desc / 20) * settings.descentPer20m;
-
-    return {
-      totalDistance: dist,
-      totalAscent: asc,
-      totalDescent: desc,
-      maxElevation: maxE === -Infinity ? 0 : maxE,
-      minElevation: minE === Infinity ? 0 : minE,
-      estimatedTime: baseMin + ascMin + descMin,
-    };
-  }, [segments, settings]);
-
-  // ── Elevation profile ───────────────────────────────────────────────────────────────
-  // Key fix: use a monotonically increasing index-based distance
-  // so Recharts XAxis always gets unique, increasing values
+  
+  // ── 1. 完美的 Elevation profile ───────────────────────────────────────────────────
+  // 維持你原本寫得最讚的橫切面點位計算，確保跟畫面 100% 同步
   const elevationProfile: ElevationProfilePoint[] = useMemo(() => {
     const out: ElevationProfilePoint[] = [];
     let cumulativeKm = 0;
@@ -43,10 +12,8 @@ export function useTerrainAnalysis(segments: RouteSegment[], settings: NaismithS
     for (let si = 0; si < segments.length; si++) {
       const seg = segments[si];
       for (let i = 0; i < seg.points.length; i++) {
-        // Skip duplicate junction point between segments
-        if (i === 0 && si > 0) continue;
+        if (i === 0 && si > 0) continue; // Skip duplicate junction point
         const p = seg.points[i];
-        // Cumulative distance = base of this segment + distance within segment
         const d = parseFloat((cumulativeKm + p.distanceFromStart).toFixed(3));
         out.push({
           distance: d,
@@ -60,7 +27,6 @@ export function useTerrainAnalysis(segments: RouteSegment[], settings: NaismithS
       }
     }
 
-    // Ensure strictly increasing distance (deduplicate same-distance points)
     const deduped: ElevationProfilePoint[] = [];
     let lastD = -1;
     for (const pt of out) {
@@ -71,6 +37,52 @@ export function useTerrainAnalysis(segments: RouteSegment[], settings: NaismithS
     }
     return deduped;
   }, [segments]);
+
+  // ── 2. 修正後的 Route Stats ──────────────────────────────────────────────────────
+  // 遵照你的意見：直接用現在橫切面（elevationProfile）的真實數據來算總高度起伏
+  const stats: RouteStats = useMemo(() => {
+    const empty = { totalDistance: 0, totalAscent: 0, totalDescent: 0, maxElevation: 0, minElevation: 0, estimatedTime: 0 };
+    if (!elevationProfile.length) return empty;
+
+    let dist = 0, asc = 0, desc = 0;
+    let maxE = -Infinity, minE = Infinity;
+
+    // 取得最後一個點的累積總距離
+    dist = elevationProfile[elevationProfile.length - 1].distance;
+
+    // 直接遍歷橫切面的每一個精準點位，現場累加
+    for (let i = 0; i < elevationProfile.length; i++) {
+      const p = elevationProfile[i];
+      
+      // 計算最高與最低點
+      if (p.elevation > maxE) maxE = p.elevation;
+      if (p.elevation < minE) minE = p.elevation;
+
+      // 現場計算點與點之間的真實高度差
+      if (i > 0) {
+        const prevP = elevationProfile[i - 1];
+        const diff = p.elevation - prevP.elevation;
+        if (diff > 0) {
+          asc += diff;            // 上坡
+        } else {
+          desc += Math.abs(diff); // 下坡
+        }
+      }
+    }
+
+    const baseMin = (dist / settings.baseSpeedKmh) * 60;
+    const ascMin = (asc / 20) * settings.ascentPer20m;
+    const descMin = (desc / 20) * settings.descentPer20m;
+
+    return {
+      totalDistance: dist,
+      totalAscent: Math.round(asc),
+      totalDescent: Math.round(desc),
+      maxElevation: maxE === -Infinity ? 0 : maxE,
+      minElevation: minE === Infinity ? 0 : minE,
+      estimatedTime: baseMin + ascMin + descMin,
+    };
+  }, [elevationProfile, settings]); // 當橫切面數據更新，這裡就跟著即時重算
 
   return { stats, elevationProfile };
 }
