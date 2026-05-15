@@ -238,12 +238,12 @@ const handleDownload = () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+       </table>
         </div>
-      )}
-    </div>
-  );
-}
+      )} {/* <--- 重點 1: 這是對應 {activeTab === 'table' && ( 的閉合 */}
+    </div> {/* <--- 重點 2: 這是對應最外層 <div className="flex flex-col..."> 的閉合 */}
+  ); // <--- 重點 3: 這是對應 return (
+} // <--- 重點 4: 這是對應 export default function ElevationChart... {
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{
