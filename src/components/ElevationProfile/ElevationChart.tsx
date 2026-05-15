@@ -231,21 +231,15 @@ export default function ElevationChart({
                   <th className="border border-slate-700 p-1 font-normal w-18">出發</th><th className="border border-slate-700 p-1 font-normal w-18">到達</th>
                 </tr>
               </thead>
-             <tbody>
+           <tbody>
   {waypoints.map((wp, i) => {
-    // 獲取當前路段數據 (如果是起點 i=0 則沒有前一段)
+    // 1. 獲取當前路段數據
     const segment = i > 0 ? segments[i - 1] : null;
-    {waypoints.map((wp, i) => {
-  const segment = i > 0 ? segments[i - 1] : null;
 
-  // 計算累積距離：把當前索引之前的所有 segments 距離加總
-  const cumulativeDist = segments.slice(0, i).reduce((sum, s) => sum + s.distance, 0);
-  
-  // 計算累積上升：把當前索引之前的所有 segments 上升加總
-  const cumulativeAscent = segments.slice(0, i).reduce((sum, s) => sum + s.ascent, 0);
-
-  // 計算累積下降：把當前索引之前的所有 segments 下降加總
-  const cumulativeDescent = segments.slice(0, i).reduce((sum, s) => sum + s.descent, 0);
+    // 2. 計算累積數據 (最穩的陣列累加法)
+    const cumulativeDist = segments.slice(0, i).reduce((sum, s) => sum + s.distance, 0);
+    const cumulativeAscent = segments.slice(0, i).reduce((sum, s) => sum + s.ascent, 0);
+    const cumulativeDescent = segments.slice(0, i).reduce((sum, s) => sum + s.descent, 0);
 
     return (
       <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
@@ -265,42 +259,43 @@ export default function ElevationChart({
           <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">{(wp as any).elevation || 0} m</div>
         </td>
 
-        {/* 原本有的輸入框 (保留樣式) */}
+        {/* 原本有的輸入框 */}
         <td className="p-0 border border-slate-700 bg-white/5 text-center">
           <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
         </td>
         <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">--°</td>
 
-        {/* 1. 分段距離 (KM) */}
+        {/* 分段距離 (KM) */}
         <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
           {segment ? segment.distance.toFixed(2) : "0.00"}
         </td>
 
-      {/* 2. 累積距離 (KM) */}
-<td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
-  {cumulativeDist.toFixed(2)}
-</td>
+        {/* 累積距離 (KM) */}
+        <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
+          {cumulativeDist.toFixed(2)}
+        </td>
 
-        {/* 3. 分段上升 (M) */}
+        {/* 分段上升 (M) */}
         <td className="p-2 border border-slate-700 text-center text-emerald-400">
           {segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
         </td>
 
-      {/* 累積上升 (原本是 +0) */}
-<td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
-  +{cumulativeAscent.toFixed(0)}
-</td>
-        {/* 4. 分段下降 (M) */}
+        {/* 累積上升 */}
+        <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
+          +{cumulativeAscent.toFixed(0)}
+        </td>
+
+        {/* 分段下降 (M) */}
         <td className="p-2 border border-slate-700 text-center text-rose-400">
           {segment ? `-${segment.descent.toFixed(0)}` : "-0"}
         </td>
 
-       {/* 累積下降 (原本是 -0) */}
-<td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
-  -{cumulativeDescent.toFixed(0)}
-</td>
+        {/* 累積下降 */}
+        <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
+          -{cumulativeDescent.toFixed(0)}
+        </td>
 
-        {/* 後續的步時、時間、輸入框 (暫時保留你的原始佔位) */}
+        {/* 後續的步時、時間、輸入框 */}
         <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">0</td>
         <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
         <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
