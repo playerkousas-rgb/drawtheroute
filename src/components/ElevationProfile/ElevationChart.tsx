@@ -47,6 +47,23 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
   const onHoverRef = useRef(onHoverPoint);
   onHoverRef.current = onHoverPoint;
 
+  // ─── 在這裡加入下載功能 ──────────────────────────────────────
+  const handleDownload = () => {
+    // 直接抓取 Recharts 生成的 SVG
+    const svg = document.querySelector('.recharts-surface');
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `profile-${Date.now()}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  // ────────────────────────────────────────────────────────────
   const markers = useMemo(() => {
     if (!profile.length || !waypoints.length) return [];
     return waypoints.map((wp, idx) => {
@@ -113,7 +130,12 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
         </div>
         
         <div className="flex gap-4 items-center">
-          <button onClick={() => alert('下載功能開發中')} className="text-slate-400 hover:text-white text-xs">💾 PNG</button>
+        <button 
+  onClick={handleDownload} 
+  className="text-slate-400 hover:text-white text-xs"
+>
+  💾 PNG (SVG)
+</button>
           
           {/* 這個按鈕負責把整個面板拉高 */}
           <button 
