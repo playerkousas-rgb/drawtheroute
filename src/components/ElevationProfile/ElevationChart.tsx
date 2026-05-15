@@ -48,10 +48,18 @@ export default function ElevationChart({ profile, stats, waypoints, onHoverPoint
   onHoverRef.current = onHoverPoint;
 
   // ─── 在這裡加入下載功能 ──────────────────────────────────────
-  const handleDownload = () => {
-    // 直接抓取 Recharts 生成的 SVG
+const handleDownload = () => {
     const svg = document.querySelector('.recharts-surface');
     if (!svg) return;
+
+    // ─── 新增：手動補回丟失的線條樣式 ───
+    const gridLines = svg.querySelectorAll('.recharts-cartesian-grid-horizontal line');
+    gridLines.forEach((line) => {
+      (line as SVGElement).setAttribute('stroke', '#334155'); // 賦予深灰色
+      (line as SVGElement).setAttribute('stroke-dasharray', '3 3'); // 賦予虛線樣式
+      (line as SVGElement).setAttribute('opacity', '0.3'); // 賦予透明度
+    });
+    // ──────────────────────────────────────
 
     const svgData = new XMLSerializer().serializeToString(svg);
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
