@@ -29,11 +29,9 @@ export function useBRouter() {
 
       const raw: [number, number, number][] = feature.geometry.coordinates;
 
-      // ── 在這裡替換了原本的那行代碼 ──
       const coordinates = raw.map(([lng, lat, ele], idx) => {
         let finalEle = ele ?? 0;
         
-        // 使用 as any 避開 TypeScript 對 elevation 屬性的檢查報錯
         const startPoint = from as any;
         const endPoint = to as any;
 
@@ -49,9 +47,15 @@ export function useBRouter() {
 
       const props = feature.properties ?? {};
       const distanceM = parseFloat(props['track-length'] ?? '0');
+      
+      // 精確對齊 BRouter 官方過濾去噪後的爬升與下降欄位
       const ascentM = parseFloat(props['filtered ascend'] ?? '0');
-      const plainAscend = parseFloat(props['plain-asc-desc'] || props['plain-ascend'] || '0');
-      const descentM = plainAscend < 0 ? Math.abs(plainAscend) : 0;
+      const descentM = parseFloat(
+        props['filtered descend'] ?? 
+        props['filtered descent'] ?? 
+        props['plain-descend'] ?? 
+        '0'
+      );
 
       return { coordinates, distanceM, ascentM, descentM };
     } catch (err) {
