@@ -129,25 +129,32 @@ export const fetchWeatherData = async (lat: number, lng: number, dateStr: string
       uvIndex = Math.round(data.current.uv_index);
       precipitation = Math.round(data.current.precipitation || 0);
     } else {
-      const hData = data.hourly;
-      if (hData && hData.temperature_2m) {
-        temp = Math.round(hData.temperature_2m[12]);
-        feelsLike = Math.round(hData.apparent_temperature[12]);
-        humidity = hData.relative_humidity_2m[12];
-        windSpeed = Math.round(hData.wind_speed_10m[12]);
-        windDeg = hData.wind_direction_10m[12];
-        cloudCover = hData.cloud_cover[12];
-        uvIndex = Math.round(hData.uv_index[12] || 0);
-        precipitation = Math.round(hData.precipitation?.[12] || 0);
+     const hData = data.hourly;
+  if (hData && hData.temperature_2m) {
+    // ✨ 新增這 3 行：從當天 24 小時中撈出最高與最低溫
+    const todayTemps = hData.temperature_2m.slice(0, 24);
+    const maxTemp = todayTemps.length > 0 ? Math.round(Math.max(...todayTemps)) : Math.round(hData.temperature_2m[12]);
+    const minTemp = todayTemps.length > 0 ? Math.round(Math.min(...todayTemps)) : Math.round(hData.temperature_2m[12]);
+
+    temp = Math.round(hData.temperature_2m[12]);
+    feelsLike = Math.round(hData.apparent_temperature[12]);
+    humidity = hData.relative_humidity_2m[12];
+    windSpeed = Math.round(hData.wind_speed_10m[12]);
+    windDeg = hData.wind_direction_10m[12];
+    cloudCover = hData.cloud_cover[12];
+    uvIndex = Math.round(hData.uv_index[12] || 0);
+    precipitation = Math.round(hData.precipitation?.[12] || 0);
       }
     }
 
     // 🟢 核心修正：直接呼叫天文幾何公式，百分之百依賴傳進來的真實 targetDate 
     const astro = getDynamicAstroData(targetDate);
 
-    return {
+   return {
       temp,
       feelsLike,
+      maxTemp,   // ✨ 新增這行
+      minTemp,   // ✨ 新增這行
       humidity,
       windSpeed,
       windDirection: getWindDirection(windDeg),
