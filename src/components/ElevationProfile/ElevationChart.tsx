@@ -370,20 +370,56 @@ export default function ElevationChart({
           {segment ? currentSegmentVertMovement.toFixed(0) : "0"}
         </td>
 
-        {/* 後續的步時、時間、輸入框 */}
-        <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
-        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-        <td className="p-2 border border-slate-700 text-center font-bold text-amber-400">0</td>
-        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-          <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
-        </td>
-        <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">--:--</td>
-        <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-        <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-        <td className="p-0 border border-slate-700 bg-white/5">
-          <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
-        </td>
+      {/* 🟢 在這裡先計算當前路段的 Naismith 純步時（分鐘） */}
+        {(() => {
+          const segmentMinutes = segment ? calculateSegmentNaismithMinutes(segment, naismithSettings) : 0;
+
+          return (
+            <>
+              {/* 1. 路段需時 (MIN) */}
+              <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 font-mono">
+                {segment ? Math.round(segmentMinutes) : 0}
+              </td>
+
+              {/* 2. 休息及事工需時 (MIN) - 路段 (保持輸入框原樣) */}
+              <td className="p-0 border border-slate-700 bg-white/5 text-center">
+                <input className="w-full bg-transparent p-2 text-center outline-none text-white" placeholder="0" />
+              </td>
+
+              {/* 3. 休息及事工需時 (MIN) - 檢查點 (保持輸入框原樣) */}
+              <td className="p-0 border border-slate-700 bg-white/5 text-center">
+                <input className="w-full bg-transparent p-2 text-center outline-none text-white" placeholder="0" />
+              </td>
+
+              {/* 4. 共需時 */}
+              <td className="p-2 border border-slate-700 text-center font-bold text-amber-400 font-mono">
+                0
+              </td>
+
+              {/* 5. 預計時間 - 出發 */}
+              <td className="p-0 border border-slate-700 bg-white/5 text-center">
+                <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
+              </td>
+
+              {/* 6. 預計時間 - 到達 */}
+              <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold font-mono">
+                --:--
+              </td>
+
+              {/* 7. 實際時間 (手寫) - 出發 */}
+              <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">
+                --:--
+              </td>
+
+              {/* 8. 實際時間 (手寫) - 到達 */}
+              <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">
+                --:--
+              </td>
+
+              {/* 9. 備註/事工 */}
+              <td className="p-0 border border-slate-700 bg-white/5">
+                <input className="w-full bg-transparent p-2 outline-none text-[10px] text-white" placeholder="..." />
+              </td>
       </tr>
     );
   })}
