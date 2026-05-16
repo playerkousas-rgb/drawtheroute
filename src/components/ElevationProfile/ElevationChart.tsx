@@ -187,40 +187,71 @@ export default function ElevationChart({
       alert('PDF 產生失敗，請重新整理頁面後再試一次');
     }
   };
-  // EXCEL 下載（推薦使用，穩定且乾淨）
+ // EXCEL 下載（包含上方資訊 + 表格 + 下方數據）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
-    if (!table) {
-      return alert('請先切換到「路程計畫表」分頁');
-    }
+    if (!table) return alert('請先切換到「路程計畫表」');
 
-    try {
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.table_to_sheet(table);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([]);
 
-      // 調整欄寬（更接近你想要的格式）
-      ws['!cols'] = [
-        { wch: 6 },   // 檢查站
-        { wch: 35 },  // 地名
-        { wch: 22 },  // 座標/高度
-        { wch: 10 },  // 領航員
-        { wch: 8 },   // 前視方位
-        { wch: 10 }, { wch: 10 }, // 距離
-        { wch: 10 }, { wch: 10 }, // 上升
-        { wch: 10 }, { wch: 10 }, // 下降
-        { wch: 12 },  // 累積上升下降
-        { wch: 10 },  // 路段需時
-        { wch: 10 }, { wch: 10 }, // 休息
-        { wch: 12 },  // 共需時
-        { wch: 12 }, { wch: 12 }, // 預計時間
-        { wch: 12 }, { wch: 12 }, // 實際時間
-        { wch: 30 }   // 備註
-      ];
+    let row = 0;
 
-      XLSX.utils.book_append_sheet(wb, ws, "行程表");
+    // ==================== 1. 上方標題與基本資訊 ====================
+    XLSX.utils.sheet_add_aoa(ws, [["山徑路程計畫表"]], { origin: `A${++row}` });
+    row += 2;
 
-      XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
-      
+    const basicInfo = [
+      ["遠足地區", document.querySelector('input[placeholder="請輸入..."]')?.value || ""],
+      ["日期", selectedDate],
+      ["組員姓名", ""],
+      ["地圖組別", ""],
+      ["編號及年份", ""],
+      ["領隊", ""]
+    ];
+
+    XLSX.utils.sheet_add_aoa(ws, basicInfo, { origin: `A${row}` });
+    row += basicInfo.length + 2;
+
+    // ==================== 2. 主表格 ====================
+    const tableSheet = XLSX.utils.table_to_sheet(table);
+    XLSX.utils.sheet_add_aoa(ws, [[" "]], { origin: `A${row}` }); // 分隔行
+    XLSX.utils.sheet_add_sheet(ws, tableSheet, `A${row + 2}`);
+
+    // 調整主表格欄寬
+    ws['!cols'] = [
+      { wch: 8 }, { wch: 35 }, { wch: 22 }, { wch: 10 },
+      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 22 }
+    ];
+
+    row += 30; // 預留空間給表格
+
+    // ==================== 3. 下方數據面板 ====================
+    XLSX.utils.sheet_add_aoa(ws, [["天文數據 (ASTRO)"]], { origin: `A${row}` });
+    row++;
+
+    const astroData = [
+      ["日出 / 日落", weather?.sunrise || "--", weather?.sunset || "--"],
+      ["月出 / 月落", weather?.moonrise || "--", weather?.moonset || "--"],
+      ["月相", weather?.moonPhase || "--"]
+    ];
+    XLSX.utils.sheet_add_aoa(ws, astroData, { origin: `A${row}` });
+    row += astroData.length + 1;
+
+    XLSX.utils.sheet_add_aoa(ws, [["Naismith 時間算法"]], { origin: `A${row}` });
+    row++;
+    const naismithData = [
+      ["基礎時速", `${naismithSettings.baseSpeedKmh} km/h`],
+      ["每上升 20m 加時", `+${naismithSettings.ascentPer20m} 分`],
+      ["每下降 20m 加時", `+${naismithSettings.descentPer20m} 分`]
+    ];
+    XLSX.utils.sheet_add_aoa(ws, naismithData, { origin: `A${row}` });
+
+    // ==================== 儲存 ====================
+    XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
+  };
       // alert('✅ EXCEL 已成功下載！');
     } catch (err) {
       alert('EXCEL 匯出失敗，請稍後再試');
