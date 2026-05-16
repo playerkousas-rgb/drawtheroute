@@ -375,7 +375,12 @@ export default function ElevationChart({
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">溫度 / 體感</span><span className="text-orange-400 text-sm font-bold">{weather ? `${weather.temp}°C / ${weather.feelsLike}°C` : "24°C / 26°C"}</span></div>
             <div className="flex flex-col"><span className="text-slate-500 text-[9px]">相對濕度</span><span className="text-blue-300 text-sm font-bold">{weather && weather.humidity !== undefined ? `${weather.humidity}%` : "78%"}</span></div>
-              <div className="flex flex-col"><span className="text-slate-500 text-[9px]">雲量 / 降雨</span><span className="text-slate-300 text-sm font-bold">☁️ {weather && weather.cloudCover !== undefined ? `${weather.cloudCover} / ${weather.precipitation}%` : "40% / 10%"}</span></div>
+             <div className="flex flex-col">
+  <span className="text-slate-500 text-[9px]">雲量 / 降雨</span>
+  <span className="text-slate-300 text-sm font-bold">
+    ☁️ {weather ? `${weather.cloudCover}% / ${weather.precipitation}%` : "40% / 10%"}
+  </span>
+</div>
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">風向風速</span><span className="text-emerald-400 text-sm font-bold">🚩 {weather ? `${weather.windDirection} ${weather.windSpeed} km/h` : "E 15 km/h"}</span></div>
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">紫外線</span><span className="text-yellow-500 text-sm font-bold">{weather ? `指數 (${weather.uvIndex})` : "中等 (5)"}</span></div>
               </div>
