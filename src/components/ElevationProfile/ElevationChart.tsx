@@ -139,17 +139,18 @@ export default function ElevationChart({
     pdf.save(`橫切面剖面圖-${Date.now()}.pdf`);
   };
 
- // ========== 下載功能 ==========
+  // ========== 下載功能 ==========
   const exportContainerRef = useRef<HTMLDivElement>(null);
 
-  // PDF 下載（包含上方 + 表格 + 下方全部）
+  // PDF 下載（包含上方資訊 + 表格 + 下方數據）
   const handleExportTablePDF = async () => {
-    if (!exportContainerRef.current) return alert('找不到內容！');
+    if (!exportContainerRef.current) return alert('找不到要匯出的內容！');
     
-    const canvas = await html2canvas(exportContainerRef.current, { 
-      scale: 2, 
-      useCORS: true, 
-      backgroundColor: '#0f172a' 
+    const canvas = await html2canvas(exportContainerRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#0f172a',
+      logging: false
     });
 
     const pdf = new jsPDF({
@@ -163,41 +164,25 @@ export default function ElevationChart({
     pdf.save(`行程表-${selectedDate || Date.now()}.pdf`);
   };
 
-  // EXCEL 下載（改成更接近你想要的格式）
+  // EXCEL 下載
   const handleExportExcel = () => {
-    if (!exportContainerRef.current) return alert('找不到表格！');
-
-    // 建立新的 Workbook
-    const wb = XLSX.utils.book_new();
-
-    // 取得目前表格
     const table = document.querySelector('table');
-    if (table) {
-      const ws = XLSX.utils.table_to_sheet(table);
-      
-      // 調整欄寬（可自行微調）
-      const colWidths = [
-        { wch: 8 }, { wch: 25 }, { wch: 18 }, { wch: 10 },
-        { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-        { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-        { wch: 12 }, { wch: 12 }, { wch: 15 }
-      ];
-      ws['!cols'] = colWidths;
+    if (!table) return alert('找不到表格！請切換至「路程計畫表」');
 
-      XLSX.utils.book_append_sheet(wb, ws, "行程表");
-    }
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.table_to_sheet(table);
 
-    XLSX.writeFile(wb, `行程表_${selectedDate || 'export'}.xlsx`);
+    // 調整欄寬，讓版面更好看
+    ws['!cols'] = [
+      { wch: 8 }, { wch: 28 }, { wch: 18 }, { wch: 10 },
+      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "行程表");
+    XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
   };
-  const handleExportTablePDF = async () => {
-    if (!exportContainerRef.current) return alert('找不到要匯出的內容！');
-
-    const canvas = await html2canvas(exportContainerRef.current, { 
-      scale: 2, 
-      useCORS: true, 
-      backgroundColor: '#0f172a',
-      logging: false
-    });
 
     const pdf = new jsPDF({
       orientation: 'landscape',
