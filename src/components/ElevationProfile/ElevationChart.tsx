@@ -257,27 +257,22 @@ export default function ElevationChart({
           </button>
         </div>
 
-        {/* 下載按鈕區域 */}
-      <div className="flex items-center gap-3">
+       {/* 下載按鈕區域 */}
+        <div className="flex items-center gap-3">
           {activeTab === 'chart' ? (
-            <>
-              <button
-                onClick={handleDownloadChartPNG}
-                className="px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium flex items-center gap-2"
-              >
-                📸 下載 PNG
-              </button>
-            </>
+            <button
+              onClick={handleDownloadChartPNG}
+              className="px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium flex items-center gap-2"
+            >
+              📸 下載 PNG
+            </button>
           ) : (
-            <>
-              <button
-                onClick={handleExportExcel}
-                className="px-4 py-2 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-medium flex items-center gap-2"
-              >
-                📊 匯出 EXCEL
-              </button>
-             
-            </>
+            <button
+              onClick={handleExportExcel}
+              className="px-4 py-2 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-medium flex items-center gap-2"
+            >
+              📊 匯出 EXCEL
+            </button>
           )}
         </div>
 
@@ -325,7 +320,7 @@ export default function ElevationChart({
           </ResponsiveContainer>
         </div>
       ) : (
-     
+       <div className="overflow-x-auto flex-1 flex flex-col gap-6">
           {/* 1. 行程基本資訊 */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-3 bg-slate-900/80 rounded-lg border border-slate-700 text-[11px]">
             <div className="flex items-center gap-2">
