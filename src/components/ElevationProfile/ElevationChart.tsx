@@ -6,6 +6,7 @@ import {
 import { ElevationProfilePoint, RouteStats, WaypointMarker, RouteSegment, NaismithSettings } from '../../types';
 import { formatTime } from '../../hooks/useTerrainAnalysis';
 import { calculateBearing } from '../../utils/coordUtils';
+import { useItineraryData } from '../../hooks/useItineraryData';
 
 interface Props {
   profile: ElevationProfilePoint[];
@@ -47,6 +48,10 @@ export default function ElevationChart({
   naismithSettings,
   onHoverPoint
 }: Props) {
+  // 🟢 1. 在這裡呼叫 Hook 接通數據水管
+  const { materials } = useItineraryData(waypoints, segments);
+
+  // 2. 底下是你原本就有的狀態與邏輯
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
@@ -258,11 +263,14 @@ export default function ElevationChart({
           <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
         </td>
 
-        {/* 網格座標與海拔 (自動) */}
-        <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
-          <div className="opacity-70 text-[9px] mb-1">{wp.latlng.lat.toFixed(5)}, {wp.latlng.lng.toFixed(5)}</div>
-          <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">{(wp as any).elevation || 0} m</div>
-        </td>
+      {/* 網格座標與海拔 (自動) */}
+<td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
+  {/* 🟢 這裡換成拿 Hook 計算好的香港方格網座標 */}
+  <div className="text-purple-400 font-bold text-[11px] mb-1">
+    {materials && materials[i]?.grid ? materials[i].grid : `${wp.latlng.lat.toFixed(5)}, ${wp.latlng.lng.toFixed(5)}`}
+  </div>
+  <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">{(wp as any).elevation || 0} m</div>
+</td>
 
         {/* 原本有的輸入框 */}
         <td className="p-0 border border-slate-700 bg-white/5 text-center">
