@@ -187,7 +187,7 @@ export default function ElevationChart({
       alert('PDF 產生失敗，請重新整理頁面後再試一次');
     }
   };
-// EXCEL 下載（完整版 - 已修正）
+// EXCEL 下載（單一 Sheet + 完整資訊）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
@@ -196,11 +196,39 @@ export default function ElevationChart({
 
     try {
       const wb = XLSX.utils.book_new();
-      
-      // 建立主表格工作表
-      const ws = XLSX.utils.table_to_sheet(table);
+      const ws = XLSX.utils.aoa_to_sheet([["山徑路程計畫表"]]);
 
-      // 調整欄寬
+      let r = 3;
+
+      // 1. 右上角統計
+      XLSX.utils.sheet_add_aoa(ws, [
+        ["總距離", `${stats.totalDistance.toFixed(2)} km`],
+        ["總爬升", `+${stats.totalAscent.toFixed(0)} m`],
+        ["總下降", `-${stats.totalDescent.toFixed(0)} m`],
+        ["最高點", `${stats.maxElevation.toFixed(0)} m`],
+        ["預計時間", formatTime(stats.estimatedTime)]
+      ], { origin: `A${r}` });
+      r += 7;
+
+      // 2. 上方基本資訊
+      XLSX.utils.sheet_add_aoa(ws, [
+        ["遠足地區", ""],
+        ["日期", selectedDate],
+        ["組員姓名", ""],
+        ["地圖組別", ""],
+        ["編號及年份", ""],
+        ["領隊", ""]
+      ], { origin: `A${r}` });
+      r += 8;
+
+      // 3. 主表格
+      XLSX.utils.sheet_add_aoa(ws, [[" "]], { origin: `A${r}` });
+      r += 2;
+
+      const tableWs = XLSX.utils.table_to_sheet(table);
+      XLSX.utils.sheet_add_aoa(ws, XLSX.utils.sheet_to_json(tableWs, { header: 1 }), { origin: `A${r}` });
+
+      // 調整主表格欄寬
       ws['!cols'] = [
         { wch: 8 }, { wch: 35 }, { wch: 22 }, { wch: 10 },
         { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
@@ -208,24 +236,35 @@ export default function ElevationChart({
         { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 25 }
       ];
 
-      XLSX.utils.book_append_sheet(wb, ws, "行程表");
+      r += 40; // 為表格預留空間
 
-      // 加入右上角統計與基本資訊（放在另一個 Sheet）
-      const summaryWs = XLSX.utils.aoa_to_sheet([
-        ["山徑路程計畫表"],
-        [""],
-        ["總距離", `${stats.totalDistance.toFixed(2)} km`],
-        ["總爬升", `+${stats.totalAscent.toFixed(0)} m`],
-        ["總下降", `-${stats.totalDescent.toFixed(0)} m`],
-        ["最高點", `${stats.maxElevation.toFixed(0)} m`],
-        ["預計時間", formatTime(stats.estimatedTime)],
-        [""],
-        ["日期", selectedDate],
-        ["遠足地區", ""],
-        ["組員姓名", ""]
-      ]);
+      // 4. 下方天文 + 氣象 + Naismith 資訊
+      XLSX.utils.sheet_add_aoa(ws, [["天文數據 (ASTRO)"]], { origin: `A${r}` });
+      r++;
+      XLSX.utils.sheet_add_aoa(ws, [
+        ["日出 / 日落", weather?.sunrise || "--", weather?.sunset || "--"],
+        ["月出 / 月落", weather?.moonrise || "--", weather?.moonset || "--"],
+        ["月相", weather?.moonPhase || "--"]
+      ], { origin: `A${r}` });
+      r += 5;
 
-      XLSX.utils.book_append_sheet(wb, summaryWs, "基本資訊");
+      XLSX.utils.sheet_add_aoa(ws, [["Naismith 時間算法"]], { origin: `A${r}` });
+      r++;
+      XLSX.utils.sheet_add_aoa(ws, [
+        ["基礎時速", `${naismithSettings.baseSpeedKmh} km/h`],
+        ["每上升 20m 加時", `+${naismithSettings.ascentPer20m} 分`],
+        ["每下降 20m 加時", `+${naismithSettings.descentPer20m} 分`]
+      ], { origin: `A${r}` });
+      r += 4;
+
+      XLSX.utils.sheet_add_aoa(ws, [["氣象預測"]], { origin: `A${r}` });
+      r++;
+      XLSX.utils.sheet_add_aoa(ws, [
+        ["溫度 / 體感", `${weather?.temp || "--"}°C / ${weather?.feelsLike || "--"}°C`],
+        ["相對濕度", `${weather?.humidity || "--"}%`],
+        ["雲量 / 降雨", `${weather?.cloudCover || "--"}% / ${weather?.precipitation || "--"}%`],
+        ["風向風速", weather?.windDirection + " " + (weather?.windSpeed || "--") + " km/h"]
+      ], { origin: `A${r}` });
 
       XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
     } catch (err) {
@@ -233,7 +272,6 @@ export default function ElevationChart({
       alert('EXCEL 匯出失敗，請稍後再試');
     }
   };
-  
   if (!profile.length) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2">
