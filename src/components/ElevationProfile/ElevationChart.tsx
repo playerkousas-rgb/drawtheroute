@@ -8,10 +8,10 @@ import { formatTime } from '../../hooks/useTerrainAnalysis';
 import { calculateBearing } from '../../utils/coordUtils';
 import { useItineraryData } from '../../hooks/useItineraryData';
 
-// 🚀 引入新安裝的專業導出套件
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+// ==================== 新增下載功能套件 ====================
 import * as XLSX from 'xlsx';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface Props {
   profile: ElevationProfilePoint[];
@@ -45,6 +45,18 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
+// 🟢 專注計算單一路段 Naismith 純步行時間（單位：分鐘）
+const calculateSegmentNaismithMinutes = (
+  seg: RouteSegment | null, 
+  settings: NaismithSettings
+): number => {
+  if (!seg) return 0;
+  const baseTime = (seg.distance / settings.baseSpeedKmh) * 60;
+  const ascentTime = (seg.ascent / 20) * settings.ascentPer20m;
+  const descentTime = (seg.descent / 20) * settings.descentPer20m;
+  return baseTime + ascentTime + descentTime;
+};
+
 export default function ElevationChart({
   profile,
   stats,
@@ -56,28 +68,23 @@ export default function ElevationChart({
   const [coordMode, setCoordMode] = useState<'grid' | 'latlng'>('grid');
   const [routeRests, setRouteRests] = useState<number[]>([]);
   const [cpRests, setCpRests] = useState<number[]>([]);
+  
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   });
 
-  // 收納其餘輸入框狀態，用於 Excel 導出
-  const [region, setRegion] = useState('');
-  const [teamMembers, setTeamMembers] = useState('');
-  const [mapGroup, setMapGroup] = useState('');
-  const [mapYear, setMapYear] = useState('');
-  const [leader, setLeader] = useState('');
-
   const { materials, weather } = useItineraryData(waypoints, segments, selectedDate);
+
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
   onHoverRef.current = onHoverPoint;
 
-  // 用於 PDF 擷取的 DOM 錨點
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const tableContainerRef = useRef<HTMLDivElement>(null);
-
+  // 1. 計算標記點位置 (SP / CP / EP)
   const markers = useMemo(() => {
     if (!profile.length || !waypoints.length) return [];
     return waypoints.map((wp, idx) => {
@@ -113,165 +120,55 @@ export default function ElevationChart({
     onHoverRef.current(null);
   }, []);
 
-  // ─── 📑 功能 1：將當前畫面渲染並下載為 PDF ───
-  const handleDownloadPDF = async () => {
-    // 根據當前分頁決定擷取哪一個區塊
-    const element = activeTab === 'chart' ? chartContainerRef.current : tableContainerRef.current;
-    if (!element) return alert('找不到可導出的畫面內容！');
+  // ==================== 下載功能 ====================
 
-    try {
-      // 使用 html2canvas 將 DOM 轉為 Canvas (設定高解析度 scale: 2)
-      const canvas = await html2canvas(element, {
-        useCORS: true,
-        backgroundColor: '#0f172a', // 鎖定與 Slate-900 相同的暗色背景，防止透明外觀
-        scale: 2,
-        logging: false,
-      });
+  // 圖表 → PDF
+  const handleDownloadChartPDF = async () => {
+    const chartContainer = document.querySelector('.recharts-wrapper') as HTMLElement;
+    if (!chartContainer) return alert('找不到圖表畫面！');
+    
+    const canvas = await html2canvas(chartContainer, { scale: 2, backgroundColor: '#0f172a' });
+    const imgData = canvas.toDataURL('image/png');
 
-      const imgData = canvas.toDataURL('image/png');
-      
-      // 創立 A4 橫向 PDF 檔案
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      // 保持比例計算圖表在 PDF 中的寬高
-      const imgWidth = pdfWidth - 20; // 左右留 10mm 邊距
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      // 防止高度溢出單頁 A4
-      const finalHeight = imgHeight > pdfHeight - 20 ? pdfHeight - 20 : imgHeight;
-
-      pdf.text(`山徑規劃報告 - ${activeTab === 'chart' ? '高度剖面圖' : '路程計畫表'}`, 10, 10);
-      pdf.addImage(imgData, 'PNG', 10, 15, imgWidth, finalHeight);
-      pdf.save(`山徑規劃紀錄-${activeTab}-${Date.now()}.pdf`);
-    } catch (error) {
-      console.error('PDF 產生失敗:', error);
-      alert('產生 PDF 時發生錯誤！');
-    }
-  };
-
-  // ─── 📊 功能 2：抓取精確資料結構，匯出真正的專業多欄位 EXCEL (.xlsx) ───
-  const handleExportExcel = () => {
-    // 1. 建立 Excel 頂部基本資訊工作表數據
-    const infoData = [
-      ["遠足地區", region, "日期", selectedDate, "組員姓名", teamMembers],
-      ["地圖組別", mapGroup, "編號及年份", mapYear, "領隊", leader],
-      [], // 空行
-      ["統計指標", "總距離", "總爬升", "總下降", "最高點", "預計總時間"],
-      ["數據值", `${stats.totalDistance.toFixed(2)} km`, `+${stats.totalAscent.toFixed(0)} m`, `-${stats.totalDescent.toFixed(0)} m`, `${stats.maxElevation.toFixed(0)} m`, formatTime(stats.estimatedTime)]
-    ];
-
-    // 2. 解析計算表格內部的路徑資料鏈 (對齊 UI 的計算邏輯)
-    const tableRows = [
-      [
-        "檢查站", "地名 / 地理特徵", "網格座標 / 高度", "領航員", "前視方位", 
-        "分段距離(KM)", "累積距離(KM)", "分段上升(M)", "累積上升(M)", "分段下降(M)", "累積下降(M)",
-        "累積上下(M)", "路段需時(分)", "休息需時-路段", "休息需時-檢查點", "共需時(分)", 
-        "預計出發", "預計到達", "備註/事工"
-      ]
-    ];
-
-    // 時間計算鏈邏輯與 UI 渲染保持絕對一致
-    const departureTimes: string[] = Array(waypoints.length).fill("--:--");
-    const arrivalTimes: string[] = Array(waypoints.length).fill("--:--");
-    departureTimes[0] = "08:30";
-
-    const timeToMinutes = (tStr: string) => {
-      const parts = tStr.split(":");
-      return parts.length !== 2 ? 8 * 60 + 30 : (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
-    };
-
-    const minutesToTime = (mins: number) => {
-      const h = Math.floor((mins % 1440) / 60);
-      const m = mins % 60;
-      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-    };
-
-    // 縱向連續推導時間
-    for (let idx = 0; idx < waypoints.length; idx++) {
-      const seg = segments[idx];
-      if (seg) {
-        const baseTime = (seg.distance / naismithSettings.baseSpeedKmh) * 60;
-        const ascentTime = (seg.ascent / 20) * naismithSettings.ascentPer20m;
-        const descentTime = (seg.descent / 20) * naismithSettings.descentPer20m;
-        const segMinutes = Math.round(baseTime + ascentTime + descentTime);
-        const routeRest = routeRests[idx] || 0;
-        const arrivalMins = timeToMinutes(departureTimes[idx]) + segMinutes + routeRest;
-        arrivalTimes[idx] = minutesToTime(arrivalMins);
-        if (idx + 1 < waypoints.length) {
-          const currentCpRest = cpRests[idx] || 0;
-          departureTimes[idx + 1] = minutesToTime(arrivalMins + currentCpRest);
-        }
-      }
-    }
-
-    // 疊代注入每一列資料
-    waypoints.forEach((wp, i) => {
-      const segment = i < segments.length ? segments[i] : null;
-      const isLastRow = i === waypoints.length - 1;
-
-      const cumulativeDist = segments.slice(0, i + 1).reduce((sum, s) => sum + s.distance, 0);
-      const cumulativeAscent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.ascent, 0);
-      const cumulativeDescent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.descent, 0);
-      
-      const segmentMinutes = segment ? Math.round(
-        (segment.distance / naismithSettings.baseSpeedKmh) * 60 +
-        (segment.ascent / 20) * naismithSettings.ascentPer20m +
-        (segment.descent / 20) * naismithSettings.descentPer20m
-      ) : 0;
-
-      const currentRouteRest = routeRests[i] || 0;
-      const currentCpRest = cpRests[i] || 0;
-      const totalMinutes = segmentMinutes + currentRouteRest + currentCpRest;
-
-      const coordStr = (materials && materials[i]?.grid) ? materials[i].grid : `${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`;
-
-      tableRows.push([
-        i === 0 ? 'SP' : (isLastRow ? 'EP' : `CP${i}`),
-        "", // 地名輸入留空供下載後填寫
-        `${coordStr} / ${(wp as any).elevation || 0}m`,
-        "", // 領航員
-        segment && waypoints[i + 1] ? `${calculateBearing(wp.latlng.lat, wp.latlng.lng, waypoints[i + 1].latlng.lat, waypoints[i + 1].latlng.lng)}°` : "--°",
-        !isLastRow && segment ? segment.distance.toFixed(2) : "0.00",
-        !isLastRow && segment ? cumulativeDist.toFixed(2) : "0.00",
-        !isLastRow && segment ? `+${segment.ascent.toFixed(0)}` : "+0",
-        !isLastRow && segment ? `+${cumulativeAscent.toFixed(0)}` : "+0",
-        !isLastRow && segment ? `-${segment.descent.toFixed(0)}` : "-0",
-        !isLastRow && segment ? `-${cumulativeDescent.toFixed(0)}` : "-0",
-        !isLastRow && segment ? (segment.ascent + segment.descent).toFixed(0) : "0",
-        (!isLastRow ? segmentMinutes : 0).toString(),
-        (currentRouteRest).toString(),
-        (currentCpRest).toString(),
-        (isLastRow ? 0 : totalMinutes).toString(),
-        departureTimes[i],
-        isLastRow ? arrivalTimes[i - 1] || "--:--" : arrivalTimes[i],
-        "" // 備註
-      ]);
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: [canvas.width / 1.8, canvas.height / 1.8]
     });
 
-    // 3. 建立工作簿物件 (Workbook) 並結合多個區塊
-    const wb = XLSX.utils.book_new();
+    pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+    pdf.save(`橫切面剖面圖-${Date.now()}.pdf`);
+  };
+
+  // 表格 → Excel (.xlsx)
+  const handleExportExcel = () => {
+    const tableElement = document.querySelector('table');
+    if (!tableElement) return alert('找不到表格！請先切換至「路程計畫表」。');
     
-    // 合併 基本資料 與 主計畫表 資料
-    const finalSheetData = [...infoData, [], ["--- 主路程計畫表 ---"], ...tableRows];
-    const ws = XLSX.utils.aoa_to_sheet(finalSheetData);
+    const wb = XLSX.utils.table_to_book(tableElement, { sheet: "路程計畫表" });
+    XLSX.writeFile(wb, `山徑路程計畫表-${Date.now()}.xlsx`);
+  };
 
-    // 4. 設定欄寬優化 Excel 可讀性
-    ws['!cols'] = [
-      { wch: 8 }, { wch: 22 }, { wch: 26 }, { wch: 10 }, { wch: 10 }, 
-      { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 20 }
-    ];
+  // 表格 → PDF
+  const handleExportTablePDF = async () => {
+    const tableContainer = document.querySelector('.overflow-x-auto') as HTMLElement;
+    if (!tableContainer) return alert('找不到表格！');
 
-    XLSX.utils.book_append_sheet(wb, ws, "山徑計畫表");
-    XLSX.writeFile(wb, `精細山徑路程計畫表-${Date.now()}.xlsx`);
+    const canvas = await html2canvas(tableContainer, { 
+      scale: 2, 
+      useCORS: true, 
+      backgroundColor: '#0f172a' 
+    });
+
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: [canvas.width * 0.78, canvas.height * 0.78]
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    pdf.addImage(imgData, 'PNG', 10, 10, pdf.internal.pageSize.getWidth() - 20, 0);
+    pdf.save(`山徑路程計畫表-${Date.now()}.pdf`);
   };
 
   if (!profile.length) {
@@ -311,20 +208,50 @@ export default function ElevationChart({
           </button>
         </div>
 
-        {/* 🟢 頂部動態控制面板：提供下載「當前畫面 PDF」與「導出真實美化 Excel」 */}
+        {/* 下載按鈕區域 */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleDownloadPDF}
-            className="px-2.5 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-bold transition-all shadow-sm"
-          >
-            📄 下載 PDF 報告
-          </button>
-          <button
-            onClick={handleExportExcel}
-            className="px-2.5 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition-all shadow-sm"
-          >
-            📊 匯出完整 EXCEL
-          </button>
+          {activeTab === 'chart' ? (
+            <>
+              <button
+                onClick={handleDownloadChartPDF}
+                className="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all"
+              >
+                📄 PDF
+              </button>
+              <button
+                onClick={() => {
+                  const svg = document.querySelector('.recharts-surface');
+                  if (!svg) return alert('找不到圖表畫面！');
+                  const svgData = new XMLSerializer().serializeToString(svg);
+                  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                  const url = URL.createObjectURL(svgBlob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `橫切面剖面圖-${Date.now()}.svg`;
+                  link.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-2.5 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition-all shadow-sm"
+              >
+                📸 SVG
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleExportExcel}
+                className="px-3 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-xs font-bold transition-all"
+              >
+                📊 EXCEL
+              </button>
+              <button
+                onClick={handleExportTablePDF}
+                className="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all"
+              >
+                📄 PDF
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex gap-1.5 flex-wrap">
@@ -337,8 +264,7 @@ export default function ElevationChart({
       </div>
 
       {activeTab === 'chart' ? (
-        /* 📸 高度剖面圖容器 */
-        <div ref={chartContainerRef} className="flex-1 min-h-0 p-2 bg-slate-900 rounded-lg">
+        <div className="flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={profile} onMouseMove={onMove} onMouseLeave={onLeave} margin={{ top: 20, right: 16, left: 0, bottom: 4 }}>
               <defs>
@@ -366,40 +292,43 @@ export default function ElevationChart({
                   label={{ value: m.label, position: 'top', fill: m.color, fontSize: 10, fontWeight: 'bold', dy: -5 }}
                 />
               ))}
-
               {hoverX !== null && <ReferenceLine x={hoverX} stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4 3" />}
               <Area type="monotone" dataKey="elevation" stroke="#60a5fa" strokeWidth={2} fill="url(#elev-grad)" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        /* 📸 計畫表容器 - 用於 PDF 全畫面綁定 */
-        <div ref={tableContainerRef} className="overflow-x-auto flex-1 flex flex-col gap-4 p-2 bg-slate-900 rounded-lg">
-          {/* 1. 行程基本資訊欄位 (綁定雙向 state 以利 Excel 導出讀取資料) */}
+        <div className="overflow-x-auto flex-1 flex flex-col gap-4">
+          {/* 1. 行程基本資訊 */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-3 bg-slate-900/80 rounded-lg border border-slate-700 text-[11px]">
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">遠足地區：</span>
-              <input value={region} onChange={e => setRegion(e.target.value)} className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="請輸入..." />
+              <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="請輸入..." />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">日期：</span>
-              <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" />
+              <input 
+                type="date" 
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" 
+              />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">組員姓名：</span>
-              <input value={teamMembers} onChange={e => setTeamMembers(e.target.value)} className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="姓名..." />
+              <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="姓名..." />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">地圖組別：</span>
-              <input value={mapGroup} onChange={e => setMapGroup(e.target.value)} className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="HM20C..." />
+              <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="HM20C..." />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">編號及年份：</span>
-              <input value={mapYear} onChange={e => setMapYear(e.target.value)} className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="2024..." />
+              <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="2024..." />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">領隊：</span>
-              <input value={leader} onChange={e => setLeader(e.target.value)} className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" />
+              <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" />
             </div>
           </div>
 
@@ -409,7 +338,7 @@ export default function ElevationChart({
               <thead className="bg-slate-900 sticky top-0 z-10 text-red-400">
                 <tr>
                   <th rowSpan={2} className="border border-slate-700 p-2 w-16">檢查站</th>
-                  <th className="border border-slate-700 p-2 text-left w-64">地名 / 地理特特征</th>
+                  <th className="border border-slate-700 p-2 text-left w-64">地名 / 地理特徵</th>
                   <th className="border border-slate-700 p-2 w-40">網格座標(經緯) / 高度</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-center w-16">領航員</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-center w-16">前視<br/>方位</th>
@@ -451,6 +380,7 @@ export default function ElevationChart({
 
                   const departureTimes: string[] = Array(waypoints.length).fill("--:--");
                   const arrivalTimes: string[] = Array(waypoints.length).fill("--:--");
+                  
                   departureTimes[0] = "08:30";
 
                   for (let idx = 0; idx < waypoints.length; idx++) {
@@ -460,9 +390,11 @@ export default function ElevationChart({
                       const ascentTime = (seg.ascent / 20) * naismithSettings.ascentPer20m;
                       const descentTime = (seg.descent / 20) * naismithSettings.descentPer20m;
                       const segMinutes = Math.round(baseTime + ascentTime + descentTime);
+                      
                       const routeRest = routeRests[idx] || 0;
                       const arrivalMins = timeToMinutes(departureTimes[idx]) + segMinutes + routeRest;
                       arrivalTimes[idx] = minutesToTime(arrivalMins);
+                      
                       if (idx + 1 < waypoints.length) {
                         const currentCpRest = cpRests[idx] || 0;
                         departureTimes[idx + 1] = minutesToTime(arrivalMins + currentCpRest);
@@ -476,12 +408,10 @@ export default function ElevationChart({
                     const cumulativeAscent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.ascent, 0);
                     const cumulativeDescent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.descent, 0);
                     const currentSegmentVertMovement = segment ? (segment.ascent + segment.descent) : 0;
-
                     const baseTime = segment ? (segment.distance / naismithSettings.baseSpeedKmh) * 60 : 0;
                     const ascentTime = segment ? (segment.ascent / 20) * naismithSettings.ascentPer20m : 0;
                     const descentTime = segment ? (segment.descent / 20) * naismithSettings.descentPer20m : 0;
                     const segmentMinutes = Math.round(baseTime + ascentTime + descentTime);
-
                     const currentRouteRest = routeRests[i] || 0;
                     const currentCpRest = cpRests[i] || 0;
                     const totalMinutes = segmentMinutes + currentRouteRest + currentCpRest;
@@ -492,14 +422,14 @@ export default function ElevationChart({
                         <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
                           {i === 0 ? 'SP' : (isLastRow ? 'EP' : `CP${i}`)}
                         </td>
+                        
                         <td className="p-0 border border-slate-700 bg-white/5">
                           <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
-                          <div 
-                            onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
-                            className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none"
-                          >
+                          <div onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
+                            className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none">
                             {coordMode === 'grid' 
                               ? (materials && materials[i]?.grid ? materials[i].grid : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`)
                               : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`
@@ -509,36 +439,49 @@ export default function ElevationChart({
                             {(wp as any).elevation || 0} m
                           </div>
                         </td>
+                        
                         <td className="p-0 border border-slate-700 bg-white/5 text-center">
                           <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">
-                          {segment && waypoints[i + 1] ? `${calculateBearing(wp.latlng.lat, wp.latlng.lng, waypoints[i + 1].latlng.lat, waypoints[i + 1].latlng.lng)}°` : "--°"}
+                          {segment && waypoints[i + 1] ? (
+                            `${calculateBearing(
+                              wp.latlng.lat, wp.latlng.lng,
+                              waypoints[i + 1].latlng.lat, waypoints[i + 1].latlng.lng
+                            )}°`
+                          ) : "--°"}
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
                           {!isLastRow && segment ? segment.distance.toFixed(2) : "0.00"}
                         </td>
                         <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
                           {!isLastRow && segment ? cumulativeDist.toFixed(2) : "0.00"}
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center text-emerald-400">
                           {!isLastRow && segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
                         </td>
                         <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
                           {!isLastRow && segment ? `+${cumulativeAscent.toFixed(0)}` : "+0"}
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center text-rose-400">
                           {!isLastRow && segment ? `-${segment.descent.toFixed(0)}` : "-0"}
                         </td>
                         <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
                           {!isLastRow && segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
                           {!isLastRow && segment ? currentSegmentVertMovement.toFixed(0) : "0"}
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 font-mono">
                           {!isLastRow ? segmentMinutes : 0}
                         </td>
+                        
                         <td className="p-0 border border-slate-700 bg-white/5 text-center">
                           <input 
                             type="number"
@@ -554,6 +497,7 @@ export default function ElevationChart({
                             }}
                           />
                         </td>
+                        
                         <td className="p-0 border border-slate-700 bg-white/5 text-center">
                           <input 
                             type="number"
@@ -569,17 +513,21 @@ export default function ElevationChart({
                             }}
                           />
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center font-bold text-amber-400 font-mono">
                           {isLastRow ? 0 : totalMinutes}
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center text-white font-bold font-mono">
                           {departureTimes[i]}
                         </td>
                         <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold font-mono">
                           {isLastRow ? arrivalTimes[i - 1] || "--:--" : arrivalTimes[i]}
                         </td>
+                        
                         <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
                         <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
+                        
                         <td className="p-0 border border-slate-700 bg-white/5">
                           <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
                         </td>
