@@ -370,7 +370,7 @@ export default function ElevationChart({
             </table>
           </div>
 
- {/* ── ⏱️ 頂部：Naismith 時間算法目前基準（純顯示，反映右側欄） ── */}
+ {/* ==================== ⏱️ 頂部：Naismith 時間算法目前基準（純顯示，反映右側欄） ==================== */}
       <div className="w-full mb-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800 space-y-2">
         <span className="text-emerald-400 text-[10px] uppercase font-bold flex items-center gap-1">
           ⏱️ Naismith 時間算法基準 (唯讀反映)
@@ -426,7 +426,6 @@ export default function ElevationChart({
         </div>
       </div>
 
-      {/* ==================== 🟢 以下是你原本給我的完整原始碼，完完全全一字未改 ==================== */}
       {/* 3. 底部數據面板 (天文 + 氣象預留) */}
       <div className="mt-auto grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800">
         {/* ==================== 左側：☀️ 天文數據 (ASTRO) ==================== */}
