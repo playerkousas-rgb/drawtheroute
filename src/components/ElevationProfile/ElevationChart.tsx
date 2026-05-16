@@ -217,46 +217,29 @@ export default function ElevationChart({
         </div>
 
         {/* 下載按鈕區域 */}
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
           {activeTab === 'chart' ? (
             <>
               <button
-                onClick={handleDownloadChartPDF}
-                className="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all"
+                onClick={handleDownloadChartPNG}
+                className="px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium flex items-center gap-2"
               >
-                📄 PDF
-              </button>
-              <button
-                onClick={() => {
-                  const svg = document.querySelector('.recharts-surface');
-                  if (!svg) return alert('找不到圖表畫面！');
-                  const svgData = new XMLSerializer().serializeToString(svg);
-                  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-                  const url = URL.createObjectURL(svgBlob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `橫切面剖面圖-${Date.now()}.svg`;
-                  link.click();
-                  URL.revokeObjectURL(url);
-                }}
-                className="px-2.5 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition-all shadow-sm"
-              >
-                📸 SVG
+                📸 下載 PNG
               </button>
             </>
           ) : (
             <>
               <button
                 onClick={handleExportExcel}
-                className="px-3 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-xs font-bold transition-all"
+                className="px-4 py-2 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-medium flex items-center gap-2"
               >
-                📊 EXCEL
+                📊 匯出 EXCEL
               </button>
               <button
                 onClick={handleExportTablePDF}
-                className="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all"
+                className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium flex items-center gap-2"
               >
-                📄 PDF
+                📄 下載 PDF 報告
               </button>
             </>
           )}
