@@ -119,7 +119,7 @@ export default function ElevationChart({
     onHoverRef.current(null);
   }, []);
 
-/ ==================== 下載功能 ====================
+// ==================== 下載功能 ====================
   const exportContainerRef = useRef<HTMLDivElement>(null);
 
   // 高度剖面圖 → 下載 PNG
