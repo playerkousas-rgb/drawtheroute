@@ -48,8 +48,17 @@ export default function ElevationChart({
   naismithSettings,
   onHoverPoint
 }: Props) {
+  // 🟢 1. 建立一個預設為「今天」的日期狀態 (格式：2026-05-16)
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
   // 🟢 1. 在這裡呼叫 Hook 接通數據水管
-  const { materials } = useItineraryData(waypoints, segments);
+// 🟢 2. 將選取的日期同步傳入我們的資料加工工廠（這裡先加上這個參數，下一步我們會進去 Hook 改它）
+  const { materials } = useItineraryData(waypoints, segments, selectedDate);
 
   // 2. 底下是你原本就有的狀態與邏輯
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
@@ -183,10 +192,16 @@ export default function ElevationChart({
               <span className="text-red-400 whitespace-nowrap">遠足地區：</span>
               <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="請輸入..." />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-red-400 whitespace-nowrap">日期：</span>
-              <input type="date" className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" />
-            </div>
+           <div className="flex items-center gap-2">
+  <span className="text-red-400 whitespace-nowrap">日期：</span>
+  {/* 🟢 修改這裡：綁定 value 與 onChange */}
+  <input 
+    type="date" 
+    value={selectedDate}
+    onChange={(e) => setSelectedDate(e.target.value)}
+    className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" 
+  />
+</div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">組員姓名：</span>
               <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="姓名..." />
