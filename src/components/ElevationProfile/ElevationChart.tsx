@@ -193,9 +193,14 @@ export default function ElevationChart({
               <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="請輸入..." />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-red-400 whitespace-nowrap">日期：</span>
-              <input type="date" className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" />
-            </div>
+  <span className="text-red-400 whitespace-nowrap">日期：</span>
+  <input 
+    type="date" 
+    value={selectedDate}
+    onChange={(e) => setSelectedDate(e.target.value)}
+    className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" 
+  />
+</div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">組員姓名：</span>
               <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="姓名..." />
