@@ -227,7 +227,7 @@ export default function ElevationChart({
                 <tr>
                   <th rowSpan={2} className="border border-slate-700 p-2 w-16">檢查站</th>
                   <th className="border border-slate-700 p-2 text-left w-64">地名 / 地理特徵</th>
-                  <th className="border border-slate-700 p-2 w-40">網格座標 / 高度</th>
+                  <th className="border border-slate-700 p-2 w-40">網格座標(經緯) / 高度</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-center w-16">領航員</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-center w-16">前視<br/>方位</th>
                   <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">距離 (KM)</th>
@@ -235,11 +235,11 @@ export default function ElevationChart({
                   <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">下降 (M)</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-emerald-400 text-center w-20">累積上升<br/>及下降</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center w-20">路段<br/>需時</th>
-                  <th colSpan={2} className="border border-slate-700 p-2 text-center">休息及工需時 (MIN)</th>
+                  <th colSpan={2} className="border border-slate-700 p-2 text-center">休息及事工需時 (MIN)</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-amber-400 text-center w-20">共需時</th>
                   <th colSpan={2} className="border border-slate-700 p-2 text-center">預計時間</th>
                   <th colSpan={2} className="border border-slate-700 p-2 text-slate-500 text-center">實際時間 (手寫)</th>
-                  <th rowSpan={2} className="border border-slate-700 p-2 text-left min-w-[100px]">備註/工務</th>
+                  <th rowSpan={2} className="border border-slate-700 p-2 text-left min-w-[100px]">備註/事工</th>
                 </tr>
                 <tr className="text-slate-500">
                   <th className="border border-slate-700 p-1 font-normal text-left">(白色填寫)</th>
