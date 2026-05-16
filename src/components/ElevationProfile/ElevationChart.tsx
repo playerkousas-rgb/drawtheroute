@@ -17,6 +17,8 @@ interface Props {
   onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
+
+
 const CustomTooltip = ({ active, payload }: {
   active?: boolean;
   payload?: Array<{ payload: ElevationProfilePoint }>;
@@ -40,6 +42,25 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
+// 🟢 專注計算單一路段 Naismith 純步行時間（單位：分鐘）
+const calculateSegmentNaismithMinutes = (
+  seg: RouteSegment | null, 
+  settings: NaismithSettings
+): number => {
+  if (!seg) return 0;
+
+  // 1. 平地距離所需時間：(距離 km / 時速 km/h) * 60 分鐘
+  const baseTime = (seg.distance / settings.baseSpeedKmh) * 60;
+
+  // 2. 爬升加時：(上升高度 m / 20m) * 每20m加時數
+  const ascentTime = (seg.ascent / 20) * settings.ascentPer20m;
+
+  // 3. 下降加時：(下降高度 m / 20m) * 每20m加時數
+  const descentTime = (seg.descent / 20) * settings.descentPer20m;
+
+  // 總純步程時間
+  return baseTime + ascentTime + descentTime;
+};
 export default function ElevationChart({
   profile,
   stats,
