@@ -437,8 +437,13 @@ export default function ElevationChart({
                   </span>
                 </div>
               </div>
-            </div>
-          </div>
+            </div> {/* 👈 這個可能是原本面板外層的容器閉合 */}
+        </div>   {/* 👈 這個可能是元件 Return 的大外包圍 */}
+      )}         {/* 👈 這個是條件渲染的結尾花括號 */}
+    </div>       {/* 👈 這個是整個元件最外層的 div */}
+  );
+}
+            
 
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
