@@ -255,7 +255,7 @@ export default function ElevationChart({
                   <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">上升 (M)</th>
                   <th colSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center">下降 (M)</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-emerald-400 text-center w-20">累積上升<br/>及下降</th>
-                  <th rowSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center w-20">路段<br/>需時</th>
+                  <th rowSpan={2} className="border border-slate-700 p-2 text-purple-400 text-center w-20">路段需時<br/>分鐘</th>
                   <th colSpan={2} className="border border-slate-700 p-2 text-center">休息及事工需時 (MIN)</th>
                   <th rowSpan={2} className="border border-slate-700 p-2 text-amber-400 text-center w-20">共需時</th>
                   <th colSpan={2} className="border border-slate-700 p-2 text-center">預計時間</th>
