@@ -198,23 +198,23 @@ export default function ElevationChart({
     <div className="bg-slate-900/50 rounded-xl border border-slate-800 p-4 shadow-xl backdrop-blur-sm h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex bg-slate-800 rounded-lg p-1">
-          <button
-            onClick={() => setActiveTab('chart')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              activeTab === 'chart' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            高度剖面
-          </button>
-          <button
-            onClick={() => setActiveTab('table')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              activeTab === 'table' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            路程計畫表
-          </button>
-        </div>
+  <button
+    onClick={() => setActiveTab('chart')}
+    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+      activeTab === 'chart' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+    }`}
+  >
+    高度剖面
+  </button>
+  <button
+    onClick={() => setActiveTab('table')}
+    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+      activeTab === 'table' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+    }`}
+  >
+    路程計畫表
+  </button>
+</div>
 <div className="flex bg-slate-800 rounded-lg p-1">
           <button
             onClick={() => setActiveTab('chart')}
