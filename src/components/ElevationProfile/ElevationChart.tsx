@@ -131,63 +131,29 @@ export default function ElevationChart({
   }, []);
 
 // ==================== 下載功能 ====================
-  const exportContainerRef = useRef<HTMLDivElement>(null);
 
-  // 高度剖面 → 下載 PNG
+  // 高度剖面 → 下載 PNG（保留此功能）
   const handleDownloadChartPNG = async () => {
     const chartContainer = document.querySelector('.recharts-wrapper') as HTMLElement;
     if (!chartContainer) return alert('找不到圖表畫面！');
 
-    const canvas = await html2canvas(chartContainer, { 
-      scale: 2, 
-      backgroundColor: '#0f172a' 
-    });
-    
-    const link = document.createElement('a');
-    link.download = `橫切面剖面圖-${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
-
- // 路程計畫表 → PDF 下載（針對短表格優化）
-  const handleExportTablePDF = async () => {
-    if (!exportContainerRef.current) {
-      return alert('請先切換到「路程計畫表」分頁');
-    }
-
     try {
-      // 給 React 一點時間渲染完成
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const container = exportContainerRef.current;
-
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#0f172a',
-        logging: false,
-        allowTaint: true,
-        width: container.offsetWidth,
-        height: container.offsetHeight + 50,   // 多留一點空間
+      const canvas = await html2canvas(chartContainer, { 
+        scale: 2, 
+        backgroundColor: '#0f172a' 
       });
-
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'pt',
-        format: [canvas.width * 0.72, canvas.height * 0.72]
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', 15, 15, pdf.internal.pageSize.getWidth() - 30, 0);
       
-      pdf.save(`行程表-${selectedDate || Date.now()}.pdf`);
-      
-    } catch (error) {
-      console.error(error);
-      alert('PDF 產生失敗，請重新整理頁面後再試一次');
+      const link = document.createElement('a');
+      link.download = `橫切面剖面圖-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error(err);
+      alert('PNG 下載失敗');
     }
   };
-// EXCEL 下載（最終穩定版）
+
+  // EXCEL 下載（最終穩定版）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
