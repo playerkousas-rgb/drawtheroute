@@ -125,7 +125,47 @@ export default function ElevationChart({
     setHoverX(null);
     onHoverRef.current(null);
   }, []);
+// ─── 📸 功能 1：下載橫切面 (SVG) ───
+  const handleDownloadSVG = () => {
+    const svg = document.querySelector('.recharts-surface');
+    if (!svg) return alert('找不到圖表畫面！');
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `橫切面剖面圖-${Date.now()}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
+  // ─── 📊 功能 2：原生 HTML 轉 Excel (100% 支援 Vercel 免裝套件) ───
+  const handleExportExcel = () => {
+    const tableElement = document.querySelector('table');
+    if (!tableElement) return alert('找不到表格！請先切換至「路程計畫表」。');
+
+    // 抓取表格 HTML，並包裝成 Excel 能辨識的 XML 格式與 XML 命名空間
+    const tableHtml = tableElement.outerHTML;
+    const excelTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8"></head>
+      <body>${tableHtml}</body>
+      </html>
+    `;
+
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `山徑路程計畫表-${Date.now()}.xls`; // 匯出標準 xls 格式
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─── 📄 功能 3：內建 PDF 導出 ───
+  const handleDownloadPDF = () => {
+    window.print();
+  };
   // ─── 📸 📸 功能 1：下載橫切面 (SVG 格式) ───
   const handleDownloadSVG = () => {
     const svg = document.querySelector('.recharts-surface');
@@ -217,21 +257,33 @@ export default function ElevationChart({
         </div>
 
         {/* 🟢 補回這顆：根據當前分頁動態切換下載功能的按鈕 */}
-        <div className="flex items-center">
+      {/* 🟢 完美並排：自動連動顯示對應的導出按鈕 */}
+        <div className="flex items-center gap-2">
           {activeTab === 'chart' ? (
             <button
+              type="button"
               onClick={handleDownloadSVG}
               className="px-2.5 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition-all shadow-sm"
             >
-              📸 Save PNG/SVG
+              📸 Save SVG
             </button>
           ) : (
-            <button
-              onClick={handleExportExcel}
-              className="px-2.5 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition-all shadow-sm"
-            >
-              📊 匯出 EXCEL
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="px-2.5 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition-all shadow-sm"
+              >
+                📊 匯出 EXCEL
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                className="px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-[11px] font-bold transition-all shadow-sm"
+              >
+                📄 導出 PDF
+              </button>
+            </>
           )}
         </div>
         <div className="flex gap-1.5 flex-wrap">
