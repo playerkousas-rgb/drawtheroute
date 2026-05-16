@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+mport React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
@@ -8,7 +8,6 @@ import { formatTime } from '../../hooks/useTerrainAnalysis';
 import { calculateBearing } from '../../utils/coordUtils';
 import { useItineraryData } from '../../hooks/useItineraryData';
 
-// ==================== 新增下載功能套件 ====================
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -140,34 +139,50 @@ export default function ElevationChart({
     pdf.save(`橫切面剖面圖-${Date.now()}.pdf`);
   };
 
-  // 表格 → Excel (.xlsx)
+  const exportContainerRef = useRef<HTMLDivElement>(null);   // ← 新增
+
+  // ==================== 下載功能（已改成打包完整內容） ====================
+
   const handleExportExcel = () => {
     const tableElement = document.querySelector('table');
-    if (!tableElement) return alert('找不到表格！請先切換至「路程計畫表」。');
-    
+    if (!tableElement) return alert('找不到表格！');
+
     const wb = XLSX.utils.table_to_book(tableElement, { sheet: "路程計畫表" });
+    
+    // 可選：新增一個 Sheet 放底部數據（簡單文字版）
+    const summaryData = [
+      ["天文數據", "", ""],
+      ["日出/日落", weather?.sunrise || "--", weather?.sunset || "--"],
+      ["月出/月落", weather?.moonrise || "--", weather?.moonset || "--"],
+      ["Naismith 基準", "基礎時速", `${naismithSettings.baseSpeedKmh} km/h`],
+      ["每上升20m加時", "+", `${naismithSettings.ascentPer20m} 分`],
+      ["每下降20m加時", "+", `${naismithSettings.descentPer20m} 分`],
+    ];
+
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, "氣象與算法");
+
     XLSX.writeFile(wb, `山徑路程計畫表-${Date.now()}.xlsx`);
   };
 
-  // 表格 → PDF
   const handleExportTablePDF = async () => {
-    const tableContainer = document.querySelector('.overflow-x-auto') as HTMLElement;
-    if (!tableContainer) return alert('找不到表格！');
+    if (!exportContainerRef.current) return alert('找不到要匯出的內容！');
 
-    const canvas = await html2canvas(tableContainer, { 
+    const canvas = await html2canvas(exportContainerRef.current, { 
       scale: 2, 
       useCORS: true, 
-      backgroundColor: '#0f172a' 
+      backgroundColor: '#0f172a',
+      logging: false
     });
 
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'pt',
-      format: [canvas.width * 0.78, canvas.height * 0.78]
+      format: [canvas.width * 0.72, canvas.height * 0.72]
     });
 
     const imgData = canvas.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', 10, 10, pdf.internal.pageSize.getWidth() - 20, 0);
+    pdf.addImage(imgData, 'PNG', 15, 15, pdf.internal.pageSize.getWidth() - 30, 0);
     pdf.save(`山徑路程計畫表-${Date.now()}.pdf`);
   };
 
