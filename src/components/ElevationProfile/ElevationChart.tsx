@@ -125,48 +125,7 @@ export default function ElevationChart({
     setHoverX(null);
     onHoverRef.current(null);
   }, []);
-// ─── 📸 功能 1：下載橫切面 (SVG) ───
-  const handleDownloadSVG = () => {
-    const svg = document.querySelector('.recharts-surface');
-    if (!svg) return alert('找不到圖表畫面！');
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `橫切面剖面圖-${Date.now()}.svg`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // ─── 📊 功能 2：原生 HTML 轉 Excel (100% 支援 Vercel 免裝套件) ───
-  const handleExportExcel = () => {
-    const tableElement = document.querySelector('table');
-    if (!tableElement) return alert('找不到表格！請先切換至「路程計畫表」。');
-
-    // 抓取表格 HTML，並包裝成 Excel 能辨識的 XML 格式與 XML 命名空間
-    const tableHtml = tableElement.outerHTML;
-    const excelTemplate = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="UTF-8"></head>
-      <body>${tableHtml}</body>
-      </html>
-    `;
-
-    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `山徑路程計畫表-${Date.now()}.xls`; // 匯出標準 xls 格式
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // ─── 📄 功能 3：內建 PDF 導出 ───
-  const handleDownloadPDF = () => {
-    window.print();
-  };
-  // ─── 📸 📸 功能 1：下載橫切面 (SVG 格式) ───
+// ─── 📸 功能 1：下載橫切面 (SVG 格式，包含格線優化) ───
   const handleDownloadSVG = () => {
     const svg = document.querySelector('.recharts-surface');
     if (!svg) return alert('找不到圖表畫面！');
@@ -188,27 +147,32 @@ export default function ElevationChart({
     URL.revokeObjectURL(url);
   };
 
-  // ─── 📊 功能 2：抓取 HTML <table> 導出 EXCEL (CSV) ───
+  // ─── 📊 功能 2：原生 HTML 轉 Excel (100% 支援 Vercel 免裝套件，帶網格線) ───
   const handleExportExcel = () => {
     const tableElement = document.querySelector('table');
     if (!tableElement) return alert('找不到表格！請先切換至「路程計畫表」。');
 
-    const rows = tableElement.querySelectorAll('tr');
-    let csvContent = '';
+    const tableHtml = tableElement.outerHTML;
+    const excelTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8"></head>
+      <body>${tableHtml}</body>
+      </html>
+    `;
 
-    rows.forEach((row) => {
-      const cols = row.querySelectorAll('th, td');
-      const rowData: string[] = [];
-      
-      cols.forEach((col) => {
-        const input = col.querySelector('input');
-        let text = input ? input.value : (col.textContent || '');
-        text = text.replace(/\n/g, ' ').replace(/"/g, '""').trim();
-        if (text.includes(',')) text = `"${text}"`;
-        rowData.push(text);
-      });
-      csvContent += rowData.join(',') + '\n';
-    });
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `山徑路程計畫表-${Date.now()}.xls`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─── 📄 功能 3：內建 PDF 導出 ───
+  const handleDownloadPDF = () => {
+    window.print();
+  };
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
