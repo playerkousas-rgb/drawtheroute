@@ -48,15 +48,24 @@ export default function ElevationChart({
   naismithSettings,
   onHoverPoint
 }: Props) {
-  // 🟢 1. 在這裡呼叫 Hook 接通數據水管
-const { materials, weather } = useItineraryData(waypoints, segments, selectedDate);
 
-  // 2. 底下是你原本就有的狀態與邏輯
+  // 🟢 讓日期狀態【第一個出生】！
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+
+  // 🟢 讓資料水管【第二個出生】，這樣它就 100% 絕對能吃到剛誕生的 selectedDate！
+  const { materials, weather } = useItineraryData(waypoints, segments, selectedDate);
+
+  // 🔴 接下來才是你原本就有的其他舊邏輯，千萬不要讓它們插隊到上面兩行中間：
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
   const onHoverRef = useRef(onHoverPoint);
   onHoverRef.current = onHoverPoint;
-
   // 1. 計算標記點位置 (SP / CP / EP)
   const markers = useMemo(() => {
     if (!profile.length || !waypoints.length) return [];
