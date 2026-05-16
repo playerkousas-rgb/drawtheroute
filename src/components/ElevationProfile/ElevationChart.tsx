@@ -176,23 +176,44 @@ export default function ElevationChart({
       alert('PDF 產生失敗，請重新整理頁面後再試一次');
     }
   };
-  // 路程計畫表 → EXCEL 下載
+  // EXCEL 下載（推薦使用，穩定且乾淨）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
-    if (!table) return alert('找不到表格！請先切換至「路程計畫表」');
+    if (!table) {
+      return alert('請先切換到「路程計畫表」分頁');
+    }
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.table_to_sheet(table);
+    try {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.table_to_sheet(table);
 
-    ws['!cols'] = [
-      { wch: 8 }, { wch: 32 }, { wch: 20 }, { wch: 12 },
-      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 22 }
-    ];
+      // 調整欄寬（更接近你想要的格式）
+      ws['!cols'] = [
+        { wch: 6 },   // 檢查站
+        { wch: 35 },  // 地名
+        { wch: 22 },  // 座標/高度
+        { wch: 10 },  // 領航員
+        { wch: 8 },   // 前視方位
+        { wch: 10 }, { wch: 10 }, // 距離
+        { wch: 10 }, { wch: 10 }, // 上升
+        { wch: 10 }, { wch: 10 }, // 下降
+        { wch: 12 },  // 累積上升下降
+        { wch: 10 },  // 路段需時
+        { wch: 10 }, { wch: 10 }, // 休息
+        { wch: 12 },  // 共需時
+        { wch: 12 }, { wch: 12 }, // 預計時間
+        { wch: 12 }, { wch: 12 }, // 實際時間
+        { wch: 30 }   // 備註
+      ];
 
-    XLSX.utils.book_append_sheet(wb, ws, "行程表");
-    XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, "行程表");
+
+      XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
+      
+      // alert('✅ EXCEL 已成功下載！');
+    } catch (err) {
+      alert('EXCEL 匯出失敗，請稍後再試');
+    }
   };
   
   if (!profile.length) {
