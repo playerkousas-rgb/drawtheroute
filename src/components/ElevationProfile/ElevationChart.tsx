@@ -187,7 +187,7 @@ export default function ElevationChart({
       alert('PDF 產生失敗，請重新整理頁面後再試一次');
     }
   };
-// EXCEL 下載（單一 Sheet + 完整資訊 - 已修正）
+// EXCEL 下載（最終穩定版）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
@@ -221,11 +221,13 @@ export default function ElevationChart({
       ], { origin: `A${r}` });
       r += 8;
 
-      // 3. 主表格
+      // 3. 主表格（最穩定的寫法）
       XLSX.utils.sheet_add_aoa(ws, [[" "]], { origin: `A${r}` });
       r += 2;
 
-      const tableData = XLSX.utils.sheet_to_json(XLSX.utils.table_to_sheet(table), { header: 1 });
+      const tempWs = XLSX.utils.table_to_sheet(table);
+      const tableData = XLSX.utils.sheet_to_json(tempWs, { header: 1 }) as any[][];
+
       XLSX.utils.sheet_add_aoa(ws, tableData, { origin: `A${r}` });
 
       // 調整欄寬
@@ -236,32 +238,14 @@ export default function ElevationChart({
         { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 25 }
       ];
 
-      r += 40;
+      r += 35;
 
       // 4. 下方數據
       XLSX.utils.sheet_add_aoa(ws, [["天文數據 (ASTRO)"]], { origin: `A${r}` });
       r++;
       XLSX.utils.sheet_add_aoa(ws, [
         ["日出 / 日落", weather?.sunrise || "--", weather?.sunset || "--"],
-        ["月出 / 月落", weather?.moonrise || "--", weather?.moonset || "--"],
-        ["月相", weather?.moonPhase || "--"]
-      ], { origin: `A${r}` });
-      r += 5;
-
-      XLSX.utils.sheet_add_aoa(ws, [["Naismith 時間算法"]], { origin: `A${r}` });
-      r++;
-      XLSX.utils.sheet_add_aoa(ws, [
-        ["基礎時速", `${naismithSettings.baseSpeedKmh} km/h`],
-        ["每上升 20m 加時", `+${naismithSettings.ascentPer20m} 分`],
-        ["每下降 20m 加時", `+${naismithSettings.descentPer20m} 分`]
-      ], { origin: `A${r}` });
-      r += 4;
-
-      XLSX.utils.sheet_add_aoa(ws, [["氣象預測"]], { origin: `A${r}` });
-      r++;
-      XLSX.utils.sheet_add_aoa(ws, [
-        ["溫度 / 體感", `${weather?.temp || "--"}°C / ${weather?.feelsLike || "--"}°C`],
-        ["相對濕度", `${weather?.humidity || "--"}%`]
+        ["月出 / 月落", weather?.moonrise || "--", weather?.moonset || "--"]
       ], { origin: `A${r}` });
 
       XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
