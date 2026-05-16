@@ -275,7 +275,7 @@ export default function ElevationChart({
                   <th className="border border-slate-700 p-1 font-normal w-18">出發</th><th className="border border-slate-700 p-1 font-normal w-18">到達</th>
                 </tr>
               </thead>
-   <tbody>
+ <tbody>
   {(() => {
     // 輔助函式：將 "HH:MM" 轉成分鐘數
     const timeToMinutes = (tStr: string): number => {
@@ -291,34 +291,34 @@ export default function ElevationChart({
       return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     };
 
-    // 建立陣列，用來儲存每一站「算好」的預計出發與到達時間
-    const arrivalTimes: string[] = Array(waypoints.length).fill("--:--");
+    // 建立陣列，儲存每一列要呈現的預計出發與到達時間
     const departureTimes: string[] = Array(waypoints.length).fill("--:--");
+    const arrivalTimes: string[] = Array(waypoints.length).fill("--:--");
     
-    // 設定起點 (SP) 的初始出發時間
-    departureTimes[0] = "08:30"; 
+    // 1. 初始化第 0 列 (SP 列) 的出發時間為 08:30
+    departureTimes[0] = "08:30";
 
-    // 縱向連續推導核心迴圈
+    // 2. 縱向連續推導時間鏈
     for (let idx = 0; idx < waypoints.length; idx++) {
-      if (idx > 0) {
-        // 取得「上一段路」的資料與步時計算
-        const prevSeg = segments[idx - 1];
-        if (prevSeg) {
-          const baseTime = (prevSeg.distance / naismithSettings.baseSpeedKmh) * 60;
-          const ascentTime = (prevSeg.ascent / 20) * naismithSettings.ascentPer20m;
-          const descentTime = (prevSeg.descent / 20) * naismithSettings.descentPer20m;
-          const prevSegMinutes = Math.round(baseTime + ascentTime + descentTime);
-          
-          // 取得上一段路的中途路段休息
-          const prevRouteRest = routeRests[idx - 1] || 0;
-          
-          // 🟢 邏輯對齊 1：抵達這一站的時間 = 上一站的出發時間 + 上一段純步時 + 上一段路段休息
-          const arrivalMins = timeToMinutes(departureTimes[idx - 1]) + prevSegMinutes + prevRouteRest;
-          arrivalTimes[idx] = minutesToTime(arrivalMins);
-
-          // 🟢 邏輯對齊 2：從這一站再出發的時間 = 這一站的到達時間 + 這一站的 CP 休息
-          const currentCpRest = cpRests[idx] || 0;
-          departureTimes[idx] = minutesToTime(arrivalMins + currentCpRest);
+      const seg = segments[idx];
+      
+      if (seg) {
+        // 計算這一列路段的 Naismith 純步時
+        const baseTime = (seg.distance / naismithSettings.baseSpeedKmh) * 60;
+        const ascentTime = (seg.ascent / 20) * naismithSettings.ascentPer20m;
+        const descentTime = (seg.descent / 20) * naismithSettings.descentPer20m;
+        const segMinutes = Math.round(baseTime + ascentTime + descentTime);
+        
+        const routeRest = routeRests[idx] || 0;
+        
+        // A. 這一列的到達時間 (抵達下一個 CP) = 這一列的出發時間 + 純步時 + 路段休息
+        const arrivalMins = timeToMinutes(departureTimes[idx]) + segMinutes + routeRest;
+        arrivalTimes[idx] = minutesToTime(arrivalMins);
+        
+        // B. 下一列的出發時間 = 這一列的到達時間 + 「在這一列填寫的 CP 休息」
+        if (idx + 1 < waypoints.length) {
+          const currentCpRest = cpRests[idx] || 0; // 🟢 修正：直接讀取當前列的 CP 休息
+          departureTimes[idx + 1] = minutesToTime(arrivalMins + currentCpRest);
         }
       }
     }
@@ -338,13 +338,17 @@ export default function ElevationChart({
 
       const currentRouteRest = routeRests[i] || 0;
       const currentCpRest = cpRests[i] || 0;
+      
+      // 共需時 = 路段步時 + 路段休息 + CP休息
       const totalMinutes = segmentMinutes + currentRouteRest + currentCpRest;
+
+      const isLastRow = i === waypoints.length - 1;
 
       return (
         <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
           {/* CP 名稱 */}
           <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
-            {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
+            {i === 0 ? 'SP' : (isLastRow ? 'EP' : `CP${i}`)}
           </td>
           
           {/* 位置名稱輸入 */}
@@ -389,42 +393,42 @@ export default function ElevationChart({
           
           {/* 分段距離 */}
           <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
-            {segment ? segment.distance.toFixed(2) : "0.00"}
+            {!isLastRow && segment ? segment.distance.toFixed(2) : "0.00"}
           </td>
 
           {/* 累積距離 */}
           <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
-            {segment ? cumulativeDist.toFixed(2) : "0.00"}
+            {!isLastRow && segment ? cumulativeDist.toFixed(2) : "0.00"}
           </td>
 
           {/* 分段上升 */}
           <td className="p-2 border border-slate-700 text-center text-emerald-400">
-            {segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
+            {!isLastRow && segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
           </td>
 
           {/* 累積上升 */}
           <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
-            {segment ? `+${cumulativeAscent.toFixed(0)}` : "+0"}
+            {!isLastRow && segment ? `+${cumulativeAscent.toFixed(0)}` : "+0"}
           </td>
 
           {/* 分段下降 */}
           <td className="p-2 border border-slate-700 text-center text-rose-400">
-            {segment ? `-${segment.descent.toFixed(0)}` : "-0"}
+            {!isLastRow && segment ? `-${segment.descent.toFixed(0)}` : "-0"}
           </td>
 
           {/* 累積下降 */}
           <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
-            {segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
+            {!isLastRow && segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
           </td>
 
           {/* 累積上升及下降 */}
           <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
-            {segment ? currentSegmentVertMovement.toFixed(0) : "0"}
+            {!isLastRow && segment ? currentSegmentVertMovement.toFixed(0) : "0"}
           </td>
 
           {/* 路段需時 */}
           <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 font-mono">
-            {segmentMinutes}
+            {!isLastRow ? segmentMinutes : 0}
           </td>
           
           {/* 休息及事工需時 - 路段 */}
@@ -434,6 +438,7 @@ export default function ElevationChart({
               className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
               placeholder="0"
               value={currentRouteRest || ''}
+              disabled={isLastRow}
               onChange={(e) => {
                 const val = parseInt(e.target.value) || 0;
                 const next = [...routeRests];
@@ -443,13 +448,14 @@ export default function ElevationChart({
             />
           </td>
 
-          {/* 休息及事工需時 - 檢查點 */}
+          {/* 休息及事工需時 - 檢查點 (🟢 第 0 列為抵達 CP1 後的休息時間) */}
           <td className="p-0 border border-slate-700 bg-white/5 text-center">
             <input 
               type="number"
               className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
               placeholder="0"
               value={currentCpRest || ''}
+              disabled={isLastRow} // 最後一列終點不需要填寫 CP 休息
               onChange={(e) => {
                 const val = parseInt(e.target.value) || 0;
                 const next = [...cpRests];
@@ -461,21 +467,17 @@ export default function ElevationChart({
 
           {/* 共需時 */}
           <td className="p-2 border border-slate-700 text-center font-bold text-amber-400 font-mono">
-            {totalMinutes}
+            {isLastRow ? 0 : totalMinutes}
           </td>
 
           {/* 預計時間 - 出發 */}
-          <td className="p-0 border border-slate-700 bg-white/5 text-center">
-            <input 
-              className="w-full bg-transparent p-2 text-center outline-none text-white font-bold font-mono" 
-              value={departureTimes[i]} 
-              readOnly
-            />
+          <td className="p-2 border border-slate-700 text-center text-white font-bold font-mono">
+            {departureTimes[i]}
           </td>
 
           {/* 預計時間 - 到達 */}
           <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold font-mono">
-            {i === 0 ? "--:--" : arrivalTimes[i]}
+            {isLastRow ? arrivalTimes[i - 1] || "--:--" : arrivalTimes[i]}
           </td>
 
           {/* 實際時間 (手寫) */}
