@@ -634,7 +634,14 @@ export default function ElevationChart({
               <div className="space-y-1">
                 <span className="text-blue-400 text-[10px] uppercase font-bold flex items-center gap-1">🌦️ 氣象預測 (Weather Forecast)</span>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="flex flex-col"><span className="text-slate-500 text-[9px]">溫度 / 體感</span><span className="text-orange-400 text-xs font-bold">{weather ? `${weather.temp}°C / ${weather.feelsLike}°C` : "24°C / 26°C"}</span></div>
+                 <div className="flex flex-col">
+  <span className="text-slate-500 text-[9px]">當日最高 / 最低溫</span>
+  <span className="text-orange-400 text-xs font-bold">
+    {weather && weather.maxTemp !== undefined && weather.minTemp !== undefined
+      ? `${weather.maxTemp}°C / ${weather.minTemp}°C` 
+      : "26°C / 18°C"}
+  </span>
+</div>
                   <div className="flex flex-col"><span className="text-slate-500 text-[9px]">相對濕度</span><span className="text-blue-300 text-xs font-bold">{weather && weather.humidity !== undefined ? `${weather.humidity}%` : "78%"}</span></div>
                   <div className="flex flex-col">
                     <span className="text-slate-500 text-[9px]">雲量 / 降雨</span>
