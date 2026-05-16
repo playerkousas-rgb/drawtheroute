@@ -119,30 +119,29 @@ export default function ElevationChart({
     onHoverRef.current(null);
   }, []);
 
-  // ==================== 下載功能 ====================
+ // ==================== 下載功能 ====================
 
-  // 圖表 → PDF
+  const exportContainerRef = useRef<HTMLDivElement>(null);
+
+  // 圖表 PDF 下載（高度剖面頁使用）
   const handleDownloadChartPDF = async () => {
     const chartContainer = document.querySelector('.recharts-wrapper') as HTMLElement;
     if (!chartContainer) return alert('找不到圖表畫面！');
     
     const canvas = await html2canvas(chartContainer, { scale: 2, backgroundColor: '#0f172a' });
     const imgData = canvas.toDataURL('image/png');
-
+    
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'pt',
       format: [canvas.width / 1.8, canvas.height / 1.8]
     });
-
+    
     pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     pdf.save(`橫切面剖面圖-${Date.now()}.pdf`);
   };
 
-  // ========== 下載功能 ==========
-  const exportContainerRef = useRef<HTMLDivElement>(null);
-
-  // PDF 下載（包含上方資訊 + 表格 + 下方數據）
+  // 表格 PDF 下載（包含上方資訊 + 表格 + 下方數據）
   const handleExportTablePDF = async () => {
     if (!exportContainerRef.current) return alert('找不到要匯出的內容！');
     
@@ -167,32 +166,21 @@ export default function ElevationChart({
   // EXCEL 下載
   const handleExportExcel = () => {
     const table = document.querySelector('table');
-    if (!table) return alert('找不到表格！請切換至「路程計畫表」');
+    if (!table) return alert('找不到表格！請先切換至「路程計畫表」');
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.table_to_sheet(table);
 
-    // 調整欄寬，讓版面更好看
+    // 調整欄寬
     ws['!cols'] = [
-      { wch: 8 }, { wch: 28 }, { wch: 18 }, { wch: 10 },
+      { wch: 8 }, { wch: 30 }, { wch: 18 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }
+      { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 20 }
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, "行程表");
     XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
-  };
-
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'pt',
-      format: [canvas.width * 0.72, canvas.height * 0.72]
-    });
-
-    const imgData = canvas.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', 15, 15, pdf.internal.pageSize.getWidth() - 30, 0);
-    pdf.save(`山徑路程計畫表-${Date.now()}.pdf`);
   };
 
   if (!profile.length) {
