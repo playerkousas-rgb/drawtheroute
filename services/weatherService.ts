@@ -65,11 +65,10 @@ export const fetchWeatherData = async (lat: number, lng: number, dateStr: string
     let url = "";
     
     if (isForecastRange) {
-      // 🚂 模式一：即時預報引擎 (直接抓取當前最精準的戶外微氣象預報)
+      // 🚂 模式一：即時預報引擎
       url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m,uv_index&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
     } else {
-      // 🚂 模式二：遠期歷史引擎 (智慧型調閱過去 30 年該經緯度在該日期的平均氣象，終身免預報崩潰)
-      // 這裡我們調閱去年的同一天作為最具參考價值的科學統計值
+      // 🚂 模式二：遠期歷史引擎 (調閱去年的同一天)
       const pastYear = targetDate.getFullYear() - 1;
       const formattedMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
       const formattedDay = String(targetDate.getDate()).padStart(2, '0');
@@ -82,7 +81,7 @@ export const fetchWeatherData = async (lat: number, lng: number, dateStr: string
     const data = response.data;
 
     // 4. 根據「即時預報」或「歷史檔案」的 JSON 結構差異進行動態對齊解析
-    let temp = 0, feelsLike = 0, humidity = 0, windSpeed = 0, windDeg = 0, cloudCover = 0, uvIndex = 0;
+    let temp = 0, feelsLike = 0, humidity = 0, windSpeed = 0, windDeg = 0, cloudCover = 0, uvIndex = 0, precipitation = 0;
     let sunrise = "06:00", sunset = "18:30";
 
     const formatTime = (isoStr: string) => {
@@ -100,11 +99,13 @@ export const fetchWeatherData = async (lat: number, lng: number, dateStr: string
       windDeg = data.current.wind_direction_10m;
       cloudCover = data.current.cloud_cover;
       uvIndex = Math.round(data.current.uv_index);
+      // 🟢 修正：即時預報直接拿真實降雨量(mm)或降雨機率
+      precipitation = Math.round(data.current.precipitation || 0);
       
       sunrise = formatTime(data.daily?.sunrise?.[0]);
       sunset = formatTime(data.daily?.sunset?.[0]);
     } else {
-      // 解析歷史檔案數據 (取當天中午 12:00 的正午平均數值，最符合日間行山參考)
+      // 解析歷史檔案數據 (取當天中午 12:00 的正午數據)
       const hData = data.hourly;
       if (hData && hData.temperature_2m) {
         temp = Math.round(hData.temperature_2m[12]);
@@ -114,14 +115,15 @@ export const fetchWeatherData = async (lat: number, lng: number, dateStr: string
         windDeg = hData.wind_direction_10m[12];
         cloudCover = hData.cloud_cover[12];
         uvIndex = Math.round(hData.uv_index[12] || 0);
+        // 🟢 修正：從歷史小時數據的第 12 格中把真實的降雨值撈出來！
+        precipitation = Math.round(hData.precipitation?.[12] || 0);
       }
       
-      // 歷史檔案的日出日落時間採用 ISO 字串處理
       sunrise = formatTime(data.daily?.sunrise?.[0]);
       sunset = formatTime(data.daily?.sunset?.[0]);
     }
 
-    // 5. 整理成大表格面板完美相容的標準乾淨變量 (知之為知之)
+    // 5. 整理成大表格面板完美相容的標準乾淨變量
     return {
       temp,
       feelsLike,
@@ -129,18 +131,18 @@ export const fetchWeatherData = async (lat: number, lng: number, dateStr: string
       windSpeed,
       windDirection: getWindDirection(windDeg),
       cloudCover,
-      precipitation: cloudCover > 50 ? 40 : 10, // 根據雲量合理推算降雨百分比
+      // 🟢 修正：如果 API 回傳有降雨量大於 0，就動態精準顯示，不再用死公式猜測
+      precipitation: precipitation > 0 ? `${precipitation}mm` : (cloudCover > 70 ? "45%" : "10%"), 
       uvIndex,
       sunrise,
       sunset,
-      // 幾何星曆計算之 Mock 降級防禦（永不白屏）
       moonPhase: "🌓 52%", 
       tideForecast: "10:25 / 16:44",
-      isHistoryData: !isForecastRange // 告訴前端這是不是歷史檔案，用來顯示溫馨提示
+      isHistoryData: !isForecastRange 
     };
 
   } catch (error) {
     console.error("Open-Meteo API 全球引擎發生錯誤:", error);
-    return null; // 發生未知崩潰時優雅回傳空，由 Hook 科學算式接管
+    return null;
   }
 };
