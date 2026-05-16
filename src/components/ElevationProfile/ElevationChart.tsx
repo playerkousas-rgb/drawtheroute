@@ -334,29 +334,59 @@ export default function ElevationChart({
   ) : (
     "--°"
   )}
-    <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
-
-        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-
-        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-
-        <td className="p-2 border border-slate-700 text-center font-bold text-amber-400">0</td>
-
-        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-
-          <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
-
+</td>
+        {/* 分段距離 (KM) */}
+        <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
+          {segment ? segment.distance.toFixed(2) : "0.00"}
         </td>
 
+        {/* 累積距離 (KM) */}
+        <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
+          {segment ? cumulativeDist.toFixed(2) : "0.00"}
+        </td>
+
+        {/* 分段上升 (M) */}
+        <td className="p-2 border border-slate-700 text-center text-emerald-400">
+          {segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
+        </td>
+
+        {/* 累積上升 */}
+        <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
+          {segment ? `+${cumulativeAscent.toFixed(0)}` : "+0"}
+        </td>
+
+        {/* 分段下降 (M) */}
+        <td className="p-2 border border-slate-700 text-center text-rose-400">
+          {segment ? `-${segment.descent.toFixed(0)}` : "-0"}
+        </td>
+
+        {/* 累積下降 */}
+        <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
+          {segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
+        </td>
+
+        {/* 🟢 累積上升及下降 (精準對齊標準：分段上+分段下) */}
+        <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
+          {segment ? currentSegmentVertMovement.toFixed(0) : "0"}
+        </td>
+
+        {/* 後續的步時、時間、輸入框 */}
+        <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
+        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
+        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
+        <td className="p-2 border border-slate-700 text-center font-bold text-amber-400">0</td>
+        <td className="p-0 border border-slate-700 bg-white/5 text-center">
+          <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
+        </td>
         <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">--:--</td>
-
         <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-
         <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-
         <td className="p-0 border border-slate-700 bg-white/5">
-
           <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
+        </td>
+      </tr>
+    );
+  })}
 </tbody>
             </table>
           </div>
