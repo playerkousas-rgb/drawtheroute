@@ -11,40 +11,54 @@ export const useItineraryData = (
   const [weather, setWeather] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
 
+  // 🚂 引擎 A：獨立負責「氣象與天文數據」，只要日期一變，就算還沒畫地圖也要抓得到預設值！
   useEffect(() => {
-    const processData = async () => {
-      if (!waypoints || waypoints.length === 0) return;
-
-      const startLoc = waypoints[0].latlng;
-      let currentFetchWeather = null;
+    const fetchWeatherOnly = async () => {
+      // 預設參考點（如果沒畫地圖，預設拿香港市中心或預設座標，避免斷流；若有點，則拿第一個點的坐標）
+      const lat = waypoints && waypoints.length > 0 ? waypoints[0].latlng.lat : 22.3193;
+      const lng = waypoints && waypoints.length > 0 ? waypoints[0].latlng.lng : 114.1694;
 
       try {
-        // 🚂 1. 動態戳全球引擎：直接把經緯度與日期拋給 Open-Meteo
-        // 內部會智慧判斷是提供「即時預報」還是「歷史統計平均值」
-        const data = await fetchWeatherData(startLoc.lat, startLoc.lng, selectedDate);
-        currentFetchWeather = data;
+        // 動態戳全球引擎：直接把經緯度與日期拋給 Open-Meteo
+        const data = await fetchWeatherData(lat, lng, selectedDate);
         setWeather(data);
       } catch (e) {
         console.error("Open-Meteo 全球氣象獲取失敗，啟動核心防禦降級", e);
         setWeather(null);
       }
+    };
 
-      // 🚂 2. 雙引擎核心決策：知之為知之
-      let sunriseTime = "08:30"; // 預設降級出發時間
+    fetchWeatherOnly();
+  }, [selectedDate, waypoints]); // 🟢 當手動修改日期，或地圖起點變更時，即時重刷氣象與天文！
 
-      if (currentFetchWeather && currentFetchWeather.sunrise && currentFetchWeather.sunrise !== "--:--") {
+
+  // 🚂 引擎 B：負責「行程表 CP 格網與時間加工循環」
+  useEffect(() => {
+    const processRouteData = () => {
+      // 如果地圖上尚未點擊任何站點，表格主體資料先保持空陣列
+      if (!waypoints || waypoints.length === 0) {
+        setMaterials([]);
+        return;
+      }
+
+      const startLoc = waypoints[0].latlng;
+
+      // 雙引擎核心決策：知之為知之
+      let sunriseTime = "06:14"; // 預設降級出發時間基正值
+
+      if (weather && weather.sunrise && weather.sunrise !== "--:--") {
         // 如果 Open-Meteo 有給出可靠的日出時間，百分之百信任並採用
-        sunriseTime = currentFetchWeather.sunrise;
+        sunriseTime = weather.sunrise;
       } else {
-        // 如果 API 斷網、報錯、或歷史檔案沒給日出，幾何科學公式 0 毫秒無縫頂上，免疫崩潰
+        // 如果 API 還在加載、斷網、或沒給日出，幾何科學公式頂上，免疫崩潰
         sunriseTime = calculateSunrise(startLoc.lat, startLoc.lng, selectedDate);
       }
 
-      // 3. 初始化加工變數
+      // 初始化加工變數
       let cumulativeDist = 0;
       let currentTime = sunriseTime; // 出發時間起點對齊
 
-      // 4. 全數據加工循環 (大表格滾雪球連動)
+      // 全數據加工循環 (大表格滾雪球連動)
       const result = waypoints.map((wp, i) => {
         const prevSeg = i > 0 ? segments[i - 1] : null;
         
@@ -67,7 +81,7 @@ export const useItineraryData = (
         return {
           id: wp.id,
           name: wp.type === 'start' ? '起點' : wp.type === 'end' ? '終點' : `CP${i}`,
-          // 🟢 這裡接通了我們剛剛改好的、真正會分辨 KV/KW/JV 字頭的真香港網格轉換！
+          // 🟢 這裡接通真香港方格網轉換
           grid: getKKGrid(wp.latlng.lat, wp.latlng.lng),
           bearing: bearing,
           elevation: wp.elevation,
@@ -81,9 +95,9 @@ export const useItineraryData = (
       setMaterials(result);
     };
 
-    processData();
-    // 🟢 當點擊地圖(waypoints)、路線改變(segments)或是上方「修改日期」時，全線數據骨牌重算！
-  }, [waypoints, segments, selectedDate]);
+    processRouteData();
+    // 🟢 當點擊地圖(waypoints)、路線改變(segments)或是天文數據刷出新日出時間時，全線表格數據骨牌重算！
+  }, [waypoints, segments, selectedDate, weather?.sunrise]);
 
   return { weather, materials };
 };
