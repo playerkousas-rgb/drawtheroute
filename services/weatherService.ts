@@ -124,22 +124,24 @@ export const fetchWeatherData = async (lat: number, lng: number, dateStr: string
     }
 
     // 5. 整理成大表格面板完美相容的標準乾淨變量
-    return {
-      temp,
-      feelsLike,
-      humidity,
-      windSpeed,
-      windDirection: getWindDirection(windDeg),
-      cloudCover,
-      // 🟢 修正：如果 API 回傳有降雨量大於 0，就動態精準顯示，不再用死公式猜測
-      precipitation: precipitation > 0 ? `${precipitation}mm` : (cloudCover > 70 ? "45%" : "10%"), 
-      uvIndex,
-      sunrise,
-      sunset,
-      moonPhase: "🌓 52%", 
-      tideForecast: "10:25 / 16:44",
-      isHistoryData: !isForecastRange 
-    };
+   return {
+  temp,
+  feelsLike,
+  humidity,
+  windSpeed,
+  windDirection: getWindDirection(windDeg),
+  cloudCover,
+  
+  // 🟢 修正：去掉這裡面的 "mm" 和 "%"，純粹給出數字
+  precipitation: precipitation > 0 ? precipitation : (cloudCover > 70 ? 45 : 10), 
+  
+  uvIndex,
+  sunrise,
+  sunset,
+  moonPhase: "🌓 52%", 
+  tideForecast: "10:25 / 16:44",
+  isHistoryData: !isForecastRange 
+};
 
   } catch (error) {
     console.error("Open-Meteo API 全球引擎發生錯誤:", error);
