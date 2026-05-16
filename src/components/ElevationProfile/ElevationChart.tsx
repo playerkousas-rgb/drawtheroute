@@ -273,7 +273,7 @@ export default function ElevationChart({
                   <th className="border border-slate-700 p-1 font-normal w-18">出發</th><th className="border border-slate-700 p-1 font-normal w-18">到達</th>
                 </tr>
               </thead>
-         <tbody>
+       <tbody>
   {waypoints.map((wp, i) => {
     // 1. 獲取當前點出發的下一個路段（數據往前移一格，對齊出發點）
     const segment = i < segments.length ? segments[i] : null;
@@ -287,6 +287,12 @@ export default function ElevationChart({
     // 根據香港標準行程表規範，此欄位代表的是「當前這一段路的分段上升加上分段下降」之總和
     const currentSegmentVertMovement = segment ? (segment.ascent + segment.descent) : 0;
 
+    // 🟢 【在這裡直接計算單段 Naismith 分鐘數】
+    const baseTime = segment ? (segment.distance / naismithSettings.baseSpeedKmh) * 60 : 0;
+    const ascentTime = segment ? (segment.ascent / 20) * naismithSettings.ascentPer20m : 0;
+    const descentTime = segment ? (segment.descent / 20) * naismithSettings.descentPer20m : 0;
+    const segmentMinutes = Math.round(baseTime + ascentTime + descentTime);
+
     return (
       <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
         {/* CP 名稱 */}
@@ -299,42 +305,40 @@ export default function ElevationChart({
           <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
         </td>
 
-    {/* 網格座標與海拔 (自動) */}
-<td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
-  
-  {/* 🟢 點擊這整個區塊或文字，就會在香港網格與全球經緯度之間切換 */}
-  <div 
-    onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
-    className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none"
-    title="點擊切換 網格 / 經緯度"
-  >
-    {coordMode === 'grid' 
-      ? (materials && materials[i]?.grid ? materials[i].grid : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`)
-      : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`
-    }
-  </div>
-
-  <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">
-    {(wp as any).elevation || 0} m
-  </div>
-</td>
+        {/* 網格座標與海拔 (自動) */}
+        <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
+          <div 
+            onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
+            className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none"
+            title="點擊切換 網格 / 經緯度"
+          >
+            {coordMode === 'grid' 
+              ? (materials && materials[i]?.grid ? materials[i].grid : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`)
+              : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`
+            }
+          </div>
+          <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">
+            {(wp as any).elevation || 0} m
+          </div>
+        </td>
 
         {/* 原本有的輸入框 */}
         <td className="p-0 border border-slate-700 bg-white/5 text-center">
           <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
         </td>
         <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">
-  {segment && waypoints[i + 1] ? (
-    `${calculateBearing(
-      wp.latlng.lat,
-      wp.latlng.lng,
-      waypoints[i + 1].latlng.lat,
-      waypoints[i + 1].latlng.lng
-    )}°`
-  ) : (
-    "--°"
-  )}
-</td>
+          {segment && waypoints[i + 1] ? (
+            `${calculateBearing(
+              wp.latlng.lat,
+              wp.latlng.lng,
+              waypoints[i + 1].latlng.lat,
+              waypoints[i + 1].latlng.lng
+            )}°`
+          ) : (
+            "--°"
+          )}
+        </td>
+        
         {/* 分段距離 (KM) */}
         <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
           {segment ? segment.distance.toFixed(2) : "0.00"}
@@ -370,8 +374,11 @@ export default function ElevationChart({
           {segment ? currentSegmentVertMovement.toFixed(0) : "0"}
         </td>
 
-        {/* 後續的步時、時間、輸入框 */}
-        <td className="p-2 border border-slate-700 text-center font-bold text-purple-400">0</td>
+        {/* 🟢 路段需時 (將原本的 0 替換為計算好的動態分鐘數) */}
+        <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 font-mono">
+          {segmentMinutes}
+        </td>
+        
         <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
         <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
         <td className="p-2 border border-slate-700 text-center font-bold text-amber-400">0</td>
