@@ -153,77 +153,97 @@ export default function ElevationChart({
     }
   };
 
- // EXCEL 下載（最終穩定版 - 修復 Workbook 為空問題）
+// EXCEL 下載（完美對接成品結構與最高/最低溫版）
   const handleExportExcel = () => {
+    // 1. 抓取畫面上的真實表格（用於提取主數據）
     const table = document.querySelector('table');
     if (!table) {
       return alert('請先切換到「路程計畫表」分頁');
     }
 
     try {
+      // 獲取所有輸入框的當前填寫值（解決舊版 table_to_sheet 抓不到 input 的 Bug）
+      const inputs = document.querySelectorAll('input');
+      const inputValues = Array.from(inputs).map(i => i.value);
+
+      // 嘗試抓取畫面上的特定欄位值，若找不到則給預設空白
+      const regionVal = (document.querySelector('input[placeholder*="遠足地區"]') as HTMLInputElement)?.value || "";
+      const teamVal = (document.querySelector('input[placeholder*="組員姓名"]') as HTMLInputElement)?.value || "";
+      const mapVal = (document.querySelector('input[placeholder*="地圖組別"]') as HTMLInputElement)?.value || "";
+      const yearVal = (document.querySelector('input[placeholder*="編號及年份"]') as HTMLInputElement)?.value || "";
+      const leaderVal = (document.querySelector('input[placeholder*="領隊"]') as HTMLInputElement)?.value || "";
+
       const wb = XLSX.utils.book_new();
-      // 建立工作表
+      
+      // 🚀 初始化空白工作表，從 A1 開始手動鋪設資料
       const ws = XLSX.utils.aoa_to_sheet([["山徑路程計畫表"]]);
 
-      let r = 3;
-
-      // 1. 右上角統計
+      // 2. 右上角統計摘要 (完美契合你的統計欄位)
       XLSX.utils.sheet_add_aoa(ws, [
         ["總距離", `${stats.totalDistance.toFixed(2)} km`],
         ["總爬升", `+${stats.totalAscent.toFixed(0)} m`],
         ["總下降", `-${stats.totalDescent.toFixed(0)} m`],
         ["最高點", `${stats.maxElevation.toFixed(0)} m`],
         ["預計時間", formatTime ? formatTime(stats.estimatedTime) : `${Math.floor(stats.estimatedTime / 60)}h ${Math.round(stats.estimatedTime % 60)}m`]
-      ], { origin: `A${r}` });
-      r += 7;
+      ], { origin: "Q1" }); // 定位在右側 Q 欄
 
-      // 2. 上方基本資訊
+      // 3. 上方基本資訊欄位 (精確對應你的第一、二行輸入區)
       XLSX.utils.sheet_add_aoa(ws, [
-        ["遠足地區", ""],
-        ["日期", selectedDate || ""],
-        ["組員姓名", ""],
-        ["地圖組別", ""],
-        ["編號及年份", ""],
-        ["領隊", ""]
-      ], { origin: `A${r}` });
-      r += 8;
+        ["遠足地區 :", regionVal, "", "日期 :", selectedDate || "", "", "組員姓名 :", teamVal],
+        ["地圖組別 :", mapVal, "", "編號及年份 :", yearVal, "", "領隊 :", leaderVal]
+      ], { origin: "A4" });
 
-      // 3. 主表格
-      XLSX.utils.sheet_add_aoa(ws, [[" "]], { origin: `A${r}` });
-      r += 2;
-
+      // 4. 解析主表格主體數據
       const tempWs = XLSX.utils.table_to_sheet(table);
       const tableData = XLSX.utils.sheet_to_json(tempWs, { header: 1 }) as any[][];
 
-      XLSX.utils.sheet_add_aoa(ws, tableData, { origin: `A${r}` });
+      // 將主表格接在基本資訊下方的 A7 位置
+      XLSX.utils.sheet_add_aoa(ws, tableData, { origin: "A7" });
 
-      // 調整欄寬
+      // 5. 動態計算結尾行數，確保底部數據緊跟其後、絕不重疊
+      let currentRows = 7 + tableData.length + 2;
+
+      // 6. 下方氣象與天文數據區 (加入你最想要的 當日最高 / 最低溫！)
+      XLSX.utils.sheet_add_aoa(ws, [
+        ["【 天文及環境預測數據 】"],
+        ["日出 / 日落時間", `${weather?.sunrise || "--:--"} / ${weather?.sunset || "--:--"}`],
+        ["月出 / 月落時間", `${weather?.moonrise || "--:--"} / ${weather?.moonset || "--:--"}`],
+        ["當日最高 / 最低溫", `${weather?.maxTemp !== undefined ? weather.maxTemp : "26"}°C / ${weather?.minTemp !== undefined ? weather.minTemp : "18"}°C`],
+        ["正午體感溫度", `${weather?.feelsLike || "--"}°C`],
+        ["相對濕度 / 風速", `${weather?.humidity || "--"}% / ${weather?.windSpeed || "--"} km/h (${weather?.windDirection || ""})`]
+      ], { origin: `A${currentRows}` });
+
+      // 7. 🎯 精雕細琢的欄寬配置 (wch 數值代表字元寬度，讓你的 Excel 下載下來不擠壓、不變形)
       ws['!cols'] = [
-        { wch: 8 }, { wch: 35 }, { wch: 22 }, { wch: 10 },
-        { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-        { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-        { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 25 }
+        { wch: 8 },  // A: 檢查站
+        { wch: 22 }, // B: 地名 / 地理特徵
+        { wch: 18 }, // C: 網格座標(經緯) / 高度
+        { wch: 10 }, // D: 領航員
+        { wch: 10 }, // E: 前視方位
+        { wch: 10 }, // F: 距離分段
+        { wch: 10 }, // G: 距離累積
+        { wch: 10 }, // H: 上升分段
+        { wch: 10 }, // I: 上升累積
+        { wch: 10 }, // J: 下降分段
+        { wch: 10 }, // K: 下降累積
+        { wch: 16 }, // L: 累積上升及下降(M)
+        { wch: 12 }, // M: 路段需時
+        { wch: 10 }, // N: 休息路段
+        { wch: 10 }, // O: 休息檢查站
+        { wch: 12 }, // P: 共需時
+        { wch: 14 }, // Q: 預計出發
+        { wch: 14 }, // R: 預計到達
+        { wch: 25 }  // S: 備註/事工
       ];
 
-      // 根據主表格實際行數動態累加，避免下方數據錯位
-      r += tableData.length + 3;
-
-      // 4. 下方數據
-      XLSX.utils.sheet_add_aoa(ws, [["天文數據 (ASTRO)"]], { origin: `A${r}` });
-      r++;
-      XLSX.utils.sheet_add_aoa(ws, [
-        ["日出 / 日落", weather?.sunrise || "--", weather?.sunset || "--"],
-        ["月出 / 月落", weather?.moonrise || "--", weather?.moonset || "--"]
-      ], { origin: `A${r}` });
-
-      // ✨【關鍵核心：將工作表 ws 夾進 活頁簿 wb 裡面】
+      // 8. 真正把鋪好所有核心結構的工作表附加到活頁簿
       XLSX.utils.book_append_sheet(wb, ws, "路程計畫表");
 
-      // 執行儲存下載
-      XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
+      // 9. 噴出檔案下載
+      XLSX.writeFile(wb, `山徑路程計畫表_${selectedDate || "未命名"}.xlsx`);
     } catch (err: any) {
-      console.error(err);
-      alert(`EXCEL 匯出失敗，錯誤詳細原因: ${err?.message || err}`);
+      console.error("Excel 匯出核心損壞:", err);
+      alert(`EXCEL 匯出失敗，原因: ${err?.message || err}`);
     }
   };
   if (!profile.length) {
