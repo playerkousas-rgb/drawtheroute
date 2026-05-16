@@ -153,7 +153,7 @@ export default function ElevationChart({
     }
   };
 
-// EXCEL 下載（極簡端盤子版：完全依賴網頁現有排版 + 拯救輸入框）
+// EXCEL 下載（終極完美結合版：頁首回歸 + 輸入框有字 + 氣象貼緊底部）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
@@ -163,16 +163,49 @@ export default function ElevationChart({
     try {
       const wb = XLSX.utils.book_new();
       
-      // 🎯 核心魔法 1：直接抓整張網頁表格，並加入 { display: true } 
-      // 這會命令 SheetJS 強制抓取網頁上所有變動的 <input> 輸入框內數值！
-      const ws = XLSX.utils.table_to_sheet(table, { display: true });
+      // 🚀 建立一個乾淨的空白工作表，第一行寫上大標題
+      const ws = XLSX.utils.aoa_to_sheet([["山徑路程計畫表"]]);
 
-      // 🎯 核心魔法 2：動態計算主表格的真實高度
-      // 讓下方的天文數據永遠精確地黏在網頁主表格下方，不再錯位變小！
-      const totalTableRows = table.rows.length;
-      let footerRow = totalTableRows + 3; // 表格總列數再往下加 3 行空行
+      // 🎯 1. 拯救輸入框：掃描網頁上所有的 input 標籤並精確抓取數值
+      const allInputs = document.querySelectorAll('input');
+      const inputMap: { [key: string]: string } = {};
+      allInputs.forEach(input => {
+        const placeholder = input.getAttribute('placeholder') || '';
+        if (placeholder.includes('遠足地區')) inputMap['region'] = input.value;
+        if (placeholder.includes('組員姓名') || placeholder.includes('姓名')) inputMap['team'] = input.value;
+        if (placeholder.includes('地圖組別')) inputMap['map'] = input.value;
+        if (placeholder.includes('編號及年份')) inputMap['year'] = input.value;
+        if (placeholder.includes('領隊')) inputMap['leader'] = input.value;
+      });
 
-      // 寫入下方天文與預測數據
+      // 🎯 2. 強制寫入右上角的統計摘要（完美貼在第 3 行）
+      XLSX.utils.sheet_add_aoa(ws, [
+        ["", "", "", "", "", "", "", "總距離：", `${stats.totalDistance.toFixed(2)} km`, "", "", "總上升：", `+${stats.totalAscent.toFixed(0)} m`, "", "總下降：", `-${stats.totalDescent.toFixed(0)} m`, "", "最高：", `${stats.maxElevation.toFixed(0)} m`, "", "預計時間：", formatTime ? formatTime(stats.estimatedTime) : `${Math.floor(stats.estimatedTime / 60)}h ${Math.round(stats.estimatedTime % 60)}m`]
+      ], { origin: "A3" });
+
+      // 🎯 3. 強制寫入基本資訊欄位（完美貼在第 5 行，字體跟資料絕對都在！）
+      XLSX.utils.sheet_add_aoa(ws, [
+        [
+          "遠足地區：", inputMap['region'] || "", 
+          "日期：", selectedDate || "", 
+          "地圖組別：", inputMap['map'] || "", "", "",
+          "編號及年份：", inputMap['year'] || "", "", "",
+          "領隊：", inputMap['leader'] || "", "",
+          "組員姓名：", inputMap['team'] || ""
+        ]
+      ], { origin: "A5" });
+
+      // 🎯 4. 只抓取主表格的「資料主體」，接在第 7 行（A7）
+      // 這樣可以避免網頁上的外層容器把 Excel 格式弄髒
+      const tempWs = XLSX.utils.table_to_sheet(table, { display: true });
+      const tableData = XLSX.utils.sheet_to_json(tempWs, { header: 1 }) as any[][];
+      XLSX.utils.sheet_add_aoa(ws, tableData, { origin: "A7" });
+
+      // 🎯 5. 動態計算行數：精確算出表格尾巴，讓天文預測數據緊緊貼在下方
+      const totalTableRows = tableData.length;
+      let footerRow = 7 + totalTableRows + 2; 
+
+      // 寫入下方天文與預測數據（加入你最愛的最高/最低溫）
       XLSX.utils.sheet_add_aoa(ws, [
         ["【 天文及環境預測數據 】"],
         ["日出 / 日落時間", `${weather?.sunrise || "--:--"} / ${weather?.sunset || "--:--"}`],
@@ -182,10 +215,10 @@ export default function ElevationChart({
         ["相對濕度 / 風速", `${weather?.humidity || "--"}% / ${weather?.windSpeed || "--"} km/h (${weather?.windDirection || ""})`]
       ], { origin: `A${footerRow}` });
 
-      // 🎯 核心魔法 3：設定客製化欄寬，確保 Excel 打開不會一堆 ### 或文字重疊
+      // 🎯 6. 專業防擠壓欄寬（讓你的 U 欄備註跟前面的欄位一目了然）
       ws['!cols'] = [
         { wch: 8 },  // A: 檢查站
-        { wch: 24 }, // B: 地名 / 地理特徵 (拉寬一點)
+        { wch: 24 }, // B: 地名 / 地理特徵
         { wch: 20 }, // C: 網格座標 / 高度
         { wch: 10 }, // D: 領航員
         { wch: 10 }, // E: 前視方位
@@ -207,7 +240,7 @@ export default function ElevationChart({
         { wch: 25 }  // U: 備註/事工
       ];
 
-      // 包裝並下載
+      // 包裝匯出
       XLSX.utils.book_append_sheet(wb, ws, "行程表");
       XLSX.writeFile(wb, `行程表_${selectedDate || "未命名"}.xlsx`);
     } catch (err: any) {
