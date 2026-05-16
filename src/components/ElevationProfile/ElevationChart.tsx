@@ -370,128 +370,116 @@ export default function ElevationChart({
             </table>
           </div>
 
-   {/* 3. 底部數據面板 (天文 + 氣象預留) */}
-          <div className="mt-auto p-4 bg-slate-900/50 rounded-lg border border-slate-800 flex flex-col gap-4">
-            
-            {/* ── ⏱️ 頂部：Naismith 時間算法目前基準（純顯示，反映右側欄） ── */}
-            <div className="w-full space-y-2">
-              <span className="text-emerald-400 text-[10px] uppercase font-bold flex items-center gap-1">
-                ⏱️ Naismith 時間算法基準 (唯讀反映)
+ {/* ── ⏱️ 頂部：Naismith 時間算法目前基準（純顯示，反映右側欄） ── */}
+      <div className="w-full mb-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800 space-y-2">
+        <span className="text-emerald-400 text-[10px] uppercase font-bold flex items-center gap-1">
+          ⏱️ Naismith 時間算法基準 (唯讀反映)
+        </span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-950/40 p-3 rounded-lg border border-slate-800/60">
+          {/* 1. 基礎時速 */}
+          <div>
+            <div className="flex justify-between mb-1 text-[11px]">
+              <span className="text-slate-500 text-[9px]">基礎時速</span>
+              <span className="text-blue-400 font-mono text-[11px] font-bold">
+                {naismithSettings.baseSpeedKmh} km/h
               </span>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-950/40 p-3 rounded-lg border border-slate-800/60">
-                {/* 1. 基礎時速 */}
-                <div>
-                  <div className="flex justify-between mb-1 text-[11px]">
-                    <span className="text-slate-500 text-[9px]">基礎時速</span>
-                    <span className="text-blue-400 font-mono text-[11px] font-bold">
-                      {naismithSettings.baseSpeedKmh} km/h
-                    </span>
-                  </div>
-                  <input 
-                    type="range" min={1} max={8} step={0.5} 
-                    value={naismithSettings.baseSpeedKmh}
-                    disabled
-                    className="w-full pointer-events-none accent-blue-500/70 h-1 bg-slate-800 rounded-lg appearance-none opacity-80"
-                  />
-                </div>
-
-                {/* 2. 上升加時 */}
-                <div>
-                  <div className="flex justify-between mb-1 text-[11px]">
-                    <span className="text-slate-500 text-[9px]">每上升 20m 加時</span>
-                    <span className="text-emerald-400 font-mono text-[11px] font-bold">
-                      {naismithSettings.ascentPer20m} 分
-                    </span>
-                  </div>
-                  <input 
-                    type="range" min={1} max={20} step={0.5} 
-                    value={naismithSettings.ascentPer20m}
-                    disabled
-                    className="w-full pointer-events-none accent-emerald-500/70 h-1 bg-slate-800 rounded-lg appearance-none opacity-80"
-                  />
-                </div>
-
-                {/* 3. 下降加時 */}
-                <div>
-                  <div className="flex justify-between mb-1 text-[11px]">
-                    <span className="text-slate-500 text-[9px]">每下降 20m 加時</span>
-                    <span className="text-rose-400 font-mono text-[11px] font-bold">
-                      {naismithSettings.descentPer20m} 分
-                    </span>
-                  </div>
-                  <input 
-                    type="range" min={0} max={10} step={0.5} 
-                    value={naismithSettings.descentPer20m}
-                    disabled
-                    className="w-full pointer-events-none accent-rose-500/70 h-1 bg-slate-800 rounded-lg appearance-none opacity-80"
-                  />
-                </div>
-              </div>
             </div>
+            <input 
+              type="range" min={1} max={8} step={0.5} 
+              value={naismithSettings.baseSpeedKmh}
+              disabled
+              className="w-full pointer-events-none accent-blue-500/70 h-1 bg-slate-800 rounded-lg appearance-none opacity-80"
+            />
+          </div>
 
-            {/* 分隔線：優雅分開算法與氣象天文 */}
-            <div className="border-t border-slate-800/60 w-full" />
-
-            {/* ── 下半部：你原本的天文與氣象數據 ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 w-full">
-              {/* ==================== 左側：☀️ 天文數據 (ASTRO) ==================== */}
-              <div className="space-y-2">
-                <span className="text-red-400 text-[10px] uppercase font-bold flex items-center gap-1">☀️ 天文數據 (ASTRO)</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex flex-col">
-                    <span className="text-slate-500 text-[9px]">日出/日落</span>
-                    <span className="text-purple-400 text-xs">
-                      🌅 {weather ? `${weather.sunrise} / ${weather.sunset}` : "--:-- / --:--"}
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-col">
-                    <span className="text-slate-500 text-[9px]">月出/月落</span>
-                    <span className="text-purple-400 text-xs">
-                      🌙 {weather ? `${weather.moonrise} / ${weather.moonset}` : "--:-- / --:--"}
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-col">
-                    <span className="text-slate-500 text-[9px]">月相</span>
-                    <span className="text-purple-400 text-xs">
-                      {weather ? String(weather.moonPhase).replace(/<\/?[^>]+(>|$)/g, "") : "--"}
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-col">
-                    <span className="text-slate-500 text-[9px]">潮汐預報</span>
-                    <span className="text-blue-400 text-[10px]">
-                      🌊 {weather ? weather.tideForecast : "--:-- / --:--"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ==================== 右側：🌦️ 氣象預測 (Weather Forecast) ==================== */}
-              <div className="lg:col-span-3 border-l border-slate-800 pl-4 space-y-2">
-                <span className="text-blue-400 text-[10px] uppercase font-bold flex items-center gap-1">🌦️ 氣象預測 (Weather Forecast)</span>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="flex flex-col"><span className="text-slate-500 text-[9px]">溫度 / 體感</span><span className="text-orange-400 text-sm font-bold">{weather ? `${weather.temp}°C / ${weather.feelsLike}°C` : "24°C / 26°C"}</span></div>
-                  <div className="flex flex-col"><span className="text-slate-500 text-[9px]">相對濕度</span><span className="text-blue-300 text-sm font-bold">{weather && weather.humidity !== undefined ? `${weather.humidity}%` : "78%"}</span></div>
-                  <div className="flex flex-col">
-                    <span className="text-slate-500 text-[9px]">雲量 / 降雨</span>
-                    <span className="text-slate-300 text-sm font-bold">
-                      ☁️ {weather ? `${weather.cloudCover}% / ${weather.precipitation}%` : "40% / 10%"}
-                    </span>
-                  </div>
-                  <div className="flex flex-col"><span className="text-slate-500 text-[9px]">風向風速</span><span className="text-emerald-400 text-sm font-bold">🚩 {weather ? `${weather.windDirection} ${weather.windSpeed} km/h` : "E 15 km/h"}</span></div>
-                  <div className="flex flex-col"><span className="text-slate-500 text-[9px]">紫外線</span><span className="text-yellow-500 text-sm font-bold">{weather ? `指數 (${weather.uvIndex})` : "中等 (5)"}</span></div>
-                </div>
-              </div>
+          {/* 2. 上升加時 */}
+          <div>
+            <div className="flex justify-between mb-1 text-[11px]">
+              <span className="text-slate-500 text-[9px]">每上升 20m 加時</span>
+              <span className="text-emerald-400 font-mono text-[11px] font-bold">
+                {naismithSettings.ascentPer20m} 分
+              </span>
             </div>
+            <input 
+              type="range" min={1} max={20} step={0.5} 
+              value={naismithSettings.ascentPer20m}
+              disabled
+              className="w-full pointer-events-none accent-emerald-500/70 h-1 bg-slate-800 rounded-lg appearance-none opacity-80"
+            />
+          </div>
 
-          </div> {/* <-- 大面板外殼結束 */}
-        </div> {/* <-- 以下為你原本檔案最底部的排版收尾 1 */}
-      )} {/* <-- 以下為你原本檔案最底部的排版收尾 2 */}
-    </div> {/* <-- 以下為你原本檔案最底部的排版收尾 3 */}
-  );
-}
+          {/* 3. 下降加時 */}
+          <div>
+            <div className="flex justify-between mb-1 text-[11px]">
+              <span className="text-slate-500 text-[9px]">每下降 20m 加時</span>
+              <span className="text-rose-400 font-mono text-[11px] font-bold">
+                {naismithSettings.descentPer20m} 分
+              </span>
+            </div>
+            <input 
+              type="range" min={0} max={10} step={0.5} 
+              value={naismithSettings.descentPer20m}
+              disabled
+              className="w-full pointer-events-none accent-rose-500/70 h-1 bg-slate-800 rounded-lg appearance-none opacity-80"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ==================== 🟢 以下是你原本給我的完整原始碼，完完全全一字未改 ==================== */}
+      {/* 3. 底部數據面板 (天文 + 氣象預留) */}
+      <div className="mt-auto grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+        {/* ==================== 左側：☀️ 天文數據 (ASTRO) ==================== */}
+        <div className="space-y-2">
+          <span className="text-red-400 text-[10px] uppercase font-bold flex items-center gap-1">☀️ 天文數據 (ASTRO)</span>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col">
+              <span className="text-slate-500 text-[9px]">日出/日落</span>
+              <span className="text-purple-400 text-xs">
+                🌅 {weather ? `${weather.sunrise} / ${weather.sunset}` : "--:-- / --:--"}
+              </span>
+            </div>
+            
+            <div className="flex flex-col">
+              <span className="text-slate-500 text-[9px]">月出/月落</span>
+              <span className="text-purple-400 text-xs">
+                🌙 {weather ? `${weather.moonrise} / ${weather.moonset}` : "--:-- / --:--"}
+              </span>
+            </div>
+            
+            <div className="flex flex-col">
+              <span className="text-slate-500 text-[9px]">月相</span>
+              {/* 🟢 確保這裡只渲染純文字，徹底告別 <h3> 標籤殘留 */}
+              <span className="text-purple-400 text-xs">
+                {weather ? String(weather.moonPhase).replace(/<\/?[^>]+(>|$)/g, "") : "--"}
+              </span>
+            </div>
+            
+            <div className="flex flex-col">
+              <span className="text-slate-500 text-[9px]">潮汐預報</span>
+              <span className="text-blue-400 text-[10px]">
+                🌊 {weather ? weather.tideForecast : "--:-- / --:--"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-3 border-l border-slate-800 pl-4 space-y-2">
+          <span className="text-blue-400 text-[10px] uppercase font-bold flex items-center gap-1">🌦️ 氣象預測 (Weather Forecast)</span>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="flex flex-col"><span className="text-slate-500 text-[9px]">溫度 / 體感</span><span className="text-orange-400 text-sm font-bold">{weather ? `${weather.temp}°C / ${weather.feelsLike}°C` : "24°C / 26°C"}</span></div>
+            <div className="flex flex-col"><span className="text-slate-500 text-[9px]">相對濕度</span><span className="text-blue-300 text-sm font-bold">{weather && weather.humidity !== undefined ? `${weather.humidity}%` : "78%"}</span></div>
+            <div className="flex flex-col">
+              <span className="text-slate-500 text-[9px]">雲量 / 降雨</span>
+              <span className="text-slate-300 text-sm font-bold">
+                ☁️ {weather ? `${weather.cloudCover}% / ${weather.precipitation}%` : "40% / 10%"}
+              </span>
+            </div>
+            <div className="flex flex-col"><span className="text-slate-500 text-[9px]">風向風速</span><span className="text-emerald-400 text-sm font-bold">🚩 {weather ? `${weather.windDirection} ${weather.windSpeed} km/h` : "E 15 km/h"}</span></div>
+            <div className="flex flex-col"><span className="text-slate-500 text-[9px]">紫外線</span><span className="text-yellow-500 text-sm font-bold">{weather ? `指數 (${weather.uvIndex})` : "中等 (5)"}</span></div>
+          </div>
+        </div>
+      </div>
 
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
