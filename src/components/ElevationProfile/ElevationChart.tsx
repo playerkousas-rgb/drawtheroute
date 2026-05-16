@@ -153,7 +153,7 @@ export default function ElevationChart({
     }
   };
 
-// EXCEL 下載（極致終極版：全數據不漏、天文氣象百分之百顯靈）
+// EXCEL 下載（最終正位大結局：基本資訊精確鎖定容器 + 氣象絕對顯靈版）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
@@ -163,44 +163,60 @@ export default function ElevationChart({
     try {
       const wb = XLSX.utils.book_new();
 
-      // 🎯 1. 為了防止 placeholder 抓不到，我們直接去撈網頁上那 5 個特殊輸入框的真實數值
-      // 透過最安全的 class 或是屬性特徵來抓，若真的抓不到就從網頁狀態撈
-      const getInputValue = (keywords: string[]): string => {
-        const inputs = document.querySelectorAll('input');
-        for (let i = 0; i < inputs.length; i++) {
-          const input = inputs[i];
-          const ph = (input.getAttribute('placeholder') || '').toLowerCase();
-          const val = input.value;
-          // 如果 placeholder 包含關鍵字，或是輸入框前后的文字包含關鍵字
-          if (keywords.some(k => ph.includes(k))) return val;
-        }
-        return "";
-      };
+      // 🎯 核心大修正 1：不要大海撈針。直接精確瞄準「行程基本資訊」那個容器！
+      // 透過 className 的特徵找到它，這樣裡面排隊的輸入框順序就死死固定了
+      const infoContainer = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3');
+      
+      let regionVal = "";
+      let mapVal    = "";
+      let yearVal   = "";
+      let leaderVal = "";
+      let teamVal   = "";
 
-      // 備用方案：如果上面抓不到，這裡直接給你在組員姓名成功時的保險機制
-      const regionVal = getInputValue(['地區', 'region', '遠足']) || (document.querySelector('input[value]') as HTMLInputElement)?.value || "";
-      const teamVal = getInputValue(['組員', 'team', '姓名']) || "";
-      const mapVal = getInputValue(['地圖', 'map', '組別']) || "";
-      const yearVal = getInputValue(['編號', 'year', '年份']) || "";
-      const leaderVal = getInputValue(['領隊', 'leader']) || "";
+      if (infoContainer) {
+        // 只拿這個容器裡面的輸入框
+        const infoInputs = Array.from(infoContainer.querySelectorAll('input'));
+        
+        // 依照你 HTML 程式碼由上到下的物理順序，一個一個點名入座：
+        regionVal = infoInputs[0]?.value || ""; // 1. 遠足地區
+        // infoInputs[1] 是日期，因為它有 type="date" 且有綁 value={selectedDate}，我們可以直接用 React 變數，不需要從這裡撈
+        teamVal   = infoInputs[2]?.value || ""; // 3. 組員姓名
+        mapVal    = infoInputs[3]?.value || ""; // 4. 地圖組別
+        yearVal   = infoInputs[4]?.value || ""; // 5. 編號及年份
+        leaderVal = infoInputs[5]?.value || ""; // 6. 領隊
+      } else {
+        // 防禦備用機制：如果找不到容器，就用 placeholder 包含判定
+        document.querySelectorAll('input').forEach(input => {
+          const ph = (input.getAttribute('placeholder') || '');
+          if (ph.includes('請輸入')) regionVal = input.value;
+          if (ph.includes('姓名')) teamVal = input.value;
+          if (ph.includes('HM20C')) mapVal = input.value;
+          if (ph.includes('2024')) yearVal = input.value;
+        });
+        // 領隊沒有 placeholder，他是最後一個沒有屬性的 input
+        const textInputs = Array.from(document.querySelectorAll('input')).filter(i => !i.getAttribute('placeholder') && i.getAttribute('type') !== 'date');
+        if (textInputs.length > 0) leaderVal = textInputs[textInputs.length - 1].value;
+      }
 
-      // 🎯 2. 解析網頁主表格數據
+      // 🎯 核心大修正 2：解析網頁主表格數據，並過濾所有隱藏幽靈空行
       const tempWs = XLSX.utils.table_to_sheet(table, { display: true });
-      const tableData = XLSX.utils.sheet_to_json(tempWs, { header: 1 }) as any[][];
+      const rawTableData = XLSX.utils.sheet_to_json(tempWs, { header: 1 }) as any[][];
+      
+      // 濾掉網頁背後多餘的幾十行空行，確保主表格純淨，免得把氣象數據推到深淵
+      const tableData = rawTableData.filter(row => row && row.length > 0 && row.some(cell => cell !== null && cell !== ""));
 
-      // 🎯 3. 【核心大改動】建立一個黃金總陣列 (All-in-One AOA)
-      // 這樣可以確保 Excel 的每一行都是我們精確掌控，絕對不會有誰蓋掉誰的問題！
+      // 🎯 3. 建立 All-in-One 黃金總陣列（一條龍排隊，絕對不重疊）
       const finalAOA: any[][] = [];
 
-      // Row 1: 大標題
+      // 行 1-2：大標題
       finalAOA.push(["山徑路程計畫表"]);
-      // Row 2: 空行
       finalAOA.push([]);
-      // Row 3: 右上角統計數據 (拉到對齊右側)
+      
+      // 行 3-4：右上角統計數據 (完美貼合網頁數據)
       finalAOA.push(["", "", "", "", "", "", "", "總距離：", `${stats.totalDistance.toFixed(2)} km`, "", "", "總上升：", `+${stats.totalAscent.toFixed(0)} m`, "", "總下降：", `-${stats.totalDescent.toFixed(0)} m`, "", "最高：", `${stats.maxElevation.toFixed(0)} m`, "", "預計時間：", formatTime ? formatTime(stats.estimatedTime) : `${Math.floor(stats.estimatedTime / 60)}h ${Math.round(stats.estimatedTime % 60)}m`]);
-      // Row 4: 空行
       finalAOA.push([]);
-      // Row 5: 基本資訊列 (強制把抓到或狀態裡的文字填入)
+      
+      // 行 5-6：基本資訊列 (強制正位歸座)
       finalAOA.push([
         "遠足地區：", regionVal, 
         "日期：", selectedDate || "", 
@@ -209,19 +225,16 @@ export default function ElevationChart({
         "領隊：", leaderVal, "",
         "組員姓名：", teamVal
       ]);
-      // Row 6: 空行
       finalAOA.push([]);
 
-      // Row 7 開始: 塞入完整的主表格資料 (包含雙層表頭和所有檢查站)
+      // 行 7 開始：倒入過濾乾淨的主表格資料 (SP, CP1, EP 等等)
       tableData.forEach(row => {
         finalAOA.push(row);
       });
 
-      // 主表格結束後，空兩行
+      // 🎯 核心大修正 3：氣象大歸位！
+      // 離主表格只空 1 行，天文數據絕對會緊緊黏在 EP 站的下一行！一打開檔案就能看見
       finalAOA.push([]);
-      finalAOA.push([]);
-
-      // 緊接著塞入【 天文及環境預測數據 】
       finalAOA.push(["【 天文及環境預測數據 】"]);
       finalAOA.push(["日出 / 日落時間", `${weather?.sunrise || "--:--"} / ${weather?.sunset || "--:--"}`]);
       finalAOA.push(["月出 / 日落時間", `${weather?.moonrise || "--:--"} / ${weather?.moonset || "--:--"}`]);
@@ -229,13 +242,13 @@ export default function ElevationChart({
       finalAOA.push(["正午體感溫度", `${weather?.feelsLike || "--"}°C`]);
       finalAOA.push(["相對濕度 / 風速", `${weather?.humidity || "--"}% / ${weather?.windSpeed || "--"} km/h (${weather?.windDirection || ""})`]);
 
-      // 🎯 4. 一口氣把這個完美的總陣列轉成工作表！
+      // 一口氣把總陣列壓成工作表
       const ws = XLSX.utils.aoa_to_sheet(finalAOA);
 
-      // 🎯 5. 完美的欄寬設定 (防文字重疊)
+      // 🎯 5. 客製化欄寬設定
       ws['!cols'] = [
         { wch: 8 },  // A: 檢查站
-        { wch: 24 }, // B: 地名
+        { wch: 24 }, // B: 地名 / 地理特徵
         { wch: 20 }, // C: 網格座標 / 高度
         { wch: 10 }, // D: 領航員
         { wch: 10 }, // E: 方位
@@ -257,11 +270,10 @@ export default function ElevationChart({
         { wch: 25 }  // U: 備註/事工
       ];
 
-      // 儲存並導出
       XLSX.utils.book_append_sheet(wb, ws, "行程表");
       XLSX.writeFile(wb, `行程表_${selectedDate || "未命名"}.xlsx`);
     } catch (err: any) {
-      console.error("Excel 匯出核心損壞:", err);
+      console.error("Excel 匯出失敗:", err);
       alert(`EXCEL 匯出失敗: ${err?.message || err}`);
     }
   };
