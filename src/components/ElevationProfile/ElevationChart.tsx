@@ -48,17 +48,8 @@ export default function ElevationChart({
   naismithSettings,
   onHoverPoint
 }: Props) {
-  // 🟢 1. 建立一個預設為「今天」的日期狀態 (格式：2026-05-16)
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  });
   // 🟢 1. 在這裡呼叫 Hook 接通數據水管
-// 🟢 2. 將選取的日期同步傳入我們的資料加工工廠（這裡先加上這個參數，下一步我們會進去 Hook 改它）
-  const { materials } = useItineraryData(waypoints, segments, selectedDate);
+  const { materials } = useItineraryData(waypoints, segments);
 
   // 2. 底下是你原本就有的狀態與邏輯
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
@@ -192,16 +183,10 @@ export default function ElevationChart({
               <span className="text-red-400 whitespace-nowrap">遠足地區：</span>
               <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="請輸入..." />
             </div>
-           <div className="flex items-center gap-2">
-  <span className="text-red-400 whitespace-nowrap">日期：</span>
-  {/* 🟢 修改這裡：綁定 value 與 onChange */}
-  <input 
-    type="date" 
-    value={selectedDate}
-    onChange={(e) => setSelectedDate(e.target.value)}
-    className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" 
-  />
-</div>
+            <div className="flex items-center gap-2">
+              <span className="text-red-400 whitespace-nowrap">日期：</span>
+              <input type="date" className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" />
+            </div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">組員姓名：</span>
               <input className="bg-transparent border-b border-slate-700 w-full outline-none text-white focus:border-blue-500" placeholder="姓名..." />
@@ -357,57 +342,37 @@ export default function ElevationChart({
   })}
 </tbody>
             </table>
-        {/* 3. 底部數據面板 (天文 + 氣象預留) */}
-
-          <div className="mt-auto grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800">
-
-            <div className="space-y-2">
-
-              <span className="text-red-400 text-[10px] uppercase font-bold flex items-center gap-1">☀️ 天文數據 (Astro)</span>
-
-              <div className="grid grid-cols-2 gap-2">
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">日出/日落</span><span className="text-purple-400 text-xs">🌅 06:14 / 18:39</span></div>
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月出/月落</span><span className="text-purple-400 text-xs">🌙 20:41 / 01:31</span></div>
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月相</span><span className="text-purple-400 text-xs">🌓 52%</span></div>
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">潮汐預報</span><span className="text-blue-400 text-[10px]">🌊 10:25 / 16:44</span></div>
-
-              </div>
-
-            </div>
-
-
-
-            <div className="lg:col-span-3 border-l border-slate-800 pl-4 space-y-2">
-
-              <span className="text-blue-400 text-[10px] uppercase font-bold flex items-center gap-1">🌦️ 氣象預測 (Weather Forecast)</span>
-
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">溫度 / 體感</span><span className="text-orange-400 text-sm font-bold">24°C / 26°C</span></div>
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">相對濕度</span><span className="text-blue-300 text-sm font-bold">78%</span></div>
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">雲量 / 降雨</span><span className="text-slate-300 text-sm font-bold">☁️ 40% / 10%</span></div>
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">風向風速</span><span className="text-emerald-400 text-sm font-bold">🚩 E 15 km/h</span></div>
-
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">紫外線</span><span className="text-yellow-500 text-sm font-bold">中等 (5)</span></div>
-
-              </div>
-
-            </div>
-
           </div>
 
+          {/* 3. 底部數據面板 (天文 + 氣象預留) */}
+          <div className="mt-auto grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+            <div className="space-y-2">
+              <span className="text-red-400 text-[10px] uppercase font-bold flex items-center gap-1">☀️ 天文數據 (Astro)</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">日出/日落</span><span className="text-purple-400 text-xs">🌅 06:14 / 18:39</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月出/月落</span><span className="text-purple-400 text-xs">🌙 20:41 / 01:31</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月相</span><span className="text-purple-400 text-xs">🌓 52%</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">潮汐預報</span><span className="text-blue-400 text-[10px]">🌊 10:25 / 16:44</span></div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-3 border-l border-slate-800 pl-4 space-y-2">
+              <span className="text-blue-400 text-[10px] uppercase font-bold flex items-center gap-1">🌦️ 氣象預測 (Weather Forecast)</span>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">溫度 / 體感</span><span className="text-orange-400 text-sm font-bold">24°C / 26°C</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">相對濕度</span><span className="text-blue-300 text-sm font-bold">78%</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">雲量 / 降雨</span><span className="text-slate-300 text-sm font-bold">☁️ 40% / 10%</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">風向風速</span><span className="text-emerald-400 text-sm font-bold">🚩 E 15 km/h</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">紫外線</span><span className="text-yellow-500 text-sm font-bold">中等 (5)</span></div>
+              </div>
+            </div>
+          </div>
         </div>
-
       )}
-
     </div>
+  );
+}
+
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(148,163,184,0.12)', borderRadius: 6, padding: '3px 8px' }}>
