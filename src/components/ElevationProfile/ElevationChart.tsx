@@ -138,39 +138,44 @@ export default function ElevationChart({
     link.click();
   };
 
-  // 路程計畫表 → PDF 下載（已優化）
+ // 路程計畫表 → PDF 下載（針對短表格優化）
   const handleExportTablePDF = async () => {
     if (!exportContainerRef.current) {
-      return alert('請先切換到「路程計畫表」分頁再下載 PDF');
+      return alert('請先切換到「路程計畫表」分頁');
     }
 
     try {
-      const canvas = await html2canvas(exportContainerRef.current, {
+      // 給 React 一點時間渲染完成
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const container = exportContainerRef.current;
+
+      const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#0f172a',
         logging: false,
-        scrollX: 0,
-        scrollY: 0,
-        width: exportContainerRef.current.scrollWidth,
-        height: exportContainerRef.current.scrollHeight
+        allowTaint: true,
+        width: container.offsetWidth,
+        height: container.offsetHeight + 50,   // 多留一點空間
       });
 
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'pt',
-        format: [canvas.width * 0.68, canvas.height * 0.68]
+        format: [canvas.width * 0.72, canvas.height * 0.72]
       });
 
       const imgData = canvas.toDataURL('image/png');
       pdf.addImage(imgData, 'PNG', 15, 15, pdf.internal.pageSize.getWidth() - 30, 0);
+      
       pdf.save(`行程表-${selectedDate || Date.now()}.pdf`);
+      
     } catch (error) {
       console.error(error);
-      alert('PDF 產生失敗，請重新整理頁面後再試');
+      alert('PDF 產生失敗，請重新整理頁面後再試一次');
     }
   };
-
   // 路程計畫表 → EXCEL 下載
   const handleExportExcel = () => {
     const table = document.querySelector('table');
