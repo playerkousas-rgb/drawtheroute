@@ -179,12 +179,7 @@ export default function ElevationChart({
         yearVal   = infoInputs[4]?.value || ""; // 5. 編號及年份
         leaderVal = infoInputs[5]?.value || ""; // 6. 領隊
       }
-
-      // 🎯 2. 【核心安全修正】：直接轉換表格，絕不對 tableData 進行任何 filter 動作！
-      // 這樣網頁上的「路段休息、CP休息」輸入框就會立刻恢復正常，完全解鎖！
-      const ws = XLSX.utils.table_to_sheet(table, { display: true });
-      const tableData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-
+    
       // 🎯 3. 建立頂部排版陣列（標題、統計、基本資訊）
       const headerAOA: any[][] = [];
       headerAOA.push(["山徑路程計畫表"]);
@@ -241,15 +236,14 @@ export default function ElevationChart({
         ]
       ];
 
-      // 計算主表格在最終工作表（finalWs）裡的真實結束行數
-      // 頂部佔了 6 行，加上主表格實際的資料列數 (tableData.length)
-      // 💡 註：如果你目前還在使用舊的無過濾 tableData，這裡可以直接用 7 + table.rows.length
-      const currentRowsCount = 7 + (tableData ? tableData.length : table.rows.length);
+    // 🎯 6. 【全新底部數據面板定位與空降】：
+      // 頂部佔了 6 行 (1-6)，加上全新 tableData 陣列的實際長度
+      const currentRowsCount = 6 + tableData.length;
       
-      // 讓底部面板與主表格之間空 2 行，算好最精確的起點格子
+      // 讓底部面板與主表格之間精確空 2 行，這就是最準確的起點格子
       const startCell = `A${currentRowsCount + 2}`;
 
-      // 使用無損空降，將這塊左右完美的精緻面板拍在主表格的正下方
+      // 使用無損空降，將三合一對齊面板（footerAOA）拍在主表格的正下方
       XLSX.utils.sheet_add_aoa(finalWs, footerAOA, { origin: startCell });
 
       // 🎯 7. 完美客製化欄寬設定
@@ -267,8 +261,8 @@ export default function ElevationChart({
         { wch: 10 }, // K: 下降累積
         { wch: 16 }, // L: 累積上升及下降
         { wch: 12 }, // M: 路段需時
-        { wch: 10 }, // N: 休息路段
-        { wch: 10 }, // O: 休息檢查點
+        { wch: 10 }, // N: 休息路段      (對應活字 input)
+        { wch: 10 }, // O: 休息檢查點    (對應活字 input)
         { wch: 12 }, // P: 共需時
         { wch: 14 }, // Q: 預計出發
         { wch: 14 }, // R: 預計到達
