@@ -125,18 +125,10 @@ export default function ElevationChart({
     setHoverX(null);
     onHoverRef.current(null);
   }, []);
-// ─── 📸 功能 1：下載橫切面 (SVG 格式，包含格線優化) ───
+// ─── 📸 功能 1：下載橫切面 (SVG) ───
   const handleDownloadSVG = () => {
     const svg = document.querySelector('.recharts-surface');
     if (!svg) return alert('找不到圖表畫面！');
-
-    const gridLines = svg.querySelectorAll('.recharts-cartesian-grid-horizontal line');
-    gridLines.forEach((line) => {
-      (line as SVGElement).setAttribute('stroke', '#334155'); 
-      (line as SVGElement).setAttribute('stroke-dasharray', '3 3'); 
-      (line as SVGElement).setAttribute('opacity', '0.3'); 
-    });
-
     const svgData = new XMLSerializer().serializeToString(svg);
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
@@ -147,11 +139,10 @@ export default function ElevationChart({
     URL.revokeObjectURL(url);
   };
 
-  // ─── 📊 功能 2：原生 HTML 轉 Excel (100% 支援 Vercel 免裝套件，帶網格線) ───
+  // ─── 📊 功能 2：原生 HTML 轉 Excel ───
   const handleExportExcel = () => {
     const tableElement = document.querySelector('table');
     if (!tableElement) return alert('找不到表格！請先切換至「路程計畫表」。');
-
     const tableHtml = tableElement.outerHTML;
     const excelTemplate = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -159,7 +150,6 @@ export default function ElevationChart({
       <body>${tableHtml}</body>
       </html>
     `;
-
     const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
