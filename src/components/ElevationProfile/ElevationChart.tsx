@@ -187,31 +187,72 @@ export default function ElevationChart({
       alert('PDF 產生失敗，請重新整理頁面後再試一次');
     }
   };
-// EXCEL 下載（包含表格 + 基本調整）
+// EXCEL 下載（完整版：右上角統計 + 上方資訊 + 表格 + 下方數據）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
       return alert('請先切換到「路程計畫表」分頁');
     }
 
-    try {
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.table_to_sheet(table);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([["山徑路程計畫表"]]);
 
-      // 調整欄寬
-      ws['!cols'] = [
-        { wch: 8 }, { wch: 35 }, { wch: 22 }, { wch: 10 },
-        { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-        { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-        { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 25 }
-      ];
+    let r = 3;
 
-      XLSX.utils.book_append_sheet(wb, ws, "行程表");
-      XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
-    } catch (err) {
-      console.error(err);
-      alert('EXCEL 匯出失敗，請稍後再試');
-    }
+    // ==================== 1. 右上角統計資訊 ====================
+    XLSX.utils.sheet_add_aoa(ws, [
+      ["總距離", `${stats.totalDistance.toFixed(2)} km`],
+      ["總爬升", `+${stats.totalAscent.toFixed(0)} m`],
+      ["總下降", `-${stats.totalDescent.toFixed(0)} m`],
+      ["最高點", `${stats.maxElevation.toFixed(0)} m`],
+      ["預計時間", formatTime(stats.estimatedTime)]
+    ], { origin: `A${r}` });
+    r += 7;
+
+    // ==================== 2. 上方基本資訊 ====================
+    XLSX.utils.sheet_add_aoa(ws, [
+      ["遠足地區", ""],
+      ["日期", selectedDate],
+      ["組員姓名", ""],
+      ["地圖組別", ""],
+      ["編號及年份", ""],
+      ["領隊", ""]
+    ], { origin: `A${r}` });
+    r += 8;
+
+    // ==================== 3. 主表格 ====================
+    const tableWs = XLSX.utils.table_to_sheet(table);
+    XLSX.utils.sheet_add_aoa(ws, [[" "]], { origin: `A${r}` });
+    XLSX.utils.sheet_add_sheet(ws, tableWs, `A${r + 2}`);
+
+    // 調整主表格欄寬
+    ws['!cols'] = [
+      { wch: 8 }, { wch: 35 }, { wch: 22 }, { wch: 10 },
+      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 25 }
+    ];
+
+    // ==================== 4. 下方數據 ====================
+    r += 40; // 預留空間給表格
+    XLSX.utils.sheet_add_aoa(ws, [["天文數據 (ASTRO)"]], { origin: `A${r}` });
+    r++;
+    XLSX.utils.sheet_add_aoa(ws, [
+      ["日出 / 日落", weather?.sunrise || "--", weather?.sunset || "--"],
+      ["月出 / 月落", weather?.moonrise || "--", weather?.moonset || "--"],
+      ["月相", weather?.moonPhase || "--"]
+    ], { origin: `A${r}` });
+    r += 5;
+
+    XLSX.utils.sheet_add_aoa(ws, [["Naismith 時間算法"]], { origin: `A${r}` });
+    r++;
+    XLSX.utils.sheet_add_aoa(ws, [
+      ["基礎時速", `${naismithSettings.baseSpeedKmh} km/h`],
+      ["每上升 20m 加時", `+${naismithSettings.ascentPer20m} 分`],
+      ["每下降 20m 加時", `+${naismithSettings.descentPer20m} 分`]
+    ], { origin: `A${r}` });
+
+    XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
   };
   
   if (!profile.length) {
