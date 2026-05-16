@@ -357,94 +357,57 @@ export default function ElevationChart({
   })}
 </tbody>
             </table>
-        {/* 3. 底部數據面板 (天文 + 氣象動態呈現) */}
+        {/* 3. 底部數據面板 (天文 + 氣象預留) */}
+
           <div className="mt-auto grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800">
-            
-            {/* A. 天文數據區 (ASTRO) */}
+
             <div className="space-y-2">
+
               <span className="text-red-400 text-[10px] uppercase font-bold flex items-center gap-1">☀️ 天文數據 (Astro)</span>
+
               <div className="grid grid-cols-2 gap-2">
-                <div className="flex flex-col">
-                  <span className="text-slate-500 text-[9px]">日出/日落</span>
-                  <span className="text-purple-400 text-xs">
-                    🌅 {weather ? `${weather.sunrise} / ${weather.sunset}` : "--:-- / --:--"}
-                  </span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-slate-500 text-[9px]">月相</span>
-                  <span className="text-purple-400 text-xs">
-                    {weather ? weather.moonPhase : "--"}
-                  </span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-slate-500 text-[9px]">潮汐預報</span>
-                  <span className="text-blue-400 text-[10px]">
-                    🌊 {weather ? weather.tideForecast : "--:-- / --:--"}
-                  </span>
-                </div>
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">日出/日落</span><span className="text-purple-400 text-xs">🌅 06:14 / 18:39</span></div>
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月出/月落</span><span className="text-purple-400 text-xs">🌙 20:41 / 01:31</span></div>
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月相</span><span className="text-purple-400 text-xs">🌓 52%</span></div>
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">潮汐預報</span><span className="text-blue-400 text-[10px]">🌊 10:25 / 16:44</span></div>
+
               </div>
+
             </div>
 
-            {/* B. 氣象預測區 (WEATHER FORECAST) */}
+
+
             <div className="lg:col-span-3 border-l border-slate-800 pl-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-blue-400 text-[10px] uppercase font-bold flex items-center gap-1">🌦️ 氣象預測 (Weather Forecast)</span>
-                
-                {/* 溫馨提示：如果是調用歷史平均，明確告知用戶 */}
-                {weather?.isHistoryData && (
-                  <span className="text-[9px] text-amber-400/80 italic">
-                    * 當前為遠期日期，顯示為該地區歷史氣象統計平均值
-                  </span>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="flex flex-col">
-                  <span className="text-slate-500 text-[9px]">溫度 / 體感</span>
-                  <span className="text-orange-400 text-sm font-bold">
-                    {weather ? `${weather.temp}°C / ${weather.feelsLike}°C` : "--°C / --°C"}
-                  </span>
-                </div>
-                
-                <div className="flex flex-col">
-                  <span className="text-slate-500 text-[9px]">相對濕度</span>
-                  <span className="text-blue-300 text-sm font-bold">
-                    {weather ? `${weather.humidity}%` : "--%"}
-                  </span>
-                </div>
-                
-                <div className="flex flex-col">
-                  <span className="text-slate-500 text-[9px]">雲量 / 降雨機率</span>
-                  <span className="text-slate-300 text-sm font-bold">
-                    ☁️ {weather ? `${weather.cloudCover}% / ${weather.precipitation}%` : "--% / --%"}
-                  </span>
-                </div>
-                
-                <div className="flex flex-col">
-                  <span className="text-slate-500 text-[9px]">風向風速</span>
-                  <span className="text-emerald-400 text-sm font-bold">
-                    🚩 {weather ? `${weather.windDirection} ${weather.windSpeed} km/h` : "-- -- km/h"}
-                  </span>
-                </div>
-                
-                <div className="flex flex-col">
-                  <span className="text-slate-500 text-[9px]">紫外線</span>
-                  <span className="text-yellow-500 text-sm font-bold">
-                    {weather 
-                      ? `${weather.uvIndex >= 7 ? '極高' : weather.uvIndex >= 5 ? '高' : weather.uvIndex >= 3 ? '中等' : '弱'} (${weather.uvIndex})` 
-                      : "--"
-                    }
-                </span>
-            </div>
-          </div>
-        </div>
-      </div> 
-    </div> {/* 🟢 補齊：用來閉合路程計畫表分頁的滑動容器 (overflow-x-auto flex-1 flex flex-col gap-4) */}
-  )}         {/* 閉合：activeTab === 'chart' 的三元運算子分歧結尾 */}
-</div>       {/* 閉合：整個元件最外層的大包圍背景 div */}
-  );
-}
 
+              <span className="text-blue-400 text-[10px] uppercase font-bold flex items-center gap-1">🌦️ 氣象預測 (Weather Forecast)</span>
+
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">溫度 / 體感</span><span className="text-orange-400 text-sm font-bold">24°C / 26°C</span></div>
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">相對濕度</span><span className="text-blue-300 text-sm font-bold">78%</span></div>
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">雲量 / 降雨</span><span className="text-slate-300 text-sm font-bold">☁️ 40% / 10%</span></div>
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">風向風速</span><span className="text-emerald-400 text-sm font-bold">🚩 E 15 km/h</span></div>
+
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">紫外線</span><span className="text-yellow-500 text-sm font-bold">中等 (5)</span></div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+    </div>
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(148,163,184,0.12)', borderRadius: 6, padding: '3px 8px' }}>
