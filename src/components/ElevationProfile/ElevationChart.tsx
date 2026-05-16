@@ -187,56 +187,29 @@ export default function ElevationChart({
       alert('PDF 產生失敗，請重新整理頁面後再試一次');
     }
   };
-// EXCEL 下載（包含上方 + 表格 + 下方資訊）
+// EXCEL 下載（包含表格 + 基本調整）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
       return alert('請先切換到「路程計畫表」分頁');
     }
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([["山徑路程計畫表"]]);
+    try {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.table_to_sheet(table);
 
-    let r = 3;  // 從第3行開始
+      // 調整欄寬
+      ws['!cols'] = [
+        { wch: 8 }, { wch: 35 }, { wch: 22 }, { wch: 10 },
+        { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+        { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+        { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 25 }
+      ];
 
-    // 1. 基本資訊
-    XLSX.utils.sheet_add_aoa(ws, [
-      ["遠足地區", ""],
-      ["日期", selectedDate],
-      ["組員姓名", ""],
-      ["地圖組別", ""],
-      ["編號及年份", ""],
-      ["領隊", ""]
-    ], { origin: `A${r}` });
-    r += 8;
-
-    // 2. 主表格
-    const tableWs = XLSX.utils.table_to_sheet(table);
-    XLSX.utils.sheet_add_aoa(ws, [[" "]], { origin: `A${r}` });
-    XLSX.utils.sheet_add_sheet(ws, tableWs, `A${r + 2}`);
-
-    // 調整欄寬
-    ws['!cols'] = [
-      { wch: 8 }, { wch: 35 }, { wch: 22 }, { wch: 10 },
-      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 22 }
-    ];
-
-    // 3. 下方數據（簡單版）
-    r += 35;
-    XLSX.utils.sheet_add_aoa(ws, [["天文數據"]], { origin: `A${r}` });
-    r++;
-    XLSX.utils.sheet_add_aoa(ws, [
-      ["日出/日落", weather?.sunrise || "--", weather?.sunset || "--"],
-      ["月出/月落", weather?.moonrise || "--", weather?.moonset || "--"],
-      ["Naismith 基礎時速", naismithSettings.baseSpeedKmh + " km/h"]
-    ], { origin: `A${r}` });
-
-    XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
-  };
-      // alert('✅ EXCEL 已成功下載！');
+      XLSX.utils.book_append_sheet(wb, ws, "行程表");
+      XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
     } catch (err) {
+      console.error(err);
       alert('EXCEL 匯出失敗，請稍後再試');
     }
   };
@@ -669,7 +642,7 @@ export default function ElevationChart({
                   </div>
                   <div className="flex flex-col"><span className="text-slate-500 text-[9px]">風向風速</span><span className="text-emerald-400 text-xs font-bold">🚩 {weather ? `${weather.windDirection} ${weather.windSpeed} km/h` : "E 15 km/h"}</span></div>
                   <div className="flex flex-col"><span className="text-slate-500 text-[9px]">紫外線</span><span className="text-yellow-500 text-xs font-bold">{weather ? `指數 (${weather.uvIndex})` : "中等 (5)"}</span></div>
-                </div>
+            </div>
               </div>
             </div>
           </div>
