@@ -49,7 +49,7 @@ export default function ElevationChart({
   onHoverPoint
 }: Props) {
   // 🟢 1. 在這裡呼叫 Hook 接通數據水管
-  const { materials } = useItineraryData(waypoints, segments);
+const { materials, weather } = useItineraryData(waypoints, segments, selectedDate);
 
   // 2. 底下是你原本就有的狀態與邏輯
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
