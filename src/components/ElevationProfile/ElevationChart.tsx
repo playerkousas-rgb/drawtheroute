@@ -125,10 +125,19 @@ export default function ElevationChart({
     setHoverX(null);
     onHoverRef.current(null);
   }, []);
-// ─── 📸 功能 1：下載橫切面 (SVG) ───
+
+  // ─── 📸 📸 功能 1：下載橫切面 (SVG 格式) ───
   const handleDownloadSVG = () => {
     const svg = document.querySelector('.recharts-surface');
     if (!svg) return alert('找不到圖表畫面！');
+
+    const gridLines = svg.querySelectorAll('.recharts-cartesian-grid-horizontal line');
+    gridLines.forEach((line) => {
+      (line as SVGElement).setAttribute('stroke', '#334155'); 
+      (line as SVGElement).setAttribute('stroke-dasharray', '3 3'); 
+      (line as SVGElement).setAttribute('opacity', '0.3'); 
+    });
+
     const svgData = new XMLSerializer().serializeToString(svg);
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
@@ -139,30 +148,27 @@ export default function ElevationChart({
     URL.revokeObjectURL(url);
   };
 
-  // ─── 📊 功能 2：原生 HTML 轉 Excel ───
+  // ─── 📊 功能 2：抓取 HTML <table> 導出 EXCEL (CSV) ───
   const handleExportExcel = () => {
     const tableElement = document.querySelector('table');
     if (!tableElement) return alert('找不到表格！請先切換至「路程計畫表」。');
-    const tableHtml = tableElement.outerHTML;
-    const excelTemplate = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="UTF-8"></head>
-      <body>${tableHtml}</body>
-      </html>
-    `;
-    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `山徑路程計畫表-${Date.now()}.xls`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
 
-  // ─── 📄 功能 3：內建 PDF 導出 ───
-  const handleDownloadPDF = () => {
-    window.print();
-  };
+    const rows = tableElement.querySelectorAll('tr');
+    let csvContent = '';
+
+    rows.forEach((row) => {
+      const cols = row.querySelectorAll('th, td');
+      const rowData: string[] = [];
+      
+      cols.forEach((col) => {
+        const input = col.querySelector('input');
+        let text = input ? input.value : (col.textContent || '');
+        text = text.replace(/\n/g, ' ').replace(/"/g, '""').trim();
+        if (text.includes(',')) text = `"${text}"`;
+        rowData.push(text);
+      });
+      csvContent += rowData.join(',') + '\n';
+    });
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -211,33 +217,21 @@ export default function ElevationChart({
         </div>
 
         {/* 🟢 補回這顆：根據當前分頁動態切換下載功能的按鈕 */}
-      {/* 🟢 完美並排：自動連動顯示對應的導出按鈕 */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center">
           {activeTab === 'chart' ? (
             <button
-              type="button"
               onClick={handleDownloadSVG}
               className="px-2.5 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition-all shadow-sm"
             >
-              📸 Save SVG
+              📸 Save PNG/SVG
             </button>
           ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="px-2.5 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition-all shadow-sm"
-              >
-                📊 匯出 EXCEL
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-[11px] font-bold transition-all shadow-sm"
-              >
-                📄 導出 PDF
-              </button>
-            </>
+            <button
+              onClick={handleExportExcel}
+              className="px-2.5 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition-all shadow-sm"
+            >
+              📊 匯出 EXCEL
+            </button>
           )}
         </div>
         <div className="flex gap-1.5 flex-wrap">
