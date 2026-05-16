@@ -434,16 +434,16 @@ export default function ElevationChart({
                       ? `${weather.uvIndex >= 7 ? '極高' : weather.uvIndex >= 5 ? '高' : weather.uvIndex >= 3 ? '中等' : '弱'} (${weather.uvIndex})` 
                       : "--"
                     }
-                  </span>
-                </div>
-              </div>
-            </div> {/* 👈 這個可能是原本面板外層的容器閉合 */}
-        </div>   {/* 👈 這個可能是元件 Return 的大外包圍 */}
-      )}         {/* 👈 這個是條件渲染的結尾花括號 */}
-    </div>       {/* 👈 這個是整個元件最外層的 div */}
+                </span>
+            </div>
+          </div>
+        </div>
+      </div> 
+    </div> {/* 🟢 補齊：用來閉合路程計畫表分頁的滑動容器 (overflow-x-auto flex-1 flex flex-col gap-4) */}
+  )}         {/* 閉合：activeTab === 'chart' 的三元運算子分歧結尾 */}
+</div>       {/* 閉合：整個元件最外層的大包圍背景 div */}
   );
 }
-            
 
 function StatBadge({ label, val, color }: { label: string; val: string; color: string }) {
   return (
