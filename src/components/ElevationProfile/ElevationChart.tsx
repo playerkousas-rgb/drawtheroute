@@ -48,6 +48,7 @@ export default function ElevationChart({
   naismithSettings,
   onHoverPoint
 }: Props) {
+  const [coordMode, setCoordMode] = useState<'grid' | 'latlng'>('grid');
 
   // 🟢 讓日期狀態【第一個出生】！
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -277,13 +278,24 @@ export default function ElevationChart({
           <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
         </td>
 
-      {/* 網格座標與海拔 (自動) */}
+    {/* 網格座標與海拔 (自動) */}
 <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
-  {/* 🟢 這裡換成拿 Hook 計算好的香港方格網座標 */}
-  <div className="text-purple-400 font-bold text-[11px] mb-1">
-    {materials && materials[i]?.grid ? materials[i].grid : `${wp.latlng.lat.toFixed(5)}, ${wp.latlng.lng.toFixed(5)}`}
+  
+  {/* 🟢 點擊這整個區塊或文字，就會在香港網格與全球經緯度之間切換 */}
+  <div 
+    onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
+    className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none"
+    title="點擊切換 網格 / 經緯度"
+  >
+    {coordMode === 'grid' 
+      ? (materials && materials[i]?.grid ? materials[i].grid : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`)
+      : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`
+    }
   </div>
-  <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">{(wp as any).elevation || 0} m</div>
+
+  <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">
+    {(wp as any).elevation || 0} m
+  </div>
 </td>
 
         {/* 原本有的輸入框 */}
