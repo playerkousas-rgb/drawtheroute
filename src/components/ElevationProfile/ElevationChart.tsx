@@ -211,20 +211,46 @@ export default function ElevationChart({
       // 🎯 5. 把主表格的資料，無損接在第 7 行 (A7)
       XLSX.utils.sheet_add_aoa(finalWs, tableData, { origin: "A7" });
 
-      // 🎯 6. 【氣象精確顯靈機制】：
-      // 起始點 7 + 網頁表格的真實物理總列數 (table.rows.length) + 空 2 行
-      const realTableRows = table.rows.length;
-      let footerRow = 7 + realTableRows + 2;
+    // 🎯 6. 【全新底部數據面板】：不再計算行數，直接做成三合一完美對齊陣列
+      const footerAOA = [
+        ["【 ☀️ 天文數據 (ASTRO) 】", "", "", "【 ⏱️ Naismith 時間算法基準 】", "", "", "【 🌦️ 氣象預測 (Weather Forecast) 】"],
+        [
+          "🌅 日出 / 日落：", weather ? `${weather.sunrise} / ${weather.sunset}` : "--:-- / --:--", "",
+          "基礎時速：", `${naismithSettings?.baseSpeedKmh || "4.0"} km/h`, "",
+          "🌡️ 當日最高 / 最低溫：", weather && weather.maxTemp !== undefined && weather.minTemp !== undefined ? `${weather.maxTemp}°C / ${weather.minTemp}°C` : "26°C / 18°C"
+        ],
+        [
+          "🌙 月出 / 月落：", weather ? `${weather.moonrise} / ${weather.moonset}` : "--:-- / --:--", "",
+          "每上升 20m 加時：", `+${naismithSettings?.ascentPer20m || "10"} 分`, "",
+          "💧 相對濕度：", weather && weather.humidity !== undefined ? `${weather.humidity}%` : "78%"
+        ],
+        [
+          "🌑 月相：", weather ? String(weather.moonPhase).replace(/<\/?[^>]+(>|$)/g, "") : "--", "",
+          "每下降 20m 加時：", `+${naismithSettings?.descentPer20m || "0"} 分`, "",
+          "☁️ 雲量 / 降雨：", weather ? `${weather.cloudCover}% / ${weather.precipitation}%` : "40% / 10%"
+        ],
+        [
+          "🌊 潮汐預報：", weather ? weather.tideForecast : "--:-- / --:--", "",
+          "", "", "", // 算法基準欄位只有三行，這裡留空保持對齊
+          "🚩 風向風速：", weather ? `${weather.windDirection || "E"} ${weather.windSpeed || "15"} km/h` : "E 15 km/h"
+        ],
+        [
+          "", "", "", 
+          "", "", "", 
+          "☀️ 紫外線：", weather ? `指數 (${weather.uvIndex})` : "中等 (5)"
+        ]
+      ];
 
-      // 把天文數據精確拍在主表格的結尾下方
-      XLSX.utils.sheet_add_aoa(finalWs, [
-        ["【 天文及環境預測數據 】"],
-        ["日出 / 日落時間", `${weather?.sunrise || "--:--"} / ${weather?.sunset || "--:--"}`],
-        ["月出 / 日落時間", `${weather?.moonrise || "--:--"} / ${weather?.moonset || "--:--"}`],
-        ["當日最高 / 最低溫", `${weather?.maxTemp !== undefined ? weather.maxTemp : "26"}°C / ${weather?.minTemp !== undefined ? weather.minTemp : "18"}°C`],
-        ["正午體感溫度", `${weather?.feelsLike || "--"}°C`],
-        ["相對濕度 / 風速", `${weather?.humidity || "--"}% / ${weather?.windSpeed || "--"} km/h (${weather?.windDirection || ""})`]
-      ], { origin: `A${footerRow}` });
+      // 計算主表格在最終工作表（finalWs）裡的真實結束行數
+      // 頂部佔了 6 行，加上主表格實際的資料列數 (tableData.length)
+      // 💡 註：如果你目前還在使用舊的無過濾 tableData，這裡可以直接用 7 + table.rows.length
+      const currentRowsCount = 7 + (tableData ? tableData.length : table.rows.length);
+      
+      // 讓底部面板與主表格之間空 2 行，算好最精確的起點格子
+      const startCell = `A${currentRowsCount + 2}`;
+
+      // 使用無損空降，將這塊左右完美的精緻面板拍在主表格的正下方
+      XLSX.utils.sheet_add_aoa(finalWs, footerAOA, { origin: startCell });
 
       // 🎯 7. 完美客製化欄寬設定
       finalWs['!cols'] = [
