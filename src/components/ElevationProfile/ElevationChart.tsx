@@ -119,32 +119,29 @@ export default function ElevationChart({
     onHoverRef.current(null);
   }, []);
 
- // ==================== 下載功能 ====================
-
+/ ==================== 下載功能 ====================
   const exportContainerRef = useRef<HTMLDivElement>(null);
 
-  // 圖表 PDF 下載（高度剖面頁使用）
-  const handleDownloadChartPDF = async () => {
+  // 高度剖面圖 → 下載 PNG
+  const handleDownloadChartPNG = async () => {
     const chartContainer = document.querySelector('.recharts-wrapper') as HTMLElement;
     if (!chartContainer) return alert('找不到圖表畫面！');
-    
-    const canvas = await html2canvas(chartContainer, { scale: 2, backgroundColor: '#0f172a' });
-    const imgData = canvas.toDataURL('image/png');
-    
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'pt',
-      format: [canvas.width / 1.8, canvas.height / 1.8]
+
+    const canvas = await html2canvas(chartContainer, { 
+      scale: 2, 
+      backgroundColor: '#0f172a' 
     });
     
-    pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-    pdf.save(`橫切面剖面圖-${Date.now()}.pdf`);
+    const link = document.createElement('a');
+    link.download = `橫切面剖面圖-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
-  // 表格 PDF 下載（包含上方資訊 + 表格 + 下方數據）
+  // 路程計畫表 → 下載 PDF（包含全部內容）
   const handleExportTablePDF = async () => {
-    if (!exportContainerRef.current) return alert('找不到要匯出的內容！');
-    
+    if (!exportContainerRef.current) return alert('找不到要匯出的內容！請確認已切換到「路程計畫表」');
+
     const canvas = await html2canvas(exportContainerRef.current, {
       scale: 2,
       useCORS: true,
@@ -155,7 +152,7 @@ export default function ElevationChart({
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'pt',
-      format: [canvas.width * 0.73, canvas.height * 0.73]
+      format: [canvas.width * 0.72, canvas.height * 0.72]
     });
 
     const imgData = canvas.toDataURL('image/png');
@@ -171,7 +168,6 @@ export default function ElevationChart({
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.table_to_sheet(table);
 
-    // 調整欄寬
     ws['!cols'] = [
       { wch: 8 }, { wch: 30 }, { wch: 18 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
