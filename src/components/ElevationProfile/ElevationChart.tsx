@@ -139,32 +139,56 @@ export default function ElevationChart({
     pdf.save(`橫切面剖面圖-${Date.now()}.pdf`);
   };
 
-  const exportContainerRef = useRef<HTMLDivElement>(null);   // ← 新增
+ // ========== 下載功能 ==========
+  const exportContainerRef = useRef<HTMLDivElement>(null);
 
-  // ==================== 下載功能（已改成打包完整內容） ====================
-
-  const handleExportExcel = () => {
-    const tableElement = document.querySelector('table');
-    if (!tableElement) return alert('找不到表格！');
-
-    const wb = XLSX.utils.table_to_book(tableElement, { sheet: "路程計畫表" });
+  // PDF 下載（包含上方 + 表格 + 下方全部）
+  const handleExportTablePDF = async () => {
+    if (!exportContainerRef.current) return alert('找不到內容！');
     
-    // 可選：新增一個 Sheet 放底部數據（簡單文字版）
-    const summaryData = [
-      ["天文數據", "", ""],
-      ["日出/日落", weather?.sunrise || "--", weather?.sunset || "--"],
-      ["月出/月落", weather?.moonrise || "--", weather?.moonset || "--"],
-      ["Naismith 基準", "基礎時速", `${naismithSettings.baseSpeedKmh} km/h`],
-      ["每上升20m加時", "+", `${naismithSettings.ascentPer20m} 分`],
-      ["每下降20m加時", "+", `${naismithSettings.descentPer20m} 分`],
-    ];
+    const canvas = await html2canvas(exportContainerRef.current, { 
+      scale: 2, 
+      useCORS: true, 
+      backgroundColor: '#0f172a' 
+    });
 
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, wsSummary, "氣象與算法");
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: [canvas.width * 0.73, canvas.height * 0.73]
+    });
 
-    XLSX.writeFile(wb, `山徑路程計畫表-${Date.now()}.xlsx`);
+    const imgData = canvas.toDataURL('image/png');
+    pdf.addImage(imgData, 'PNG', 12, 12, pdf.internal.pageSize.getWidth() - 24, 0);
+    pdf.save(`行程表-${selectedDate || Date.now()}.pdf`);
   };
 
+  // EXCEL 下載（改成更接近你想要的格式）
+  const handleExportExcel = () => {
+    if (!exportContainerRef.current) return alert('找不到表格！');
+
+    // 建立新的 Workbook
+    const wb = XLSX.utils.book_new();
+
+    // 取得目前表格
+    const table = document.querySelector('table');
+    if (table) {
+      const ws = XLSX.utils.table_to_sheet(table);
+      
+      // 調整欄寬（可自行微調）
+      const colWidths = [
+        { wch: 8 }, { wch: 25 }, { wch: 18 }, { wch: 10 },
+        { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+        { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+        { wch: 12 }, { wch: 12 }, { wch: 15 }
+      ];
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "行程表");
+    }
+
+    XLSX.writeFile(wb, `行程表_${selectedDate || 'export'}.xlsx`);
+  };
   const handleExportTablePDF = async () => {
     if (!exportContainerRef.current) return alert('找不到要匯出的內容！');
 
@@ -313,7 +337,7 @@ export default function ElevationChart({
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="overflow-x-auto flex-1 flex flex-col gap-4">
+       <div ref={exportContainerRef} className="overflow-x-auto flex-1 flex flex-col gap-6">
           {/* 1. 行程基本資訊 */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-3 bg-slate-900/80 rounded-lg border border-slate-700 text-[11px]">
             <div className="flex items-center gap-2">
