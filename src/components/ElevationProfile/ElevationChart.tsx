@@ -153,7 +153,7 @@ export default function ElevationChart({
     }
   };
 
-  // EXCEL 下載（最終穩定版）
+ // EXCEL 下載（最終穩定版 - 修復 Workbook 為空問題）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
@@ -162,6 +162,7 @@ export default function ElevationChart({
 
     try {
       const wb = XLSX.utils.book_new();
+      // 建立工作表
       const ws = XLSX.utils.aoa_to_sheet([["山徑路程計畫表"]]);
 
       let r = 3;
@@ -172,14 +173,14 @@ export default function ElevationChart({
         ["總爬升", `+${stats.totalAscent.toFixed(0)} m`],
         ["總下降", `-${stats.totalDescent.toFixed(0)} m`],
         ["最高點", `${stats.maxElevation.toFixed(0)} m`],
-        ["預計時間", formatTime(stats.estimatedTime)]
+        ["預計時間", formatTime ? formatTime(stats.estimatedTime) : `${Math.floor(stats.estimatedTime / 60)}h ${Math.round(stats.estimatedTime % 60)}m`]
       ], { origin: `A${r}` });
       r += 7;
 
       // 2. 上方基本資訊
       XLSX.utils.sheet_add_aoa(ws, [
         ["遠足地區", ""],
-        ["日期", selectedDate],
+        ["日期", selectedDate || ""],
         ["組員姓名", ""],
         ["地圖組別", ""],
         ["編號及年份", ""],
@@ -187,7 +188,7 @@ export default function ElevationChart({
       ], { origin: `A${r}` });
       r += 8;
 
-      // 3. 主表格（最穩定的寫法）
+      // 3. 主表格
       XLSX.utils.sheet_add_aoa(ws, [[" "]], { origin: `A${r}` });
       r += 2;
 
@@ -204,7 +205,8 @@ export default function ElevationChart({
         { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 25 }
       ];
 
-      r += 35;
+      // 根據主表格實際行數動態累加，避免下方數據錯位
+      r += tableData.length + 3;
 
       // 4. 下方數據
       XLSX.utils.sheet_add_aoa(ws, [["天文數據 (ASTRO)"]], { origin: `A${r}` });
@@ -214,10 +216,14 @@ export default function ElevationChart({
         ["月出 / 月落", weather?.moonrise || "--", weather?.moonset || "--"]
       ], { origin: `A${r}` });
 
+      // ✨【關鍵核心：將工作表 ws 夾進 活頁簿 wb 裡面】
+      XLSX.utils.book_append_sheet(wb, ws, "路程計畫表");
+
+      // 執行儲存下載
       XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('EXCEL 匯出失敗，請稍後再試');
+      alert(`EXCEL 匯出失敗，錯誤詳細原因: ${err?.message || err}`);
     }
   };
   if (!profile.length) {
