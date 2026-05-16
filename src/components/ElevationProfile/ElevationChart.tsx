@@ -164,7 +164,7 @@ export default function ElevationChart({
       const wb = XLSX.utils.book_new();
 
       // 🟢 1. 【頂部基本資訊】：精確鎖定容器，抓取上方 5 個輸入框 (🔓 已鎖死成功)
-      const infoContainer = document.querySelector('.grid.grid-cols-2.md\\:cols-3');
+     const infoContainer = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3');
       let regionVal = "";
       let mapVal    = "";
       let yearVal   = "";
