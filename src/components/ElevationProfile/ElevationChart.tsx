@@ -153,7 +153,7 @@ export default function ElevationChart({
     }
   };
 
-// EXCEL 下載（最終正位大結局：基本資訊精確鎖定容器 + 氣象絕對顯靈版）
+// EXCEL 下載（極致安全防干擾版：解鎖網頁輸入框 + 氣象精確歸位）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
@@ -163,10 +163,8 @@ export default function ElevationChart({
     try {
       const wb = XLSX.utils.book_new();
 
-      // 🎯 核心大修正 1：不要大海撈針。直接精確瞄準「行程基本資訊」那個容器！
-      // 透過 className 的特徵找到它，這樣裡面排隊的輸入框順序就死死固定了
+      // 🎯 1. 精確鎖定「行程基本資訊」容器，抓取上方 5 個輸入框
       const infoContainer = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3');
-      
       let regionVal = "";
       let mapVal    = "";
       let yearVal   = "";
@@ -174,50 +172,30 @@ export default function ElevationChart({
       let teamVal   = "";
 
       if (infoContainer) {
-        // 只拿這個容器裡面的輸入框
         const infoInputs = Array.from(infoContainer.querySelectorAll('input'));
-        
-        // 依照你 HTML 程式碼由上到下的物理順序，一個一個點名入座：
         regionVal = infoInputs[0]?.value || ""; // 1. 遠足地區
-        // infoInputs[1] 是日期，因為它有 type="date" 且有綁 value={selectedDate}，我們可以直接用 React 變數，不需要從這裡撈
         teamVal   = infoInputs[2]?.value || ""; // 3. 組員姓名
         mapVal    = infoInputs[3]?.value || ""; // 4. 地圖組別
         yearVal   = infoInputs[4]?.value || ""; // 5. 編號及年份
         leaderVal = infoInputs[5]?.value || ""; // 6. 領隊
-      } else {
-        // 防禦備用機制：如果找不到容器，就用 placeholder 包含判定
-        document.querySelectorAll('input').forEach(input => {
-          const ph = (input.getAttribute('placeholder') || '');
-          if (ph.includes('請輸入')) regionVal = input.value;
-          if (ph.includes('姓名')) teamVal = input.value;
-          if (ph.includes('HM20C')) mapVal = input.value;
-          if (ph.includes('2024')) yearVal = input.value;
-        });
-        // 領隊沒有 placeholder，他是最後一個沒有屬性的 input
-        const textInputs = Array.from(document.querySelectorAll('input')).filter(i => !i.getAttribute('placeholder') && i.getAttribute('type') !== 'date');
-        if (textInputs.length > 0) leaderVal = textInputs[textInputs.length - 1].value;
       }
 
-      // 🎯 核心大修正 2：解析網頁主表格數據，並過濾所有隱藏幽靈空行
-      const tempWs = XLSX.utils.table_to_sheet(table, { display: true });
-      const rawTableData = XLSX.utils.sheet_to_json(tempWs, { header: 1 }) as any[][];
-      
-      // 濾掉網頁背後多餘的幾十行空行，確保主表格純淨，免得把氣象數據推到深淵
-      const tableData = rawTableData.filter(row => row && row.length > 0 && row.some(cell => cell !== null && cell !== ""));
+      // 🎯 2. 【核心安全修正】：直接轉換表格，絕不對 tableData 進行任何 filter 動作！
+      // 這樣網頁上的「路段休息、CP休息」輸入框就會立刻恢復正常，完全解鎖！
+      const ws = XLSX.utils.table_to_sheet(table, { display: true });
+      const tableData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-      // 🎯 3. 建立 All-in-One 黃金總陣列（一條龍排隊，絕對不重疊）
-      const finalAOA: any[][] = [];
-
-      // 行 1-2：大標題
-      finalAOA.push(["山徑路程計畫表"]);
-      finalAOA.push([]);
+      // 🎯 3. 建立頂部排版陣列（標題、統計、基本資訊）
+      const headerAOA: any[][] = [];
+      headerAOA.push(["山徑路程計畫表"]);
+      headerAOA.push([]);
       
-      // 行 3-4：右上角統計數據 (完美貼合網頁數據)
-      finalAOA.push(["", "", "", "", "", "", "", "總距離：", `${stats.totalDistance.toFixed(2)} km`, "", "", "總上升：", `+${stats.totalAscent.toFixed(0)} m`, "", "總下降：", `-${stats.totalDescent.toFixed(0)} m`, "", "最高：", `${stats.maxElevation.toFixed(0)} m`, "", "預計時間：", formatTime ? formatTime(stats.estimatedTime) : `${Math.floor(stats.estimatedTime / 60)}h ${Math.round(stats.estimatedTime % 60)}m`]);
-      finalAOA.push([]);
+      // 右上角統計數據
+      headerAOA.push(["", "", "", "", "", "", "", "總距離：", `${stats.totalDistance.toFixed(2)} km`, "", "", "總上升：", `+${stats.totalAscent.toFixed(0)} m`, "", "總下降：", `-${stats.totalDescent.toFixed(0)} m`, "", "最高：", `${stats.maxElevation.toFixed(0)} m`, "", "預計時間：", formatTime ? formatTime(stats.estimatedTime) : `${Math.floor(stats.estimatedTime / 60)}h ${Math.round(stats.estimatedTime % 60)}m`]);
+      headerAOA.push([]);
       
-      // 行 5-6：基本資訊列 (強制正位歸座)
-      finalAOA.push([
+      // 基本資訊列
+      headerAOA.push([
         "遠足地區：", regionVal, 
         "日期：", selectedDate || "", 
         "地圖組別：", mapVal, "", "",
@@ -225,30 +203,33 @@ export default function ElevationChart({
         "領隊：", leaderVal, "",
         "組員姓名：", teamVal
       ]);
-      finalAOA.push([]);
+      headerAOA.push([]);
 
-      // 行 7 開始：倒入過濾乾淨的主表格資料 (SP, CP1, EP 等等)
-      tableData.forEach(row => {
-        finalAOA.push(row);
-      });
+      // 🎯 4. 建立最終要導出的工作表：先放頂部排版
+      const finalWs = XLSX.utils.aoa_to_sheet(headerAOA);
 
-      // 🎯 核心大修正 3：氣象大歸位！
-      // 離主表格只空 1 行，天文數據絕對會緊緊黏在 EP 站的下一行！一打開檔案就能看見
-      finalAOA.push([]);
-      finalAOA.push(["【 天文及環境預測數據 】"]);
-      finalAOA.push(["日出 / 日落時間", `${weather?.sunrise || "--:--"} / ${weather?.sunset || "--:--"}`]);
-      finalAOA.push(["月出 / 日落時間", `${weather?.moonrise || "--:--"} / ${weather?.moonset || "--:--"}`]);
-      finalAOA.push(["當日最高 / 最低溫", `${weather?.maxTemp !== undefined ? weather.maxTemp : "26"}°C / ${weather?.minTemp !== undefined ? weather.minTemp : "18"}°C`]);
-      finalAOA.push(["正午體感溫度", `${weather?.feelsLike || "--"}°C`]);
-      finalAOA.push(["相對濕度 / 風速", `${weather?.humidity || "--"}% / ${weather?.windSpeed || "--"} km/h (${weather?.windDirection || ""})`]);
+      // 🎯 5. 把主表格的資料，無損接在第 7 行 (A7)
+      XLSX.utils.sheet_add_aoa(finalWs, tableData, { origin: "A7" });
 
-      // 一口氣把總陣列壓成工作表
-      const ws = XLSX.utils.aoa_to_sheet(finalAOA);
+      // 🎯 6. 【氣象精確顯靈機制】：
+      // 起始點 7 + 網頁表格的真實物理總列數 (table.rows.length) + 空 2 行
+      const realTableRows = table.rows.length;
+      let footerRow = 7 + realTableRows + 2;
 
-      // 🎯 5. 客製化欄寬設定
-      ws['!cols'] = [
+      // 把天文數據精確拍在主表格的結尾下方
+      XLSX.utils.sheet_add_aoa(finalWs, [
+        ["【 天文及環境預測數據 】"],
+        ["日出 / 日落時間", `${weather?.sunrise || "--:--"} / ${weather?.sunset || "--:--"}`],
+        ["月出 / 日落時間", `${weather?.moonrise || "--:--"} / ${weather?.moonset || "--:--"}`],
+        ["當日最高 / 最低溫", `${weather?.maxTemp !== undefined ? weather.maxTemp : "26"}°C / ${weather?.minTemp !== undefined ? weather.minTemp : "18"}°C`],
+        ["正午體感溫度", `${weather?.feelsLike || "--"}°C`],
+        ["相對濕度 / 風速", `${weather?.humidity || "--"}% / ${weather?.windSpeed || "--"} km/h (${weather?.windDirection || ""})`]
+      ], { origin: `A${footerRow}` });
+
+      // 🎯 7. 完美客製化欄寬設定
+      finalWs['!cols'] = [
         { wch: 8 },  // A: 檢查站
-        { wch: 24 }, // B: 地名 / 地理特徵
+        { wch: 24 }, // B: 地名
         { wch: 20 }, // C: 網格座標 / 高度
         { wch: 10 }, // D: 領航員
         { wch: 10 }, // E: 方位
@@ -270,10 +251,10 @@ export default function ElevationChart({
         { wch: 25 }  // U: 備註/事工
       ];
 
-      XLSX.utils.book_append_sheet(wb, ws, "行程表");
+      XLSX.utils.book_append_sheet(wb, finalWs, "行程表");
       XLSX.writeFile(wb, `行程表_${selectedDate || "未命名"}.xlsx`);
     } catch (err: any) {
-      console.error("Excel 匯出失敗:", err);
+      console.error("Excel 匯出核心損壞:", err);
       alert(`EXCEL 匯出失敗: ${err?.message || err}`);
     }
   };
