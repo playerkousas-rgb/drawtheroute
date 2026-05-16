@@ -187,7 +187,7 @@ export default function ElevationChart({
       alert('PDF 產生失敗，請重新整理頁面後再試一次');
     }
   };
-// EXCEL 下載（單一 Sheet + 完整資訊）
+// EXCEL 下載（單一 Sheet + 完整資訊 - 已修正）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
@@ -225,10 +225,10 @@ export default function ElevationChart({
       XLSX.utils.sheet_add_aoa(ws, [[" "]], { origin: `A${r}` });
       r += 2;
 
-      const tableWs = XLSX.utils.table_to_sheet(table);
-      XLSX.utils.sheet_add_aoa(ws, XLSX.utils.sheet_to_json(tableWs, { header: 1 }), { origin: `A${r}` });
+      const tableData = XLSX.utils.sheet_to_json(XLSX.utils.table_to_sheet(table), { header: 1 });
+      XLSX.utils.sheet_add_aoa(ws, tableData, { origin: `A${r}` });
 
-      // 調整主表格欄寬
+      // 調整欄寬
       ws['!cols'] = [
         { wch: 8 }, { wch: 35 }, { wch: 22 }, { wch: 10 },
         { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
@@ -236,9 +236,9 @@ export default function ElevationChart({
         { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 25 }
       ];
 
-      r += 40; // 為表格預留空間
+      r += 40;
 
-      // 4. 下方天文 + 氣象 + Naismith 資訊
+      // 4. 下方數據
       XLSX.utils.sheet_add_aoa(ws, [["天文數據 (ASTRO)"]], { origin: `A${r}` });
       r++;
       XLSX.utils.sheet_add_aoa(ws, [
@@ -261,9 +261,7 @@ export default function ElevationChart({
       r++;
       XLSX.utils.sheet_add_aoa(ws, [
         ["溫度 / 體感", `${weather?.temp || "--"}°C / ${weather?.feelsLike || "--"}°C`],
-        ["相對濕度", `${weather?.humidity || "--"}%`],
-        ["雲量 / 降雨", `${weather?.cloudCover || "--"}% / ${weather?.precipitation || "--"}%`],
-        ["風向風速", weather?.windDirection + " " + (weather?.windSpeed || "--") + " km/h"]
+        ["相對濕度", `${weather?.humidity || "--"}%`]
       ], { origin: `A${r}` });
 
       XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
