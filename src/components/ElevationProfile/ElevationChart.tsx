@@ -122,7 +122,7 @@ export default function ElevationChart({
 // ==================== 下載功能 ====================
   const exportContainerRef = useRef<HTMLDivElement>(null);
 
-  // 高度剖面圖 → 下載 PNG
+  // 高度剖面 → 下載 PNG
   const handleDownloadChartPNG = async () => {
     const chartContainer = document.querySelector('.recharts-wrapper') as HTMLElement;
     if (!chartContainer) return alert('找不到圖表畫面！');
@@ -138,29 +138,40 @@ export default function ElevationChart({
     link.click();
   };
 
-  // 路程計畫表 → 下載 PDF（包含全部內容）
+  // 路程計畫表 → PDF 下載（已優化）
   const handleExportTablePDF = async () => {
-    if (!exportContainerRef.current) return alert('找不到要匯出的內容！請確認已切換到「路程計畫表」');
+    if (!exportContainerRef.current) {
+      return alert('請先切換到「路程計畫表」分頁再下載 PDF');
+    }
 
-    const canvas = await html2canvas(exportContainerRef.current, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#0f172a',
-      logging: false
-    });
+    try {
+      const canvas = await html2canvas(exportContainerRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#0f172a',
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        width: exportContainerRef.current.scrollWidth,
+        height: exportContainerRef.current.scrollHeight
+      });
 
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'pt',
-      format: [canvas.width * 0.72, canvas.height * 0.72]
-    });
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'pt',
+        format: [canvas.width * 0.68, canvas.height * 0.68]
+      });
 
-    const imgData = canvas.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', 12, 12, pdf.internal.pageSize.getWidth() - 24, 0);
-    pdf.save(`行程表-${selectedDate || Date.now()}.pdf`);
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 15, 15, pdf.internal.pageSize.getWidth() - 30, 0);
+      pdf.save(`行程表-${selectedDate || Date.now()}.pdf`);
+    } catch (error) {
+      console.error(error);
+      alert('PDF 產生失敗，請重新整理頁面後再試');
+    }
   };
 
-  // EXCEL 下載
+  // 路程計畫表 → EXCEL 下載
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) return alert('找不到表格！請先切換至「路程計畫表」');
@@ -169,16 +180,16 @@ export default function ElevationChart({
     const ws = XLSX.utils.table_to_sheet(table);
 
     ws['!cols'] = [
-      { wch: 8 }, { wch: 30 }, { wch: 18 }, { wch: 12 },
+      { wch: 8 }, { wch: 32 }, { wch: 20 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 20 }
+      { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 22 }
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, "行程表");
     XLSX.writeFile(wb, `行程表_${selectedDate || Date.now()}.xlsx`);
   };
-
+  
   if (!profile.length) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2">
