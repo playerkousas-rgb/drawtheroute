@@ -44,6 +44,17 @@ const CustomTooltip = ({ active, payload }: {
   );
 };
 
+// 貼心時間格式化工具：將純分鐘數轉為 Xh Ym
+const formatMinutes = (minutes: number): string => {
+  if (!minutes || minutes === 0) return '0m';
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  
+  if (hours === 0) return `${mins}m`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+};
+
 // 🟢 專注計算單一路段 Naismith 純步行時間（單位：分鐘）
 const calculateSegmentNaismithMinutes = (
   seg: RouteSegment | null, 
@@ -392,178 +403,191 @@ export default function ElevationChart({
                   <th className="border border-slate-700 p-1 font-normal w-18">出發</th><th className="border border-slate-700 p-1 font-normal w-18">到達</th>
                 </tr>
               </thead>
-              <tbody>
-                {(() => {
-                  const timeToMinutes = (tStr: string): number => {
-                    const parts = tStr.split(":");
-                    if (parts.length !== 2) return 8 * 60 + 30;
-                    return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
-                  };
+             <tbody>
+  {(() => {
+    const timeToMinutes = (tStr: string): number => {
+      const parts = tStr.split(":");
+      if (parts.length !== 2) return 8 * 60 + 30;
+      return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+    };
 
-                  const minutesToTime = (mins: number): string => {
-                    const h = Math.floor((mins % 1440) / 60);
-                    const m = mins % 60;
-                    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-                  };
+    const minutesToTime = (mins: number): string => {
+      const h = Math.floor((mins % 1440) / 60);
+      const m = mins % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    };
 
-                  const departureTimes: string[] = Array(waypoints.length).fill("--:--");
-                  const arrivalTimes: string[] = Array(waypoints.length).fill("--:--");
-                  
-                  departureTimes[0] = "08:30";
+    // ─── 💡 貼心時間格式化工具：將純分鐘數轉為 Xh Ym ───
+    const formatMinutes = (minutes: number): string => {
+      if (!minutes || minutes === 0) return '0m';
+      const hours = Math.floor(minutes / 60);
+      const mins = Math.round(minutes % 60);
+      
+      if (hours === 0) return `${mins}m`;
+      if (mins === 0) return `${hours}h`;
+      return `${hours}h ${mins}m`;
+    };
 
-                  for (let idx = 0; idx < waypoints.length; idx++) {
-                    const seg = segments[idx];
-                    if (seg) {
-                      const baseTime = (seg.distance / naismithSettings.baseSpeedKmh) * 60;
-                      const ascentTime = (seg.ascent / 20) * naismithSettings.ascentPer20m;
-                      const descentTime = (seg.descent / 20) * naismithSettings.descentPer20m;
-                      const segMinutes = Math.round(baseTime + ascentTime + descentTime);
-                      
-                      const routeRest = routeRests[idx] || 0;
-                      const arrivalMins = timeToMinutes(departureTimes[idx]) + segMinutes + routeRest;
-                      arrivalTimes[idx] = minutesToTime(arrivalMins);
-                      
-                      if (idx + 1 < waypoints.length) {
-                        const currentCpRest = cpRests[idx] || 0;
-                        departureTimes[idx + 1] = minutesToTime(arrivalMins + currentCpRest);
-                      }
-                    }
-                  }
+    const departureTimes: string[] = Array(waypoints.length).fill("--:--");
+    const arrivalTimes: string[] = Array(waypoints.length).fill("--:--");
+    
+    departureTimes[0] = "08:30";
 
-                  return waypoints.map((wp, i) => {
-                    const segment = i < segments.length ? segments[i] : null;
-                    const cumulativeDist = segments.slice(0, i + 1).reduce((sum, s) => sum + s.distance, 0);
-                    const cumulativeAscent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.ascent, 0);
-                    const cumulativeDescent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.descent, 0);
-                    const currentSegmentVertMovement = segment ? (segment.ascent + segment.descent) : 0;
-                    const baseTime = segment ? (segment.distance / naismithSettings.baseSpeedKmh) * 60 : 0;
-                    const ascentTime = segment ? (segment.ascent / 20) * naismithSettings.ascentPer20m : 0;
-                    const descentTime = segment ? (segment.descent / 20) * naismithSettings.descentPer20m : 0;
-                    const segmentMinutes = Math.round(baseTime + ascentTime + descentTime);
-                    const currentRouteRest = routeRests[i] || 0;
-                    const currentCpRest = cpRests[i] || 0;
-                    const totalMinutes = segmentMinutes + currentRouteRest + currentCpRest;
-                    const isLastRow = i === waypoints.length - 1;
+    for (let idx = 0; idx < waypoints.length; idx++) {
+      const seg = segments[idx];
+      if (seg) {
+        const baseTime = (seg.distance / naismithSettings.baseSpeedKmh) * 60;
+        const ascentTime = (seg.ascent / 20) * naismithSettings.ascentPer20m;
+        const descentTime = (seg.descent / 20) * naismithSettings.descentPer20m;
+        const segMinutes = Math.round(baseTime + ascentTime + descentTime);
+        
+        const routeRest = routeRests[idx] || 0;
+        const arrivalMins = timeToMinutes(departureTimes[idx]) + segMinutes + routeRest;
+        arrivalTimes[idx] = minutesToTime(arrivalMins);
+        
+        if (idx + 1 < waypoints.length) {
+          const currentCpRest = cpRests[idx] || 0;
+          departureTimes[idx + 1] = minutesToTime(arrivalMins + currentCpRest);
+        }
+      }
+    }
 
-                    return (
-                      <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
-                        <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
-                          {i === 0 ? 'SP' : (isLastRow ? 'EP' : `CP${i}`)}
-                        </td>
-                        
-                        <td className="p-0 border border-slate-700 bg-white/5">
-                          <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
-                          <div onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
-                            className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none">
-                            {coordMode === 'grid' 
-                              ? (materials && materials[i]?.grid ? materials[i].grid : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`)
-                              : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`
-                            }
-                          </div>
-                          <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">
-                            {(wp as any).elevation || 0} m
-                          </div>
-                        </td>
-                        
-                        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-                          <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">
-                          {segment && waypoints[i + 1] ? (
-                            `${calculateBearing(
-                              wp.latlng.lat, wp.latlng.lng,
-                              waypoints[i + 1].latlng.lat, waypoints[i + 1].latlng.lng
-                            )}°`
-                          ) : "--°"}
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
-                          {!isLastRow && segment ? segment.distance.toFixed(2) : "0.00"}
-                        </td>
-                        <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
-                          {!isLastRow && segment ? cumulativeDist.toFixed(2) : "0.00"}
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center text-emerald-400">
-                          {!isLastRow && segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
-                        </td>
-                        <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
-                          {!isLastRow && segment ? `+${cumulativeAscent.toFixed(0)}` : "+0"}
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center text-rose-400">
-                          {!isLastRow && segment ? `-${segment.descent.toFixed(0)}` : "-0"}
-                        </td>
-                        <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
-                          {!isLastRow && segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
-                          {!isLastRow && segment ? currentSegmentVertMovement.toFixed(0) : "0"}
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 font-mono">
-                          {!isLastRow ? segmentMinutes : 0}
-                        </td>
-                        
-                        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-                          <input 
-                            type="number"
-                            className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                            placeholder="0"
-                            value={currentRouteRest || ''}
-                            disabled={isLastRow}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0;
-                              const next = [...routeRests];
-                              next[i] = val;
-                              setRouteRests(next);
-                            }}
-                          />
-                        </td>
-                        
-                        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-                          <input 
-                            type="number"
-                            className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                            placeholder="0"
-                            value={currentCpRest || ''}
-                            disabled={isLastRow}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0;
-                              const next = [...cpRests];
-                              next[i] = val;
-                              setCpRests(next);
-                            }}
-                          />
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center font-bold text-amber-400 font-mono">
-                          {isLastRow ? 0 : totalMinutes}
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center text-white font-bold font-mono">
-                          {departureTimes[i]}
-                        </td>
-                        <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold font-mono">
-                          {isLastRow ? arrivalTimes[i - 1] || "--:--" : arrivalTimes[i]}
-                        </td>
-                        
-                        <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-                        <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-                        
-                        <td className="p-0 border border-slate-700 bg-white/5">
-                          <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
-                        </td>
-                      </tr>
-                    );
-                  });
-                })()}
-              </tbody>
+    return waypoints.map((wp, i) => {
+      const segment = i < segments.length ? segments[i] : null;
+      const cumulativeDist = segments.slice(0, i + 1).reduce((sum, s) => sum + s.distance, 0);
+      const cumulativeAscent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.ascent, 0);
+      const cumulativeDescent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.descent, 0);
+      const currentSegmentVertMovement = segment ? (segment.ascent + segment.descent) : 0;
+      const baseTime = segment ? (segment.distance / naismithSettings.baseSpeedKmh) * 60 : 0;
+      const ascentTime = segment ? (segment.ascent / 20) * naismithSettings.ascentPer20m : 0;
+      const descentTime = segment ? (segment.descent / 20) * naismithSettings.descentPer20m : 0;
+      const segmentMinutes = Math.round(baseTime + ascentTime + descentTime);
+      const currentRouteRest = routeRests[i] || 0;
+      const currentCpRest = cpRests[i] || 0;
+      const totalMinutes = segmentMinutes + currentRouteRest + currentCpRest;
+      const isLastRow = i === waypoints.length - 1;
+
+      return (
+        <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
+          <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
+            {i === 0 ? 'SP' : (isLastRow ? 'EP' : `CP${i}`)}
+          </td>
+          
+          <td className="p-0 border border-slate-700 bg-white/5">
+            <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
+          </td>
+          
+          <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
+            <div onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
+              className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none">
+              {coordMode === 'grid' 
+                ? (materials && materials[i]?.grid ? materials[i].grid : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`)
+                : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`
+              }
+            </div>
+            <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">
+              {(wp as any).elevation || 0} m
+            </div>
+          </td>
+          
+          <td className="p-0 border border-slate-700 bg-white/5 text-center">
+            <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
+          </td>
+          
+          <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">
+            {segment && waypoints[i + 1] ? (
+              `${calculateBearing(
+                wp.latlng.lat, wp.latlng.lng,
+                waypoints[i + 1].latlng.lat, waypoints[i + 1].latlng.lng
+              )}°`
+            ) : "--°"}
+          </td>
+          
+          <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
+            {!isLastRow && segment ? segment.distance.toFixed(2) : "0.00"}
+          </td>
+          <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
+            {!isLastRow && segment ? cumulativeDist.toFixed(2) : "0.00"}
+          </td>
+          
+          <td className="p-2 border border-slate-700 text-center text-emerald-400">
+            {!isLastRow && segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
+          </td>
+          <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
+            {!isLastRow && segment ? `+${cumulativeAscent.toFixed(0)}` : "+0"}
+          </td>
+          
+          <td className="p-2 border border-slate-700 text-center text-rose-400">
+            {!isLastRow && segment ? `-${segment.descent.toFixed(0)}` : "-0"}
+          </td>
+          <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
+            {!isLastRow && segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
+          </td>
+          
+          <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
+            {!isLastRow && segment ? currentSegmentVertMovement.toFixed(0) : "0"}
+          </td>
+          
+          {/* 🛠️ 優化後的路段需時：加入 formatMinutes */}
+          <td className="p-2 border border-slate-700 text-center font-bold text-purple-300 font-mono text-[12px]">
+            {!isLastRow ? formatMinutes(segmentMinutes) : "0m"}
+          </td>
+          
+          <td className="p-0 border border-slate-700 bg-white/5 text-center">
+            <input 
+              type="number"
+              className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+              placeholder="0"
+              value={currentRouteRest || ''}
+              disabled={isLastRow}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 0;
+                const next = [...routeRests];
+                next[i] = val;
+                setRouteRests(next);
+              }}
+            />
+          </td>
+          
+          <td className="p-0 border border-slate-700 bg-white/5 text-center">
+            <input 
+              type="number"
+              className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+              placeholder="0"
+              value={currentCpRest || ''}
+              disabled={isLastRow}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 0;
+                const next = [...cpRests];
+                next[i] = val;
+                setCpRests(next);
+              }}
+            />
+          </td>
+          
+          {/* 🛠️ 優化後的共需時：加入 formatMinutes */}
+          <td className="p-2 border border-slate-700 text-center font-bold text-amber-400 font-mono text-[12px]">
+            {isLastRow ? "0m" : formatMinutes(totalMinutes)}
+          </td>
+          
+          <td className="p-2 border border-slate-700 text-center text-white font-bold font-mono">
+            {departureTimes[i]}
+          </td>
+          <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold font-mono">
+            {isLastRow ? arrivalTimes[i - 1] || "--:--" : arrivalTimes[i]}
+          </td>
+          
+          <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
+          <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
+          
+          <td className="p-0 border border-slate-700 bg-white/5">
+            <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
+          </td>
+        </tr>
+      );
+    });
+  })()}
+</tbody>
             </table>
           </div>
 
