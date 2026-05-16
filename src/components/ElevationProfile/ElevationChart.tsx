@@ -126,6 +126,59 @@ export default function ElevationChart({
     onHoverRef.current(null);
   }, []);
 
+  // ─── 📸 📸 功能 1：下載橫切面 (SVG 格式) ───
+  const handleDownloadSVG = () => {
+    const svg = document.querySelector('.recharts-surface');
+    if (!svg) return alert('找不到圖表畫面！');
+
+    const gridLines = svg.querySelectorAll('.recharts-cartesian-grid-horizontal line');
+    gridLines.forEach((line) => {
+      (line as SVGElement).setAttribute('stroke', '#334155'); 
+      (line as SVGElement).setAttribute('stroke-dasharray', '3 3'); 
+      (line as SVGElement).setAttribute('opacity', '0.3'); 
+    });
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `橫切面剖面圖-${Date.now()}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─── 📊 功能 2：抓取 HTML <table> 導出 EXCEL (CSV) ───
+  const handleExportExcel = () => {
+    const tableElement = document.querySelector('table');
+    if (!tableElement) return alert('找不到表格！請先切換至「路程計畫表」。');
+
+    const rows = tableElement.querySelectorAll('tr');
+    let csvContent = '';
+
+    rows.forEach((row) => {
+      const cols = row.querySelectorAll('th, td');
+      const rowData: string[] = [];
+      
+      cols.forEach((col) => {
+        const input = col.querySelector('input');
+        let text = input ? input.value : (col.textContent || '');
+        text = text.replace(/\n/g, ' ').replace(/"/g, '""').trim();
+        if (text.includes(',')) text = `"${text}"`;
+        rowData.push(text);
+      });
+      csvContent += rowData.join(',') + '\n';
+    });
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `山徑路程計畫表-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  
   if (!profile.length) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2">
@@ -162,7 +215,43 @@ export default function ElevationChart({
             路程計畫表
           </button>
         </div>
+<div className="flex bg-slate-800 rounded-lg p-1">
+          <button
+            onClick={() => setActiveTab('chart')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              activeTab === 'chart' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            高度剖面
+          </button>
+          <button
+            onClick={() => setActiveTab('table')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              activeTab === 'table' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            路程計畫表
+          </button>
+        </div>
 
+        {/* 🟢 補回這顆：根據當前分頁動態切換下載功能的按鈕 */}
+        <div className="flex items-center">
+          {activeTab === 'chart' ? (
+            <button
+              onClick={handleDownloadSVG}
+              className="px-2.5 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition-all shadow-sm"
+            >
+              📸 Save PNG/SVG
+            </button>
+          ) : (
+            <button
+              onClick={handleExportExcel}
+              className="px-2.5 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition-all shadow-sm"
+            >
+              📊 匯出 EXCEL
+            </button>
+          )}
+        </div>
         <div className="flex gap-1.5 flex-wrap">
           <StatBadge label="總距離" val={`${stats.totalDistance.toFixed(2)} km`} color="#60a5fa" />
           <StatBadge label="總爬升" val={`+${stats.totalAscent.toFixed(0)} m`} color="#34d399" />
