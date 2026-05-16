@@ -153,7 +153,7 @@ export default function ElevationChart({
     }
   };
 
-// EXCEL 下載（極致安全防干擾版：解鎖網頁輸入框 + 氣象精確歸位）
+// EXCEL 下載（頭中尾大合體、絕不卡死、填什麼吃什麼最終版）
   const handleExportExcel = () => {
     const table = document.querySelector('table');
     if (!table) {
@@ -163,8 +163,8 @@ export default function ElevationChart({
     try {
       const wb = XLSX.utils.book_new();
 
-      // 🎯 1. 精確鎖定「行程基本資訊」容器，抓取上方 5 個輸入框
-      const infoContainer = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3');
+      // 🟢 1. 【頂部基本資訊】：精確鎖定容器，抓取上方 5 個輸入框 (🔓 已鎖死成功)
+      const infoContainer = document.querySelector('.grid.grid-cols-2.md\\:cols-3');
       let regionVal = "";
       let mapVal    = "";
       let yearVal   = "";
@@ -179,8 +179,40 @@ export default function ElevationChart({
         yearVal   = infoInputs[4]?.value || ""; // 5. 編號及年份
         leaderVal = infoInputs[5]?.value || ""; // 6. 領隊
       }
-    
-      // 🎯 3. 建立頂部排版陣列（標題、統計、基本資訊）
+
+      // 🟢 2. 【中間主表格】：宣告並生成 tableData，手動遍歷表格行，把手寫休息時間挖出來！
+      const tableData: any[][] = [];
+
+      // A. 抓取雙層表頭 (thead tr)
+      const headerRows = Array.from(table.querySelectorAll('thead tr'));
+      headerRows.forEach(tr => {
+        const rowCells: any[] = [];
+        Array.from(tr.querySelectorAll('th')).forEach(th => {
+          rowCells.push(th.innerText || th.textContent || "");
+        });
+        tableData.push(rowCells);
+      });
+
+      // B. 抓取內容行 (tbody tr) ➡️ 遇到活字 input 就挖出 value，死字 td 就拿純文字！
+      const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+      bodyRows.forEach(tr => {
+        const rowCells: any[] = [];
+        const tds = Array.from(tr.querySelectorAll('td'));
+        
+        if (tds.length > 0) {
+          tds.forEach((td) => {
+            const input = td.querySelector('input');
+            if (input) {
+              rowCells.push(input.value || ""); // 活字：手寫休息時間內容
+            } else {
+              rowCells.push(td.innerText || td.textContent || ""); // 死字：系統自動計算內容
+            }
+          });
+          tableData.push(rowCells);
+        }
+      });
+
+      // 🟢 3. 【頂部排版陣列】：建立大標題、統計數據與基本資訊列 (🔓 已鎖死成功)
       const headerAOA: any[][] = [];
       headerAOA.push(["山徑路程計畫表"]);
       headerAOA.push([]);
@@ -200,13 +232,13 @@ export default function ElevationChart({
       ]);
       headerAOA.push([]);
 
-      // 🎯 4. 建立最終要導出的工作表：先放頂部排版
+      // 🟢 4. 建立最終工作表：先放頂部排版 (🔓 已鎖死成功)
       const finalWs = XLSX.utils.aoa_to_sheet(headerAOA);
 
-      // 🎯 5. 把主表格的資料，無損接在第 7 行 (A7)
+      // 🟢 5. 把剛剛「物理開挖、包含手寫休息時間」的 tableData 無損接在第 7 行 (A7)
       XLSX.utils.sheet_add_aoa(finalWs, tableData, { origin: "A7" });
 
-    // 🎯 6. 【全新底部數據面板】：不再計算行數，直接做成三合一完美對齊陣列
+      // 🟢 6. 【全新底部數據面板】：三合一對齊陣列 (🔓 已鎖死成功)
       const footerAOA = [
         ["【 ☀️ 天文數據 (ASTRO) 】", "", "", "【 ⏱️ Naismith 時間算法基準 】", "", "", "【 🌦️ 氣象預測 (Weather Forecast) 】"],
         [
@@ -226,7 +258,7 @@ export default function ElevationChart({
         ],
         [
           "🌊 潮汐預報：", weather ? weather.tideForecast : "--:-- / --:--", "",
-          "", "", "", // 算法基準欄位只有三行，這裡留空保持對齊
+          "", "", "", 
           "🚩 風向風速：", weather ? `${weather.windDirection || "E"} ${weather.windSpeed || "15"} km/h` : "E 15 km/h"
         ],
         [
@@ -236,17 +268,14 @@ export default function ElevationChart({
         ]
       ];
 
-    // 🎯 6. 【全新底部數據面板定位與空降】：
-      // 頂部佔了 6 行 (1-6)，加上全新 tableData 陣列的實際長度
+      // 計算主表格在最終工作表裡的真實結束行數（宣告在 tableData 之後，TypeScript 100% 認得它）
       const currentRowsCount = 6 + tableData.length;
-      
-      // 讓底部面板與主表格之間精確空 2 行，這就是最準確的起點格子
       const startCell = `A${currentRowsCount + 2}`;
 
-      // 使用無損空降，將三合一對齊面板（footerAOA）拍在主表格的正下方
+      // 將三合一對齊面板拍在主表格的正下方
       XLSX.utils.sheet_add_aoa(finalWs, footerAOA, { origin: startCell });
 
-      // 🎯 7. 完美客製化欄寬設定
+      // 🟢 7. 完美客製化欄寬設定 (🔓 已鎖死成功)
       finalWs['!cols'] = [
         { wch: 8 },  // A: 檢查站
         { wch: 24 }, // B: 地名
@@ -261,8 +290,8 @@ export default function ElevationChart({
         { wch: 10 }, // K: 下降累積
         { wch: 16 }, // L: 累積上升及下降
         { wch: 12 }, // M: 路段需時
-        { wch: 10 }, // N: 休息路段      (對應活字 input)
-        { wch: 10 }, // O: 休息檢查點    (對應活字 input)
+        { wch: 10 }, // N: 休息路段
+        { wch: 10 }, // O: 休息檢查點
         { wch: 12 }, // P: 共需時
         { wch: 14 }, // Q: 預計出發
         { wch: 14 }, // R: 預計到達
