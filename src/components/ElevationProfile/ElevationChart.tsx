@@ -275,167 +275,219 @@ export default function ElevationChart({
                   <th className="border border-slate-700 p-1 font-normal w-18">出發</th><th className="border border-slate-700 p-1 font-normal w-18">到達</th>
                 </tr>
               </thead>
-      <tbody>
-  {waypoints.map((wp, i) => {
-    // 1. 獲取當前點出發的下一個路段
-    const segment = i < segments.length ? segments[i] : null;
+   <tbody>
+  {(() => {
+    // 輔助函式：將 "HH:MM" 轉成分鐘數
+    const timeToMinutes = (tStr: string): number => {
+      const parts = tStr.split(":");
+      if (parts.length !== 2) return 8 * 60 + 30; // 預設 08:30
+      return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+    };
 
-    // 2. 計算累積數據
-    const cumulativeDist = segments.slice(0, i + 1).reduce((sum, s) => sum + s.distance, 0);
-    const cumulativeAscent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.ascent, 0);
-    const cumulativeDescent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.descent, 0);
+    // 輔助函式：將分鐘數轉回 "HH:MM"
+    const minutesToTime = (mins: number): string => {
+      const h = Math.floor((mins % 1440) / 60);
+      const m = mins % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    };
 
-    // 累積上升及下降欄位
-    const currentSegmentVertMovement = segment ? (segment.ascent + segment.descent) : 0;
+    // 建立陣列，用來儲存每一站「算好」的預計出發與到達時間
+    const arrivalTimes: string[] = Array(waypoints.length).fill("--:--");
+    const departureTimes: string[] = Array(waypoints.length).fill("--:--");
+    
+    // 設定起點 (SP) 的初始出發時間
+    departureTimes[0] = "08:30"; 
 
-    // 🟢 核心計算：單段 Naismith 分鐘數
-    const baseTime = segment ? (segment.distance / naismithSettings.baseSpeedKmh) * 60 : 0;
-    const ascentTime = segment ? (segment.ascent / 20) * naismithSettings.ascentPer20m : 0;
-    const descentTime = segment ? (segment.descent / 20) * naismithSettings.descentPer20m : 0;
-    const segmentMinutes = Math.round(baseTime + ascentTime + descentTime);
+    // 縱向連續推導核心迴圈
+    for (let idx = 0; idx < waypoints.length; idx++) {
+      if (idx > 0) {
+        // 取得「上一段路」的資料與步時計算
+        const prevSeg = segments[idx - 1];
+        if (prevSeg) {
+          const baseTime = (prevSeg.distance / naismithSettings.baseSpeedKmh) * 60;
+          const ascentTime = (prevSeg.ascent / 20) * naismithSettings.ascentPer20m;
+          const descentTime = (prevSeg.descent / 20) * naismithSettings.descentPer20m;
+          const prevSegMinutes = Math.round(baseTime + ascentTime + descentTime);
+          
+          // 取得上一段路的中途路段休息
+          const prevRouteRest = routeRests[idx - 1] || 0;
+          
+          // 🟢 邏輯對齊 1：抵達這一站的時間 = 上一站的出發時間 + 上一段純步時 + 上一段路段休息
+          const arrivalMins = timeToMinutes(departureTimes[idx - 1]) + prevSegMinutes + prevRouteRest;
+          arrivalTimes[idx] = minutesToTime(arrivalMins);
 
-    // 🟢 核心讀取：取得當前列的手工輸入休息時間（如果還沒輸入則預設為 0）
-    const currentRouteRest = routeRests[i] || 0;
-    const currentCpRest = cpRests[i] || 0;
+          // 🟢 邏輯對齊 2：從這一站再出發的時間 = 這一站的到達時間 + 這一站的 CP 休息
+          const currentCpRest = cpRests[idx] || 0;
+          departureTimes[idx] = minutesToTime(arrivalMins + currentCpRest);
+        }
+      }
+    }
 
-    // 🟢 核心加總：路段需時 + 路段休息 + CP休息 = 共需時
-    const totalMinutes = segmentMinutes + currentRouteRest + currentCpRest;
+    return waypoints.map((wp, i) => {
+      const segment = i < segments.length ? segments[i] : null;
 
-    return (
-      <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
-        {/* CP 名稱 */}
-        <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
-          {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
-        </td>
-        
-        {/* 位置名稱輸入 */}
-        <td className="p-0 border border-slate-700 bg-white/5">
-          <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
-        </td>
+      const cumulativeDist = segments.slice(0, i + 1).reduce((sum, s) => sum + s.distance, 0);
+      const cumulativeAscent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.ascent, 0);
+      const cumulativeDescent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.descent, 0);
+      const currentSegmentVertMovement = segment ? (segment.ascent + segment.descent) : 0;
 
-        {/* 網格座標與海拔 (自動) */}
-        <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
-          <div 
-            onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
-            className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none"
-            title="點擊切換 網格 / 經緯度"
-          >
-            {coordMode === 'grid' 
-              ? (materials && materials[i]?.grid ? materials[i].grid : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`)
-              : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`
-            }
-          </div>
-          <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">
-            {(wp as any).elevation || 0} m
-          </div>
-        </td>
+      const baseTime = segment ? (segment.distance / naismithSettings.baseSpeedKmh) * 60 : 0;
+      const ascentTime = segment ? (segment.ascent / 20) * naismithSettings.ascentPer20m : 0;
+      const descentTime = segment ? (segment.descent / 20) * naismithSettings.descentPer20m : 0;
+      const segmentMinutes = Math.round(baseTime + ascentTime + descentTime);
 
-        {/* 原本有的輸入框 */}
-        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-          <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
-        </td>
-        <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">
-          {segment && waypoints[i + 1] ? (
-            `${calculateBearing(
-              wp.latlng.lat,
-              wp.latlng.lng,
-              waypoints[i + 1].latlng.lat,
-              waypoints[i + 1].latlng.lng
-            )}°`
-          ) : (
-            "--°"
-          )}
-        </td>
-        
-        {/* 分段距離 (KM) */}
-        <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
-          {segment ? segment.distance.toFixed(2) : "0.00"}
-        </td>
+      const currentRouteRest = routeRests[i] || 0;
+      const currentCpRest = cpRests[i] || 0;
+      const totalMinutes = segmentMinutes + currentRouteRest + currentCpRest;
 
-        {/* 累積距離 (KM) */}
-        <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
-          {segment ? cumulativeDist.toFixed(2) : "0.00"}
-        </td>
+      return (
+        <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
+          {/* CP 名稱 */}
+          <td className="p-2 text-center font-bold text-red-500 bg-red-500/5 border border-slate-700">
+            {i === 0 ? 'SP' : (i === waypoints.length - 1 ? 'EP' : `CP${i}`)}
+          </td>
+          
+          {/* 位置名稱輸入 */}
+          <td className="p-0 border border-slate-700 bg-white/5">
+            <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" placeholder="..." />
+          </td>
 
-        {/* 分段上升 (M) */}
-        <td className="p-2 border border-slate-700 text-center text-emerald-400">
-          {segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
-        </td>
+          {/* 網格座標與海拔 */}
+          <td className="p-2 border border-slate-700 text-purple-400 font-mono text-center">
+            <div 
+              onClick={() => setCoordMode(coordMode === 'grid' ? 'latlng' : 'grid')}
+              className="text-purple-400 font-bold text-[11px] mb-1 cursor-pointer hover:text-purple-300 select-none"
+            >
+              {coordMode === 'grid' 
+                ? (materials && materials[i]?.grid ? materials[i].grid : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`)
+                : `🌐 ${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`
+              }
+            </div>
+            <div className="text-purple-300 font-bold bg-purple-900/20 rounded py-0.5">
+              {(wp as any).elevation || 0} m
+            </div>
+          </td>
 
-        {/* 累積上升 */}
-        <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
-          {segment ? `+${cumulativeAscent.toFixed(0)}` : "+0"}
-        </td>
+          {/* 領航員 */}
+          <td className="p-0 border border-slate-700 bg-white/5 text-center">
+            <input className="w-full bg-transparent p-2 text-center outline-none text-white" />
+          </td>
 
-        {/* 分段下降 (M) */}
-        <td className="p-2 border border-slate-700 text-center text-rose-400">
-          {segment ? `-${segment.descent.toFixed(0)}` : "-0"}
-        </td>
+          {/* 前視方位 */}
+          <td className="p-2 border border-slate-700 text-center text-amber-500 font-bold italic">
+            {segment && waypoints[i + 1] ? (
+              `${calculateBearing(
+                wp.latlng.lat,
+                wp.latlng.lng,
+                waypoints[i + 1].latlng.lat,
+                waypoints[i + 1].latlng.lng
+              )}°`
+            ) : (
+              "--°"
+            )}
+          </td>
+          
+          {/* 分段距離 */}
+          <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">
+            {segment ? segment.distance.toFixed(2) : "0.00"}
+          </td>
 
-        {/* 累積下降 */}
-        <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
-          {segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
-        </td>
+          {/* 累積距離 */}
+          <td className="p-2 border border-slate-700 text-center text-purple-400 opacity-60">
+            {segment ? cumulativeDist.toFixed(2) : "0.00"}
+          </td>
 
-        {/* 累積上升及下降 */}
-        <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
-          {segment ? currentSegmentVertMovement.toFixed(0) : "0"}
-        </td>
+          {/* 分段上升 */}
+          <td className="p-2 border border-slate-700 text-center text-emerald-400">
+            {segment ? `+${segment.ascent.toFixed(0)}` : "+0"}
+          </td>
 
-        {/* 路段需時 */}
-        <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 font-mono">
-          {segmentMinutes}
-        </td>
-        
-        {/* 🟢 休息及事工需時 (MIN) - 路段輸入框 */}
-        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-          <input 
-            type="number"
-            className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-            placeholder="0"
-            value={currentRouteRest || ''}
-            onChange={(e) => {
-              const val = parseInt(e.target.value) || 0;
-              const next = [...routeRests];
-              next[i] = val;
-              setRouteRests(next);
-            }}
-          />
-        </td>
+          {/* 累積上升 */}
+          <td className="p-2 border border-slate-700 text-center text-emerald-400 opacity-60">
+            {segment ? `+${cumulativeAscent.toFixed(0)}` : "+0"}
+          </td>
 
-        {/* 🟢 休息及事工需時 (MIN) - 檢查點輸入框 */}
-        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-          <input 
-            type="number"
-            className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-            placeholder="0"
-            value={currentCpRest || ''}
-            onChange={(e) => {
-              const val = parseInt(e.target.value) || 0;
-              const next = [...cpRests];
-              next[i] = val;
-              setCpRests(next);
-            }}
-          />
-        </td>
+          {/* 分段下降 */}
+          <td className="p-2 border border-slate-700 text-center text-rose-400">
+            {segment ? `-${segment.descent.toFixed(0)}` : "-0"}
+          </td>
 
-        {/* 🟢 共需時 (自動連動渲染) */}
-        <td className="p-2 border border-slate-700 text-center font-bold text-amber-400 font-mono">
-          {totalMinutes}
-        </td>
+          {/* 累積下降 */}
+          <td className="p-2 border border-slate-700 text-center text-rose-400 opacity-60">
+            {segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
+          </td>
 
-        <td className="p-0 border border-slate-700 bg-white/5 text-center">
-          <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
-        </td>
-        <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold">--:--</td>
-        <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-        <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
-        <td className="p-0 border border-slate-700 bg-white/5">
-          <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
-        </td>
-      </tr>
-    );
-  })}
+          {/* 累積上升及下降 */}
+          <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
+            {segment ? currentSegmentVertMovement.toFixed(0) : "0"}
+          </td>
+
+          {/* 路段需時 */}
+          <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 font-mono">
+            {segmentMinutes}
+          </td>
+          
+          {/* 休息及事工需時 - 路段 */}
+          <td className="p-0 border border-slate-700 bg-white/5 text-center">
+            <input 
+              type="number"
+              className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+              placeholder="0"
+              value={currentRouteRest || ''}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 0;
+                const next = [...routeRests];
+                next[i] = val;
+                setRouteRests(next);
+              }}
+            />
+          </td>
+
+          {/* 休息及事工需時 - 檢查點 */}
+          <td className="p-0 border border-slate-700 bg-white/5 text-center">
+            <input 
+              type="number"
+              className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+              placeholder="0"
+              value={currentCpRest || ''}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 0;
+                const next = [...cpRests];
+                next[i] = val;
+                setCpRests(next);
+              }}
+            />
+          </td>
+
+          {/* 共需時 */}
+          <td className="p-2 border border-slate-700 text-center font-bold text-amber-400 font-mono">
+            {totalMinutes}
+          </td>
+
+          {/* 預計時間 - 出發 */}
+          <td className="p-0 border border-slate-700 bg-white/5 text-center">
+            <input 
+              className="w-full bg-transparent p-2 text-center outline-none text-white font-bold font-mono" 
+              value={departureTimes[i]} 
+              readOnly
+            />
+          </td>
+
+          {/* 預計時間 - 到達 */}
+          <td className="p-2 border border-slate-700 text-center text-purple-400 font-bold font-mono">
+            {i === 0 ? "--:--" : arrivalTimes[i]}
+          </td>
+
+          {/* 實際時間 (手寫) */}
+          <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
+          <td className="p-2 border border-slate-700 text-center text-slate-600 font-mono">--:--</td>
+          <td className="p-0 border border-slate-700 bg-white/5">
+            <input className="w-full bg-transparent p-2 outline-none text-[10px]" placeholder="..." />
+          </td>
+        </tr>
+      );
+    });
+  })()}
 </tbody>
             </table>
           </div>
