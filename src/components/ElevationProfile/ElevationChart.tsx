@@ -70,6 +70,8 @@ export default function ElevationChart({
   onHoverPoint
 }: Props) {
   const [coordMode, setCoordMode] = useState<'grid' | 'latlng'>('grid');
+  const [routeRests, setRouteRests] = useState<number[]>([]);
+  const [cpRests, setCpRests] = useState<number[]>([]);
 
   // 🟢 讓日期狀態【第一個出生】！
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -273,25 +275,31 @@ export default function ElevationChart({
                   <th className="border border-slate-700 p-1 font-normal w-18">出發</th><th className="border border-slate-700 p-1 font-normal w-18">到達</th>
                 </tr>
               </thead>
-       <tbody>
+      <tbody>
   {waypoints.map((wp, i) => {
-    // 1. 獲取當前點出發的下一個路段（數據往前移一格，對齊出發點）
+    // 1. 獲取當前點出發的下一個路段
     const segment = i < segments.length ? segments[i] : null;
 
-    // 2. 計算累積數據（當前列顯示的是下一個路段，累積數據包含當前這段路）
+    // 2. 計算累積數據
     const cumulativeDist = segments.slice(0, i + 1).reduce((sum, s) => sum + s.distance, 0);
     const cumulativeAscent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.ascent, 0);
     const cumulativeDescent = segments.slice(0, i + 1).reduce((sum, s) => sum + s.descent, 0);
 
-    // 🟢 【精準修正：累積上升及下降欄位】
-    // 根據香港標準行程表規範，此欄位代表的是「當前這一段路的分段上升加上分段下降」之總和
+    // 累積上升及下降欄位
     const currentSegmentVertMovement = segment ? (segment.ascent + segment.descent) : 0;
 
-    // 🟢 【在這裡直接計算單段 Naismith 分鐘數】
+    // 🟢 核心計算：單段 Naismith 分鐘數
     const baseTime = segment ? (segment.distance / naismithSettings.baseSpeedKmh) * 60 : 0;
     const ascentTime = segment ? (segment.ascent / 20) * naismithSettings.ascentPer20m : 0;
     const descentTime = segment ? (segment.descent / 20) * naismithSettings.descentPer20m : 0;
     const segmentMinutes = Math.round(baseTime + ascentTime + descentTime);
+
+    // 🟢 核心讀取：取得當前列的手工輸入休息時間（如果還沒輸入則預設為 0）
+    const currentRouteRest = routeRests[i] || 0;
+    const currentCpRest = cpRests[i] || 0;
+
+    // 🟢 核心加總：路段需時 + 路段休息 + CP休息 = 共需時
+    const totalMinutes = segmentMinutes + currentRouteRest + currentCpRest;
 
     return (
       <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/20">
@@ -369,19 +377,53 @@ export default function ElevationChart({
           {segment ? `-${cumulativeDescent.toFixed(0)}` : "-0"}
         </td>
 
-        {/* 🟢 累積上升及下降 (精準對齊標準：分段上+分段下) */}
+        {/* 累積上升及下降 */}
         <td className="p-2 border border-slate-700 text-center text-emerald-500 font-mono font-bold">
           {segment ? currentSegmentVertMovement.toFixed(0) : "0"}
         </td>
 
-        {/* 🟢 路段需時 (將原本的 0 替換為計算好的動態分鐘數) */}
+        {/* 路段需時 */}
         <td className="p-2 border border-slate-700 text-center font-bold text-purple-400 font-mono">
           {segmentMinutes}
         </td>
         
-        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-        <td className="p-0 border border-slate-700 bg-white/5 text-center"><input className="w-full bg-transparent p-2 text-center outline-none" placeholder="0" /></td>
-        <td className="p-2 border border-slate-700 text-center font-bold text-amber-400">0</td>
+        {/* 🟢 休息及事工需時 (MIN) - 路段輸入框 */}
+        <td className="p-0 border border-slate-700 bg-white/5 text-center">
+          <input 
+            type="number"
+            className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+            placeholder="0"
+            value={currentRouteRest || ''}
+            onChange={(e) => {
+              const val = parseInt(e.target.value) || 0;
+              const next = [...routeRests];
+              next[i] = val;
+              setRouteRests(next);
+            }}
+          />
+        </td>
+
+        {/* 🟢 休息及事工需時 (MIN) - 檢查點輸入框 */}
+        <td className="p-0 border border-slate-700 bg-white/5 text-center">
+          <input 
+            type="number"
+            className="w-full bg-transparent p-2 text-center outline-none text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+            placeholder="0"
+            value={currentCpRest || ''}
+            onChange={(e) => {
+              const val = parseInt(e.target.value) || 0;
+              const next = [...cpRests];
+              next[i] = val;
+              setCpRests(next);
+            }}
+          />
+        </td>
+
+        {/* 🟢 共需時 (自動連動渲染) */}
+        <td className="p-2 border border-slate-700 text-center font-bold text-amber-400 font-mono">
+          {totalMinutes}
+        </td>
+
         <td className="p-0 border border-slate-700 bg-white/5 text-center">
           <input className="w-full bg-transparent p-2 text-center outline-none text-white font-bold" defaultValue={i === 0 ? "08:30" : ""} />
         </td>
