@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+# coding=utf-8
+content = r"""import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
@@ -297,7 +298,7 @@ export default function ElevationChart({
           "💧 相對濕度：", weather && weather.humidity !== undefined ? `${weather.humidity}%` : "78%"
         ],
         [
-          "🌑 月相：", weather ? String(weather.moonPhase).replace(/<\/?[^>]+(>|$)/g, "") : "--", "",
+          "🌑 月相：", weather ? String(weather.moonPhase).replace(/<\\/?[^>]+(>|$)/g, "") : "--", "",
           "每下降 20m 加時：", `+${naismithSettings?.descentPer20m || "0"} 分`, "",
           "☁️ 雲量 / 降雨：", weather ? `${weather.cloudCover}% / ${weather.precipitation}%` : "40% / 10%"
         ],
@@ -609,7 +610,7 @@ export default function ElevationChart({
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">日出/日落</span><span className="text-purple-400 text-xs">🌅 {weather ? `${weather.sunrise} / ${weather.sunset}` : "--:-- / --:--"}</span></div>
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月出/月落</span><span className="text-purple-400 text-xs">🌙 {weather ? `${weather.moonrise} / ${weather.moonset}` : "--:-- / --:--"}</span></div>
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月相</span><span className="text-purple-400 text-xs">{weather ? String(weather.moonPhase).replace(/<\/?[^>]+(>|$)/g, "") : "--"}</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月相</span><span className="text-purple-400 text-xs">{weather ? String(weather.moonPhase).replace(/<\\/?[^>]+(>|$)/g, "") : "--"}</span></div>
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">潮汐預報</span><span className="text-blue-400 text-[10px]">🌊 {weather ? weather.tideForecast : "--:-- / --:--"}</span></div>
               </div>
             </div>
@@ -642,3 +643,6 @@ export default function ElevationChart({
     </div>
   );
 }
+"""
+with open('src/components/ElevationProfile/ElevationChart.tsx', 'w', encoding='utf-8') as f:
+    f.write(content)
