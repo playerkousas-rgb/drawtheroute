@@ -1,4 +1,12 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import re
+
+with open('src/components/ElevationProfile/ElevationChart.tsx', 'r') as f:
+    content = f.read()
+
+# We need to completely rewrite ElevationChart.tsx because the changes are too widespread
+# (New states, modified handleExportExcel, modified table HTML)
+
+new_content = """import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
@@ -138,7 +146,7 @@ export default function ElevationChart({
     try {
       const wb = XLSX.utils.book_new();
 
-      const infoContainer = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3');
+      const infoContainer = document.querySelector('.grid.grid-cols-2.md\\\\:grid-cols-3');
       let mapVal = "";
       let yearVal = "";
       let regionVal = "";
@@ -187,9 +195,9 @@ export default function ElevationChart({
       ]);
 
       wsAOA.push([
-        "路段", "CP", "地理名稱", "出發點\n(座標 50Q)", "CP", "地理名稱", "到達點\n(座標 50Q)", 
+        "路段", "CP", "地理名稱", "出發點\\n(座標 50Q)", "CP", "地理名稱", "到達點\\n(座標 50Q)", 
         "高度(m)", "", "", 
-        "前視方向", "距離\n(km)", "累積距離\n(km)", "所需時間\n(min)", "出發\n時間", "到達\n時間", "休息時間\n(min)", "領航員", "備註"
+        "前視方向", "距離\\n(km)", "累積距離\\n(km)", "所需時間\\n(min)", "出發\\n時間", "到達\\n時間", "休息時間\\n(min)", "領航員", "備註"
       ]);
       
       wsAOA.push([
@@ -229,7 +237,7 @@ export default function ElevationChart({
           "💧 相對濕度：", weather && weather.humidity !== undefined ? `${weather.humidity}%` : "78%"
         ],
         [
-          "🌑 月相：", weather ? String(weather.moonPhase).replace(/<\/?[^>]+(>|$)/g, "") : "--", "",
+          "🌑 月相：", weather ? String(weather.moonPhase).replace(/<\\/?[^>]+(>|$)/g, "") : "--", "",
           "每下降 20m 加時：", `+${naismithSettings?.descentPer20m || "0"} 分`, "",
           "☁️ 雲量 / 降雨：", weather ? `${weather.cloudCover}% / ${weather.precipitation}%` : "40% / 10%"
         ],
@@ -534,7 +542,7 @@ export default function ElevationChart({
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">日出/日落</span><span className="text-purple-400 text-xs">🌅 {weather ? `${weather.sunrise} / ${weather.sunset}` : "--:-- / --:--"}</span></div>
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月出/月落</span><span className="text-purple-400 text-xs">🌙 {weather ? `${weather.moonrise} / ${weather.moonset}` : "--:-- / --:--"}</span></div>
-                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月相</span><span className="text-purple-400 text-xs">{weather ? String(weather.moonPhase).replace(/<\/?[^>]+(>|$)/g, "") : "--"}</span></div>
+                <div className="flex flex-col"><span className="text-slate-500 text-[9px]">月相</span><span className="text-purple-400 text-xs">{weather ? String(weather.moonPhase).replace(/<\\/?[^>]+(>|$)/g, "") : "--"}</span></div>
                 <div className="flex flex-col"><span className="text-slate-500 text-[9px]">潮汐預報</span><span className="text-blue-400 text-[10px]">🌊 {weather ? weather.tideForecast : "--:-- / --:--"}</span></div>
               </div>
             </div>
@@ -567,3 +575,9 @@ export default function ElevationChart({
     </div>
   );
 }
+"""
+
+with open('src/components/ElevationProfile/ElevationChart.tsx', 'w') as f:
+    f.write(new_content)
+
+print("Generated ElevationChart.tsx successfully.")

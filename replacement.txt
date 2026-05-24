@@ -1,0 +1,221 @@
+  const handleExportExcel = () => {
+    const table = document.querySelector('table');
+    if (!table) {
+      return alert('請先切換到「路程計畫表」分頁');
+    }
+
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const infoContainer = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3');
+      let mapVal    = "";
+      let yearVal   = "";
+
+      if (infoContainer) {
+        const infoInputs = Array.from(infoContainer.querySelectorAll('input'));
+        mapVal    = infoInputs[3]?.value || ""; 
+        yearVal   = infoInputs[4]?.value || ""; 
+      }
+
+      const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+      const parsedBodyRows: any[][] = [];
+      bodyRows.forEach(tr => {
+        const rowCells: any[] = [];
+        const tds = Array.from(tr.querySelectorAll('td'));
+        
+        if (tds.length > 0) {
+          tds.forEach((td) => {
+            const input = td.querySelector('input');
+            if (input) {
+              rowCells.push(input.value || ""); 
+            } else {
+              rowCells.push(td.innerText || td.textContent || ""); 
+            }
+          });
+          parsedBodyRows.push(rowCells);
+        }
+      });
+
+      const spName = parsedBodyRows.length > 0 ? parsedBodyRows[0][1] : "";
+      const epName = parsedBodyRows.length > 0 ? parsedBodyRows[parsedBodyRows.length - 1][1] : "";
+
+      const wsAOA: any[][] = [];
+
+      wsAOA.push(["第二日"]);
+
+      wsAOA.push([
+        `地圖組別: ${mapVal}`, "", 
+        `編號及年份: ${yearVal}`, "", "",
+        `起點: ${spName}`, "", "", "", "", "",
+        `終點: ${epName}`, "", "", "", "", "", "", ""
+      ]);
+
+      wsAOA.push([
+        "路段", "CP", "地理名稱", "出發點\n(座標 50Q)", "CP", "地理名稱", "到達點\n(座標 50Q)", 
+        "高度(m)", "", "", 
+        "前視方向", "距離\n(km)", "累積距離\n(km)", "所需時間\n(min)", "出發\n時間", "到達\n時間", "休息時間\n(min)", "領航員", "備註"
+      ]);
+      
+      wsAOA.push([
+        "", "", "", "", "", "", "", 
+        "路段起始高度", "上升", "下降", 
+        "", "", "", "", "", "", "", "", ""
+      ]);
+
+      for (let i = 0; i < parsedBodyRows.length - 1; i++) {
+        const wp1 = parsedBodyRows[i];
+        const wp2 = parsedBodyRows[i + 1];
+
+        const coords1Raw = wp1[2] || "";
+        const coords1 = coords1Raw.split('\n')[0]?.replace(/🌐/g, '').trim() || "";
+        const elev1 = coords1Raw.split('\n')[1]?.replace(/m/gi, '').trim() || "0";
+
+        const coords2Raw = wp2[2] || "";
+        const coords2 = coords2Raw.split('\n')[0]?.replace(/🌐/g, '').trim() || "";
+        
+        const restRoute = parseInt(wp1[13]) || 0;
+        const restCP = parseInt(wp2[14]) || 0; 
+        const totalRest = restRoute + restCP;
+
+        const ascent = (wp1[7] || "0").replace('+', '');
+        const descent = (wp1[9] || "0").replace('-', '');
+        const bearingStr = wp1[4] || "";
+
+        let timeStr = wp1[12] || "";
+        let timeMins = 0;
+        if (timeStr.includes('h') || timeStr.includes('m')) {
+          const hMatch = timeStr.match(/(\d+)h/);
+          const mMatch = timeStr.match(/(\d+)m/);
+          const h = hMatch ? parseInt(hMatch[1], 10) : 0;
+          const m = mMatch ? parseInt(mMatch[1], 10) : 0;
+          timeMins = h * 60 + m;
+        } else {
+          timeMins = parseInt(timeStr, 10) || 0;
+        }
+
+        wsAOA.push([
+          (i + 1).toString(), 
+          wp1[0], 
+          wp1[1], 
+          coords1, 
+          wp2[0], 
+          wp2[1], 
+          coords2, 
+          elev1, 
+          ascent, 
+          descent, 
+          bearingStr, 
+          wp1[5], 
+          wp1[6], 
+          timeMins.toString(), 
+          wp1[16], 
+          wp1[17], 
+          totalRest.toString(), 
+          wp1[3], 
+          wp1[20]
+        ]);
+      }
+
+      wsAOA.push([]);
+      wsAOA.push([]);
+
+      const footerAOA = [
+        ["【 📊 行程統計 (Stats) 】", "", "", "", "", "", ""],
+        [
+          "總距離：", `${stats.totalDistance.toFixed(2)} km`, "",
+          "總上升 / 下降：", `+${stats.totalAscent.toFixed(0)} m / -${stats.totalDescent.toFixed(0)} m`, "",
+          "最高高度：", `${stats.maxElevation.toFixed(0)} m`
+        ],
+        [
+          "預計總時間：", formatTime ? formatTime(stats.estimatedTime) : `${Math.floor(stats.estimatedTime / 60)}h ${Math.round(stats.estimatedTime % 60)}m`, "",
+          "", "", "", ""
+        ],
+        [],
+        ["【 ☀️ 天文數據 (ASTRO) 】", "", "", "【 ⏱️ Naismith 時間算法基準 】", "", "", "【 🌦️ 氣象預測 (Weather Forecast) 】"],
+        [
+          "🌅 日出 / 日落：", weather ? `${weather.sunrise} / ${weather.sunset}` : "--:-- / --:--", "",
+          "基礎時速：", `${naismithSettings?.baseSpeedKmh || "4.0"} km/h`, "",
+          "🌡️ 當日最高 / 最低溫：", weather && weather.maxTemp !== undefined && weather.minTemp !== undefined ? `${weather.maxTemp}°C / ${weather.minTemp}°C` : "26°C / 18°C"
+        ],
+        [
+          "🌙 月出 / 月落：", weather ? `${weather.moonrise} / ${weather.moonset}` : "--:-- / --:--", "",
+          "每上升 20m 加時：", `+${naismithSettings?.ascentPer20m || "10"} 分`, "",
+          "💧 相對濕度：", weather && weather.humidity !== undefined ? `${weather.humidity}%` : "78%"
+        ],
+        [
+          "🌑 月相：", weather ? String(weather.moonPhase).replace(/<\/?[^>]+(>|$)/g, "") : "--", "",
+          "每下降 20m 加時：", `+${naismithSettings?.descentPer20m || "0"} 分`, "",
+          "☁️ 雲量 / 降雨：", weather ? `${weather.cloudCover}% / ${weather.precipitation}%` : "40% / 10%"
+        ],
+        [
+          "🌊 潮汐預報：", weather ? weather.tideForecast : "--:-- / --:--", "",
+          "", "", "", 
+          "🚩 風向風速：", weather ? `${weather.windDirection || "E"} ${weather.windSpeed || "15"} km/h` : "E 15 km/h"
+        ],
+        [
+          "", "", "", 
+          "", "", "", 
+          "☀️ 紫外線：", weather ? `指數 (${weather.uvIndex})` : "中等 (5)"
+        ]
+      ];
+
+      footerAOA.forEach(row => wsAOA.push(row));
+
+      const finalWs = XLSX.utils.aoa_to_sheet(wsAOA);
+
+      const merges = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 18 } }, 
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },  
+        { s: { r: 1, c: 2 }, e: { r: 1, c: 4 } },  
+        { s: { r: 1, c: 5 }, e: { r: 1, c: 10 } }, 
+        { s: { r: 1, c: 11 }, e: { r: 1, c: 18 } }, 
+        
+        { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, 
+        { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, 
+        { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, 
+        { s: { r: 2, c: 3 }, e: { r: 3, c: 3 } }, 
+        { s: { r: 2, c: 4 }, e: { r: 3, c: 4 } }, 
+        { s: { r: 2, c: 5 }, e: { r: 3, c: 5 } }, 
+        { s: { r: 2, c: 6 }, e: { r: 3, c: 6 } }, 
+        { s: { r: 2, c: 7 }, e: { r: 2, c: 9 } }, 
+        { s: { r: 2, c: 10 }, e: { r: 3, c: 10 } }, 
+        { s: { r: 2, c: 11 }, e: { r: 3, c: 11 } }, 
+        { s: { r: 2, c: 12 }, e: { r: 3, c: 12 } }, 
+        { s: { r: 2, c: 13 }, e: { r: 3, c: 13 } }, 
+        { s: { r: 2, c: 14 }, e: { r: 3, c: 14 } }, 
+        { s: { r: 2, c: 15 }, e: { r: 3, c: 15 } }, 
+        { s: { r: 2, c: 16 }, e: { r: 3, c: 16 } }, 
+        { s: { r: 2, c: 17 }, e: { r: 3, c: 17 } }, 
+        { s: { r: 2, c: 18 }, e: { r: 3, c: 18 } }, 
+      ];
+      finalWs['!merges'] = merges;
+
+      finalWs['!cols'] = [
+        { wch: 6 },  // A: 路段
+        { wch: 6 },  // B: CP (出發)
+        { wch: 18 }, // C: 地理名稱
+        { wch: 18 }, // D: 出發點座標
+        { wch: 6 },  // E: CP (到達)
+        { wch: 18 }, // F: 地理名稱
+        { wch: 18 }, // G: 到達點座標
+        { wch: 14 }, // H: 路段起始高度
+        { wch: 8 },  // I: 上升
+        { wch: 8 },  // J: 下降
+        { wch: 10 }, // K: 前視方向
+        { wch: 10 }, // L: 距離
+        { wch: 14 }, // M: 累積距離
+        { wch: 14 }, // N: 所需時間
+        { wch: 10 }, // O: 出發時間
+        { wch: 10 }, // P: 到達時間
+        { wch: 14 }, // Q: 休息時間
+        { wch: 12 }, // R: 領航員
+        { wch: 20 }  // S: 備註
+      ];
+
+      XLSX.utils.book_append_sheet(wb, finalWs, "行程表");
+      XLSX.writeFile(wb, `行程表_${selectedDate || "未命名"}.xlsx`);
+    } catch (err: any) {
+      console.error("Excel 匯出核心損壞:", err);
+      alert(`EXCEL 匯出失敗: ${err?.message || err}`);
+    }
+  };
