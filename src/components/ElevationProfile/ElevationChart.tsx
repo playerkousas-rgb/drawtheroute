@@ -533,7 +533,10 @@ export default function ElevationChart({
                     const walkMins = Math.round(baseTime + ascTime + descTime);
 
                     const isLastSeg = i === waypoints.length - 2;
-                    const getCoords = (wp: WaypointMarker, idx: number) => (coordMode === 'grid' && materials && materials[idx]?.grid) ? materials[idx].grid : `${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`; ${parts[1].slice(-4)}`; } return rawGrid;
+                    const getCoords = (wp: WaypointMarker, idx: number) => {
+                      if (coordMode === 'grid' && materials && materials[idx]?.grid) return materials[idx].grid;
+                      return `${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`;
+                    };
                       return `${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`;
                     };
 
