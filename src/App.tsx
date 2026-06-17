@@ -21,6 +21,7 @@ export default function App() {
   const [hoveredPt, setHoveredPt]     = useState<ElevationProfilePoint | null>(null);
   const [profileOpen, setProfileOpen] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [searchLocation, setSearchLocation] = useState<LatLng | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -35,6 +36,41 @@ export default function App() {
     if (isProcessing) return;
     addWaypoint(latlng);
   }, [isProcessing, addWaypoint]);
+
+  const goToLocation = useCallback(async (input: string) => {
+    try {
+      // 1. Try Lat, Lng (e.g. "22.3, 114.1")
+      const parts = input.split(',').map(p => p.trim());
+      if (parts.length === 2) {
+        const lat = parseFloat(parts[0]);
+        const lng = parseFloat(parts[1]);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          setSearchLocation({ lat, lng });
+          return;
+        }
+      }
+
+      // 2. Try HK80 (e.g. "817036, 839517" or "817036 839517")
+      const coords = input.split(/[\s,]+/).filter(Boolean);
+      if (coords.length === 2) {
+        const easting = coords[0];
+        const northing = coords[1];
+        
+        // Use Gov API for conversion
+        const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
+        if (!resp.ok) throw new Error('Conversion API error');
+        const data = await resp.json();
+        if (data.wgsLat && data.wgsLong) {
+          setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
+          return;
+        }
+      }
+      
+      throw new Error('Unsupported coordinate format. Please use "lat, lng" or "easting, northing".');
+    } catch (e: any) {
+      alert(e.message || 'Invalid coordinates');
+    }
+  }, []);
 
   const handleExportGPX = useCallback(() => {
     if (!segments.length) return;
@@ -71,6 +107,8 @@ export default function App() {
         onRouteClick={handleMapClick}
         hoveredPoint={hoveredPt}
         isProcessing={isProcessing}
+        searchLocation={searchLocation}
+        onSearchCleared={() => setSearchLocation(null)}
       />
 
       {/* ── Left toolbar ── */}
@@ -85,6 +123,7 @@ export default function App() {
         onExportGPX={handleExportGPX}
         hasRoute={hasRoute}
         isProcessing={isProcessing}
+        onSearchCoord={goToLocation}
       />
 
       {/* ── Right info panel ── */}
@@ -132,7 +171,7 @@ export default function App() {
           >
             <div className="flex items-center gap-2.5">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-slate-300 text-xs font-medium">海拔剖面圖</span>
+              <span className="text-slate-300 text-xs font-medium">計劃書資料</span>
               {elevationProfile.length > 0 && (
                 <span className="text-slate-600 text-[10px] font-mono">
                   {elevationProfile.length} 點

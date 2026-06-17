@@ -13,6 +13,8 @@ interface MapCoreProps {
   onRouteClick: (latlng: LatLng) => void;
   hoveredPoint: ElevationProfilePoint | null;
   isProcessing: boolean;
+  searchLocation: LatLng | null;
+  onSearchCleared: () => void;
 
 }
 
@@ -80,6 +82,8 @@ export default function MapCore({
   const routeGrp  = useRef<L.LayerGroup | null>(null);
   const wpGrp     = useRef<L.LayerGroup | null>(null);
   const hoverRef  = useRef<L.Marker | null>(null);
+  const progressLineRef = useRef<L.Polyline | null>(null);
+
 
   // Keep latest callbacks in refs to avoid stale closures
   const onRouteClickRef    = useRef(onRouteClick);
@@ -194,18 +198,108 @@ export default function MapCore({
     });
   }, [waypoints]);
 
-  // ── Elevation profile hover marker ───────────────────────────────
+  // ── Elevation profile hover marker & Progress Line ──────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (hoverRef.current) { map.removeLayer(hoverRef.current); hoverRef.current = null; }
+
+    // 1. Handle the Marker (Blue Circle)
+    if (hoverRef.current) { 
+      map.removeLayer(hoverRef.current); 
+      hoverRef.current = null; 
+    }
     if (hoveredPoint) {
       hoverRef.current = L.marker(
         [hoveredPoint.lat, hoveredPoint.lng],
         { icon: hoverIcon, interactive: false, zIndexOffset: 2000 }
       ).addTo(map);
     }
-  }, [hoveredPoint]);
+
+    // 2. Handle the Progress Line (Highlighting the green line)
+    if (progressLineRef.current) {
+      map.removeLayer(progressLineRef.current);
+      progressLineRef.current = null;
+    }
+
+    if (hoveredPoint && segments.length > 0) {
+      const path: L.LatLngExpression[] = [];
+      let accumulatedDist = 0;
+      let found = false;
+
+      for (const seg of segments) {
+        for (const p of seg.points) {
+          path.push([p.lat, p.lng]);
+          
+          // We estimate the distance along the points to find where the hoveredPoint fits
+          // Since hoveredPoint is part of the elevation profile, we can use its distance
+          // Note: This is a simplified approach; for perfect accuracy, we'd track segment distance
+        }
+        accumulatedDist += seg.distance;
+        if (accumulatedDist >= hoveredPoint.distance * 1000) { // Convert km to m
+          found = true;
+          break;
+        }
+      }
+
+      // To make it precise, we trim the path to the exact point of the hoveredPoint
+      // We use the hoveredPoint's actual coordinates as the final point
+      if (path.length > 0) {
+        // Since we don't have a perfect point-by-point distance map here, 
+        // we find the segment and interpolate or simply use the points up to the 
+        // segment where the distance was reached, then end with the hoveredPoint.
+        
+        // Find the segment containing the point
+        let currentDist = 0;
+        let cutPath: L.LatLngExpression[] = [];
+        for (const seg of segments) {
+          if (currentDist + seg.distance * 1000 > hoveredPoint.distance * 1000) {
+            // This is the segment the point is in.
+            // We can't easily slice the points array by distance without pre-calculating,
+            // but adding all points of previous segments + the hoveredPoint is a great visual approx.
+            break;
+          }
+          seg.points.forEach(p => cutPath.push([p.lat, p.lng]));
+          currentDist += seg.distance * 1000;
+        }
+        cutPath.push([hoveredPoint.lat, hoveredPoint.lng]);
+
+        progressLineRef.current = L.polyline(cutPath, {
+          color: '#fff', // Bright white to highlight over green
+          weight: 5,
+          opacity: 0.8,
+          lineJoin: 'round',
+          zIndexOffset: 1000,
+        }).addTo(map);
+      }
+    }
+  }, [hoveredPoint, segments]);
+
+  // ── Handle search location ───────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !searchLocation) return;
+    
+    map.flyTo([searchLocation.lat, searchLocation.lng], 15, {
+      animate: true,
+      duration: 1.5
+    });
+    
+    // Add a temporary marker
+    const marker = L.marker([searchLocation.lat, searchLocation.lng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:12px;height:12px;background:white;border:2px solid #ef4444;border-radius:50%;box-shadow:0 0 10px #ef4444"></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      }),
+      interactive: false,
+    }).addTo(map);
+    
+    setTimeout(() => {
+      map.removeLayer(marker);
+      onSearchCleared();
+    }, 3000);
+  }, [searchLocation, onSearchCleared]);
 
   // ── Auto-fit bounds ───────────────────────────────────────────────
   useEffect(() => {

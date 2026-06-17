@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RouteIcon, Undo2, Trash2, Upload, Download, Map, Layers, Satellite, Footprints, ChevronRight, ChevronLeft } from 'lucide-react';
+import { RouteIcon, Undo2, Trash2, Upload, Download, Map, Layers, Satellite, Footprints, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import { MapLayer } from '../../types';
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   onExportGPX: () => void;
   hasRoute: boolean;
   isProcessing: boolean;
+  onSearchCoord: (coord: string) => Promise<void>;
 }
 
 export default function LeftToolbar({
@@ -21,14 +22,63 @@ export default function LeftToolbar({
   mapLayer, onMapLayer,
   onUndo, onClear, onImportGPX, onExportGPX,
   hasRoute, isProcessing,
+  onSearchCoord,
 }: Props) {
   // 🟢 控制左側工具列本身是否收合的狀態
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchVal, setSearchVal] = useState('');
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchVal.trim()) return;
+    await onSearchCoord(searchVal);
+    setIsSearching(false);
+    setSearchVal('');
+  };
 
   return (
     <div className="absolute left-3 top-1/2 -translate-y-1/2 z-[1000] flex items-center gap-2">
+      {/* 🟢 搜尋輸入框 (當 isSearching 為 true 時顯示) */}
+      <AnimatePresence>
+        {isSearching && (
+          <motion.form
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            onSubmit={handleSearch}
+            className="absolute left-16 flex items-center gap-2"
+            style={{
+              background: 'rgba(8,14,28,0.94)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(148,163,184,0.2)',
+              borderRadius: 12,
+              padding: '6px 12px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              zIndex: 1001
+            }}
+          >
+            <input
+              autoFocus
+              className="bg-transparent text-white text-xs outline-none w-48 font-mono"
+              placeholder="Lat, Lng 或 8位座標..."
+              value={searchVal}
+              onChange={(e) => setSearchVal(e.target.value)}
+              onBlur={() => {
+                // Delay closing to allow submit
+                setTimeout(() => setIsSearching(false), 200);
+              }}
+            />
+            <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1">
+              <Search size={14} />
+            </button>
+          </motion.form>
+        )}
+      </AnimatePresence>
+
       {/* 🟢 工具列本體（帶有平滑滑出動畫） */}
       <AnimatePresence mode="wait">
+
         {!isCollapsed && (
           <motion.div
             initial={{ x: -60, opacity: 0 }}
@@ -76,6 +126,7 @@ export default function LeftToolbar({
 
             {/* 操作 */}
             <Group label="操作">
+              <Btn icon={<Search size={15} />}   label="座標搜尋"  onClick={() => setIsSearching(true)} color="slate" small />
               <Btn icon={<Undo2 size={15} />}    label="撤銷上一段"  onClick={onUndo}       color="slate" small disabled={!hasRoute} />
               <Btn icon={<Trash2 size={15} />}   label="清除全部"    onClick={onClear}      color="rose"  small disabled={!hasRoute} />
               <Btn icon={<Upload size={15} />}   label="匯入 GPX"   onClick={onImportGPX}  color="slate" small />
