@@ -22,6 +22,10 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchLocation, setSearchLocation] = useState<LatLng | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -31,7 +35,9 @@ export default function App() {
     addWaypoint, deleteWaypoint, undoLastSegment, clearAll, importGPX,
   } = useRouteManager();
 
- const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismith);
+  const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismith);
+  const { materials } = useItineraryData(waypoints, segments, selectedDate);
+
   const handleMapClick = useCallback((latlng: LatLng) => {
     if (isProcessing) return;
     addWaypoint(latlng);
@@ -43,7 +49,7 @@ export default function App() {
 
     try {
       // 1. 🚀 優先匹配：檢查是否為路程表中的已知座標 (Exact Match)
-      const matchIdx = materials?.findIndex(m => m.grid === cleanInput);
+      const matchIdx = materials?.findIndex((m: any) => m.grid === cleanInput);
       if (matchIdx !== -1 && waypoints[matchIdx]) {
         setSearchLocation(waypoints[matchIdx].latlng);
         return;

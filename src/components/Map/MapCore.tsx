@@ -120,7 +120,7 @@ export default function MapCore({
   const tileRef   = useRef<L.TileLayer | null>(null);
   const routeGrp  = useRef<L.LayerGroup | null>(null);
   const wpGrp     = useRef<L.LayerGroup | null>(null);
-  const hoverRef  = useRef<L.Marker | null>(null);
+  const hoverRef  = useRef<L.CircleMarker | null>(null);
   const progressLineRef = useRef<L.Polyline | null>(null);
   const progressGrp    = useRef<L.LayerGroup | null>(null);
 
