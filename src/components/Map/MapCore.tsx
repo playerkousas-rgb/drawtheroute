@@ -75,6 +75,7 @@ const hoverIcon = L.divIcon({
 export default function MapCore({
   segments, waypoints, mapLayer,
   onRouteClick, hoveredPoint, isProcessing,
+  searchLocation, onSearchCleared,
 }: MapCoreProps) {
   const divRef    = useRef<HTMLDivElement>(null);
   const mapRef    = useRef<L.Map | null>(null);
@@ -268,7 +269,6 @@ export default function MapCore({
           weight: 5,
           opacity: 0.8,
           lineJoin: 'round',
-          zIndexOffset: 1000,
         }).addTo(map);
       }
     }
