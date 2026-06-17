@@ -42,13 +42,16 @@ export default function App() {
     if (!cleanInput) return;
 
     try {
-      // 1. Try HK Grid shorthand (e.g. "KW 2770 2879", "KW2770 2879")
-      const gridMatch = cleanInput.match(/^(KW|KM|KX|KY)\s*(\d{3,5})\s*(\d{3,5})$/i);
-      if (gridMatch) {
-        // Normalize to 6 digits by padding with leading zeros or adding '8'
-        // In HK, shorthand usually omits the '8' in 8xxxxx
-        const easting = gridMatch[2].length < 6 ? `8${gridMatch[2].padStart(5, '0')}` : gridMatch[2];
-        const northing = gridMatch[3].length < 6 ? `8${gridMatch[3].padStart(5, '0')}` : gridMatch[3];
+      // 1. Try Professional UTM format (e.g. "50Q KK 2770 2879")
+      // Matches: [Zone(optional)] [Square(optional)] [Easting] [Northing]
+      const utmMatch = cleanInput.match(/^(\d{2}[A-Z])?\s*([A-Z]{2})?\s*(\d{3,6})\s*(\d{3,6})$/i);
+      if (utmMatch) {
+        const rawE = utmMatch[3];
+        const rawN = utmMatch[4];
+        
+        // Standardize to 6 digits (Adding '8' prefix for HK80 if it's 4 digits)
+        const easting = rawE.length < 6 ? `8${rawE.padStart(5, '0')}` : rawE;
+        const northing = rawN.length < 6 ? `8${rawN.padStart(5, '0')}` : rawN;
         
         const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
         if (!resp.ok) throw new Error('Conversion API error');
@@ -65,12 +68,11 @@ export default function App() {
         const val1 = parseFloat(parts[0]);
         const val2 = parseFloat(parts[1]);
         if (!isNaN(val1) && !isNaN(val2)) {
-          // Determine if it's LatLng or Full HK80
           if (Math.abs(val1) < 180 && Math.abs(val2) < 180) {
             setSearchLocation({ lat: val1, lng: val2 });
             return;
           } else {
-            // It's likely Full HK80
+            // Full HK80 coordinates
             const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${val1}&n=${val2}`);
             if (!resp.ok) throw new Error('Conversion API error');
             const data = await resp.json();
@@ -82,7 +84,7 @@ export default function App() {
         }
       }
       
-      throw new Error('Unsupported coordinate format. Please use "lat, lng", "KW 2770 2879", or "easting, northing".');
+      throw new Error('Unsupported coordinate format. Please use "lat, lng", "50Q KK 2770 2879", or "easting, northing".');
     } catch (e: any) {
       alert(e.message || 'Invalid coordinates');
     }

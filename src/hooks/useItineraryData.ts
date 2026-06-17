@@ -34,7 +34,7 @@ export const useItineraryData = (
 
   // 🚂 引擎 B：負責「行程表 CP 格網與時間加工循環」
   useEffect(() => {
-    const processRouteData = () => {
+    const processRouteData = async () => {
       // 如果地圖上尚未點擊任何站點，表格主體資料先保持空陣列
       if (!waypoints || waypoints.length === 0) {
         setMaterials([]);
@@ -47,56 +47,67 @@ export const useItineraryData = (
       let sunriseTime = "06:14"; // 預設降級出發時間基正值
 
       if (weather && weather.sunrise && weather.sunrise !== "--:--") {
-        // 如果 Open-Meteo 有給出可靠的日出時間，百分之百信任並採用
         sunriseTime = weather.sunrise;
       } else {
-        // 如果 API 還在加載、斷網、或沒給日出，幾何科學公式頂上，免疫崩潰
         sunriseTime = calculateSunrise(startLoc.lat, startLoc.lng, selectedDate);
       }
 
-      // 初始化加工變數
       let cumulativeDist = 0;
-      let currentTime = sunriseTime; // 出發時間起點對齊
+      let currentTime = sunriseTime;
 
-      // 全數據加工循環 (大表格滾雪球連動)
-      const result = waypoints.map((wp, i) => {
+      const result = [];
+      for (let i = 0; i < waypoints.length; i++) {
+        const wp = waypoints[i];
         const prevSeg = i > 0 ? segments[i - 1] : null;
         
-        // 累計里程計算
         if (prevSeg) cumulativeDist += prevSeg.distance;
 
-        // 預計抵達時間計算 (Naismith 基礎邏輯)
         if (prevSeg) {
           const segmentMinutes = (prevSeg.distance / 4.0) * 60;
           currentTime = addMinutesToTime(currentTime, segmentMinutes);
         }
 
-        // 方位角計算 (看向下一站)
         let bearing = 0;
         if (i < waypoints.length - 1) {
           const nextLoc = waypoints[i + 1].latlng;
           bearing = calculateBearing(wp.latlng.lat, wp.latlng.lng, nextLoc.lat, nextLoc.lng);
         }
 
-        return {
+        // 🎯 核心修正：不再使用本地公式，直接調用政府 API 獲取標準 UTM 座標
+        let gridStr = "Calculating...";
+        try {
+          const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=hkgrid&lat=${wp.latlng.lat}&long=${wp.latlng.lng}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.utmGridZone && data.utmRefZone) {
+              const zone = data.utmGridZone; // e.g. "50Q"
+              const square = data.utmRefZone.split('-')[1] || "XX"; // e.g. "KK"
+              const easting = data.utmGridE ? data.utmGridE.toString().slice(-4).padStart(4, '0') : "0000";
+              const northing = data.utmGridN ? data.utmGridN.toString().slice(-4).padStart(4, '0') : "0000";
+              gridStr = `${zone} ${square} ${easting} ${northing}`;
+            }
+          }
+        } catch (e) {
+          console.error("Grid conversion API error", e);
+        }
+
+        result.push({
           id: wp.id,
           name: wp.type === 'start' ? '起點' : wp.type === 'end' ? '終點' : `CP${i}`,
-          // 🟢 這裡接通真香港方格網轉換
-          grid: getKKGrid(wp.latlng.lat, wp.latlng.lng),
+          grid: gridStr,
           bearing: bearing,
           elevation: wp.elevation,
           cumDist: cumulativeDist.toFixed(2),
           eta: i === 0 ? sunriseTime : currentTime,
           lat: wp.latlng.lat.toFixed(4),
           lng: wp.latlng.lng.toFixed(4)
-        };
-      });
+        });
+      }
 
       setMaterials(result);
     };
 
     processRouteData();
-    // 🟢 當點擊地圖(waypoints)、路線改變(segments)或是天文數據刷出新日出時間時，全線表格數據骨牌重算！
   }, [waypoints, segments, selectedDate, weather?.sunrise]);
 
   return { weather, materials };

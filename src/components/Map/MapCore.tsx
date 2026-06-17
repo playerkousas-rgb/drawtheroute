@@ -64,8 +64,46 @@ function makeWpIcon(wp: WaypointMarker, idx: number): L.DivIcon {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [7, 12] });
 }
 
+// ── User Position marker HTML ──────────────────────────────────────────
+function makeUserPosIcon(): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="
+        display:flex; align-items:center; gap:5px;
+        background:rgba(30,58,138,0.92);
+        border:2px solid #60a5fa;
+        border-radius:20px;
+        padding:3px 8px 3px 4px;
+        box-shadow:0 0 15px rgba(96,165,250,0.6);
+        white-space:nowrap;
+        pointer-events:none;
+        font-family:'Noto Sans TC',sans-serif;
+        animation: pulse 2s infinite;
+      ">
+        <div style="
+          width:9px; height:9px; border-radius:50%;
+          background:#fff; border:2px solid #60a5fa;
+          box-shadow:0 0 8px #fff; flex-shrink:0;
+        "></div>
+        <span style="color:#fff; font-size:11px; font-weight:bold; line-height:1;">目前位置</span>
+      </div>
+      <style>
+        @keyframes pulse {
+          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(96,165,250, 0.7); }
+          70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(96,165,250, 0); }
+          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(96,165,250, 0); }
+        }
+      </style>
+    `,
+    iconSize: [0, 0],
+    iconAnchor: [7, 12]
+  });
+}
+
 // Hover crosshair
 const hoverIcon = L.divIcon({
+
   className: '',
   html: `<div style="width:16px;height:16px;background:#60a5fa;border:3px solid #fff;border-radius:50%;box-shadow:0 0 14px #60a5fa"></div>`,
   iconSize: [16, 16],
@@ -206,54 +244,23 @@ export default function MapCore({
     });
   }, [waypoints]);
 
-  // ── Elevation profile hover marker & Progress Line ──────────────────
+  // ── Elevation profile hover marker ──────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // 1. Handle the Marker (Blue Circle)
     if (hoverRef.current) { 
       map.removeLayer(hoverRef.current); 
       hoverRef.current = null; 
     }
+
     if (hoveredPoint) {
       hoverRef.current = L.marker(
         [hoveredPoint.lat, hoveredPoint.lng],
-        { icon: hoverIcon, interactive: false, zIndexOffset: 2000 }
+        { icon: makeUserPosIcon(), interactive: false, zIndexOffset: 2000 }
       ).addTo(map);
     }
-
-    // 2. Handle the Progress Line
-    if (progressLineRef.current) {
-      progressGrp.current?.clearLayers();
-      progressLineRef.current = null;
-    }
-
-    if (hoveredPoint && segments.length > 0) {
-      const cutPath: L.LatLngExpression[] = [];
-      let currentDist = 0;
-      const targetDist = hoveredPoint.distance * 1000;
-
-      for (const seg of segments) {
-        if (currentDist + seg.distance * 1000 > targetDist) {
-          break;
-        }
-        seg.points.forEach(p => cutPath.push([p.lat, p.lng]));
-        currentDist += seg.distance * 1000;
-      }
-      
-      cutPath.push([hoveredPoint.lat, hoveredPoint.lng]);
-
-      if (cutPath.length > 1) {
-        progressLineRef.current = L.polyline(cutPath, {
-          color: '#fff', 
-          weight: 6,
-          opacity: 1,
-          lineJoin: 'round',
-        }).addTo(progressGrp.current!);
-      }
-    }
-  }, [hoveredPoint, segments]);
+  }, [hoveredPoint]);
 
   // ── Handle search location ───────────────────────────────────────
   useEffect(() => {
