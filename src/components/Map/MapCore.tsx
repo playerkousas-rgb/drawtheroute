@@ -265,9 +265,11 @@ export default function MapCore({
           weight: 3,
           opacity: 1,
           fillOpacity: 0.8,
-          zIndexOffset: 2000,
         }
       ).addTo(map);
+      
+      marker.bringToFront();
+
       
       // Add a label to the circle marker
       marker.bindTooltip('目前位置', {
