@@ -255,10 +255,29 @@ export default function MapCore({
     }
 
     if (hoveredPoint) {
-      hoverRef.current = L.marker(
+      // Use a CircleMarker for better visibility and performance
+      const marker = L.circleMarker(
         [hoveredPoint.lat, hoveredPoint.lng],
-        { icon: makeUserPosIcon(), interactive: false, zIndexOffset: 2000 }
+        {
+          radius: 8,
+          fillColor: '#60a5fa',
+          color: '#fff',
+          weight: 3,
+          opacity: 1,
+          fillOpacity: 0.8,
+          zIndexOffset: 2000,
+        }
       ).addTo(map);
+      
+      // Add a label to the circle marker
+      marker.bindTooltip('目前位置', {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -10],
+        className: 'user-pos-label'
+      }).openTooltip();
+
+      hoverRef.current = marker;
     }
   }, [hoveredPoint]);
 

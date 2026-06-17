@@ -42,27 +42,43 @@ export default function App() {
     if (!cleanInput) return;
 
     try {
-      // 1. Try Professional UTM format (e.g. "50Q KK 2770 2879")
-      // Matches: [Zone(optional)] [Square(optional)] [Easting] [Northing]
-      const utmMatch = cleanInput.match(/^(\d{2}[A-Z])?\s*([A-Z]{2})?\s*(\d{3,6})\s*(\d{3,6})$/i);
+      // 1. 🚀 優先匹配：檢查是否為路程表中的已知座標 (Exact Match)
+      const matchIdx = materials?.findIndex(m => m.grid === cleanInput);
+      if (matchIdx !== -1 && waypoints[matchIdx]) {
+        setSearchLocation(waypoints[matchIdx].latlng);
+        return;
+      }
+
+      // 2. 專業 UTM 縮寫解析 (e.g. "50Q KK 0670 2346")
+      const utmMatch = cleanInput.match(/^(\d{2}[A-Z])?\s*([A-Z]{2})\s*(\d{4})\s*(\d{4})$/i);
       if (utmMatch) {
+        const square = utmMatch[2].toUpperCase();
         const rawE = utmMatch[3];
         const rawN = utmMatch[4];
         
-        // Standardize to 6 digits (Adding '8' prefix for HK80 if it's 4 digits)
-        const easting = rawE.length < 6 ? `8${rawE.padStart(5, '0')}` : rawE;
-        const northing = rawN.length < 6 ? `8${rawN.padStart(5, '0')}` : rawN;
-        
-        const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
-        if (!resp.ok) throw new Error('Conversion API error');
-        const data = await resp.json();
-        if (data.wgsLat && data.wgsLong) {
-          setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
-          return;
+        const squareMap: Record<string, [string, string]> = {
+          'KK': ['83', '82'], 'JK': ['83', '81'], 'HE': ['81', '82'], 'GE': ['81', '81'],
+          'LK': ['84', '82'], 'MK': ['84', '81'], 'KE': ['82', '82'], 'JE': ['82', '81'],
+        };
+
+        const prefix = squareMap[square];
+        if (prefix) {
+          const easting = `${prefix[0]}${rawE}`;
+          const northing = `${prefix[1]}${rawN}`;
+          const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.wgsLat && data.wgsLong) {
+              setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
+              return;
+            }
+          }
+        } else {
+          throw new Error(`未知的方格碼 ${square}。請輸入 6 位全座標或直接複製路程表座標。`);
         }
       }
 
-      // 2. Try Lat, Lng (supports comma or space)
+      // 3. Try Full HK80 or LatLng (6 digits)
       const parts = cleanInput.split(/[\s,]+/).filter(Boolean);
       if (parts.length === 2) {
         const val1 = parseFloat(parts[0]);
@@ -72,23 +88,23 @@ export default function App() {
             setSearchLocation({ lat: val1, lng: val2 });
             return;
           } else {
-            // Full HK80 coordinates
             const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${val1}&n=${val2}`);
-            if (!resp.ok) throw new Error('Conversion API error');
-            const data = await resp.json();
-            if (data.wgsLat && data.wgsLong) {
-              setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
-              return;
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data.wgsLat && data.wgsLong) {
+                setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
+                return;
+              }
             }
           }
         }
       }
       
-      throw new Error('Unsupported coordinate format. Please use "lat, lng", "50Q KK 2770 2879", or "easting, northing".');
+      throw new Error('無法識別的格式。請使用 "經緯度", "50Q KK 0670 2346" 或 "830670 82346"。');
     } catch (e: any) {
       alert(e.message || 'Invalid coordinates');
     }
-  }, []);
+  }, [materials, waypoints]);
 
   const handleExportGPX = useCallback(() => {
     if (!segments.length) return;
