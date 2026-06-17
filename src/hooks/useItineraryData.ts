@@ -35,16 +35,13 @@ export const useItineraryData = (
   // 🚂 引擎 B：負責「行程表 CP 格網與時間加工循環」
   useEffect(() => {
     const processRouteData = async () => {
-      // 如果地圖上尚未點擊任何站點，表格主體資料先保持空陣列
       if (!waypoints || waypoints.length === 0) {
         setMaterials([]);
         return;
       }
 
       const startLoc = waypoints[0].latlng;
-
-      // 雙引擎核心決策：知之為知之
-      let sunriseTime = "06:14"; // 預設降級出發時間基正值
+      let sunriseTime = "06:14";
 
       if (weather && weather.sunrise && weather.sunrise !== "--:--") {
         sunriseTime = weather.sunrise;
@@ -61,7 +58,6 @@ export const useItineraryData = (
         const prevSeg = i > 0 ? segments[i - 1] : null;
         
         if (prevSeg) cumulativeDist += prevSeg.distance;
-
         if (prevSeg) {
           const segmentMinutes = (prevSeg.distance / 4.0) * 60;
           currentTime = addMinutesToTime(currentTime, segmentMinutes);
@@ -73,18 +69,24 @@ export const useItineraryData = (
           bearing = calculateBearing(wp.latlng.lat, wp.latlng.lng, nextLoc.lat, nextLoc.lng);
         }
 
-        // 🎯 核心修正：不再使用本地公式，直接調用政府 API 獲取標準 UTM 座標
+        // 🎯 核心修正：兩步轉換法 (WGS84 -> HKGrid -> UTM Grid Reference)
         let gridStr = "Calculating...";
         try {
-          const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=hkgrid&lat=${wp.latlng.lat}&long=${wp.latlng.lng}`);
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data.utmGridZone && data.utmRefZone) {
-              const zone = data.utmGridZone; // e.g. "50Q"
-              const square = data.utmRefZone.split('-')[1] || "XX"; // e.g. "KK"
-              const easting = data.utmGridE ? data.utmGridE.toString().slice(-4).padStart(4, '0') : "0000";
-              const northing = data.utmGridN ? data.utmGridN.toString().slice(-4).padStart(4, '0') : "0000";
-              gridStr = `${zone} ${square} ${easting} ${northing}`;
+          const resp1 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=hkgrid&lat=${wp.latlng.lat}&long=${wp.latlng.lng}`);
+          if (resp1.ok) {
+            const data1 = await resp1.json();
+            if (data1.hkE && data1.hkN) {
+              const resp2 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${data1.hkE}&n=${data1.hkN}`);
+              if (resp2.ok) {
+                const data2 = await resp2.json();
+                if (data2.utmGridZone && data2.utmRefZone) {
+                  const zone = data2.utmGridZone; // "50Q"
+                  const square = data2.utmRefZone.split('-')[1] || "XX"; // "KK"
+                  const easting = data2.utmGridE ? data2.utmGridE.toString().slice(-4).padStart(4, '0') : "0000";
+                  const northing = data2.utmGridN ? data2.utmGridN.toString().slice(-4).padStart(4, '0') : "0000";
+                  gridStr = `${zone} ${square} ${easting} ${northing}`;
+                }
+              }
             }
           }
         } catch (e) {
