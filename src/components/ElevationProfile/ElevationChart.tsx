@@ -537,8 +537,6 @@ export default function ElevationChart({
                       if (coordMode === 'grid' && materials && materials[idx]?.grid) return materials[idx].grid;
                       return `${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`;
                     };
-                      return `${wp.latlng.lat.toFixed(4)}, ${wp.latlng.lng.toFixed(4)}`;
-                    };
 
                     const rRest = routeRests[i] || 0;
                     const cRest = cpRests[i] || 0;
