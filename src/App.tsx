@@ -50,13 +50,27 @@ export default function App() {
         }
       }
 
-      // 2. Try HK80 (e.g. "817036, 839517" or "817036 839517")
+      // 2. Try HK Grid shorthand (e.g. "KW 2770 2879")
+      const gridMatch = input.match(/^(KW|KM|KX|KY)\s*(\d{4})\s*(\d{4})$/i);
+      if (gridMatch) {
+        const easting = `8${gridMatch[2]}`; // Assuming the '8' prefix for HK80 Easting
+        const northing = `8${gridMatch[3]}`; // Assuming the '8' prefix for HK80 Northing
+        
+        const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
+        if (!resp.ok) throw new Error('Conversion API error');
+        const data = await resp.json();
+        if (data.wgsLat && data.wgsLong) {
+          setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
+          return;
+        }
+      }
+
+      // 3. Try Full HK80 (e.g. "817036, 839517" or "817036 839517")
       const coords = input.split(/[\s,]+/).filter(Boolean);
       if (coords.length === 2) {
         const easting = coords[0];
         const northing = coords[1];
         
-        // Use Gov API for conversion
         const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
         if (!resp.ok) throw new Error('Conversion API error');
         const data = await resp.json();
@@ -66,7 +80,7 @@ export default function App() {
         }
       }
       
-      throw new Error('Unsupported coordinate format. Please use "lat, lng" or "easting, northing".');
+      throw new Error('Unsupported coordinate format. Please use "lat, lng", "KW 2770 2879", or "easting, northing".');
     } catch (e: any) {
       alert(e.message || 'Invalid coordinates');
     }
