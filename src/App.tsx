@@ -38,23 +38,17 @@ export default function App() {
   }, [isProcessing, addWaypoint]);
 
   const goToLocation = useCallback(async (input: string) => {
+    const cleanInput = input.trim();
+    if (!cleanInput) return;
+
     try {
-      // 1. Try Lat, Lng (e.g. "22.3, 114.1")
-      const parts = input.split(',').map(p => p.trim());
-      if (parts.length === 2) {
-        const lat = parseFloat(parts[0]);
-        const lng = parseFloat(parts[1]);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          setSearchLocation({ lat, lng });
-          return;
-        }
-      }
-
-      // 2. Try HK Grid shorthand (e.g. "KW 2770 2879")
-      const gridMatch = input.match(/^(KW|KM|KX|KY)\s*(\d{4})\s*(\d{4})$/i);
+      // 1. Try HK Grid shorthand (e.g. "KW 2770 2879", "KW2770 2879")
+      const gridMatch = cleanInput.match(/^(KW|KM|KX|KY)\s*(\d{3,5})\s*(\d{3,5})$/i);
       if (gridMatch) {
-        const easting = `8${gridMatch[2]}`; // Assuming the '8' prefix for HK80 Easting
-        const northing = `8${gridMatch[3]}`; // Assuming the '8' prefix for HK80 Northing
+        // Normalize to 6 digits by padding with leading zeros or adding '8'
+        // In HK, shorthand usually omits the '8' in 8xxxxx
+        const easting = gridMatch[2].length < 6 ? `8${gridMatch[2].padStart(5, '0')}` : gridMatch[2];
+        const northing = gridMatch[3].length < 6 ? `8${gridMatch[3].padStart(5, '0')}` : gridMatch[3];
         
         const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
         if (!resp.ok) throw new Error('Conversion API error');
@@ -65,18 +59,26 @@ export default function App() {
         }
       }
 
-      // 3. Try Full HK80 (e.g. "817036, 839517" or "817036 839517")
-      const coords = input.split(/[\s,]+/).filter(Boolean);
-      if (coords.length === 2) {
-        const easting = coords[0];
-        const northing = coords[1];
-        
-        const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
-        if (!resp.ok) throw new Error('Conversion API error');
-        const data = await resp.json();
-        if (data.wgsLat && data.wgsLong) {
-          setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
-          return;
+      // 2. Try Lat, Lng (supports comma or space)
+      const parts = cleanInput.split(/[\s,]+/).filter(Boolean);
+      if (parts.length === 2) {
+        const val1 = parseFloat(parts[0]);
+        const val2 = parseFloat(parts[1]);
+        if (!isNaN(val1) && !isNaN(val2)) {
+          // Determine if it's LatLng or Full HK80
+          if (Math.abs(val1) < 180 && Math.abs(val2) < 180) {
+            setSearchLocation({ lat: val1, lng: val2 });
+            return;
+          } else {
+            // It's likely Full HK80
+            const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${val1}&n=${val2}`);
+            if (!resp.ok) throw new Error('Conversion API error');
+            const data = await resp.json();
+            if (data.wgsLat && data.wgsLong) {
+              setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
+              return;
+            }
+          }
         }
       }
       
