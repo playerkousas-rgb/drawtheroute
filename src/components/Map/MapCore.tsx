@@ -120,7 +120,7 @@ export default function MapCore({
   const tileRef   = useRef<L.TileLayer | null>(null);
   const routeGrp  = useRef<L.LayerGroup | null>(null);
   const wpGrp     = useRef<L.LayerGroup | null>(null);
-  const hoverRef  = useRef<L.CircleMarker | null>(null);
+  const hoverRef  = useRef<L.Marker | null>(null);
   const progressLineRef = useRef<L.Polyline | null>(null);
   const progressGrp    = useRef<L.LayerGroup | null>(null);
 
@@ -142,6 +142,14 @@ export default function MapCore({
       preferCanvas: true,
     });
     mapRef.current = map;
+
+    // 🟢 Create a dedicated pane for the hover marker to ensure it's ALWAYS on top
+    map.createPane('hoverPane');
+    const hp = map.getPane('hoverPane');
+    if (hp) {
+      hp.style.zIndex = '1000';
+      hp.style.pointerEvents = 'none';
+    }
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -249,39 +257,37 @@ export default function MapCore({
     const map = mapRef.current;
     if (!map) return;
 
-    if (hoverRef.current) { 
-      map.removeLayer(hoverRef.current); 
-      hoverRef.current = null; 
-    }
-
     if (hoveredPoint) {
-      // Use a CircleMarker for better visibility and performance
-      const marker = L.circleMarker(
-        [hoveredPoint.lat, hoveredPoint.lng],
-        {
-          radius: 8,
-          fillColor: '#60a5fa',
-          color: '#fff',
-          weight: 3,
-          opacity: 1,
-          fillOpacity: 0.8,
-        }
-      ).addTo(map);
-      
-      marker.bringToFront();
+      if (!hoverRef.current) {
+        // Use a DivIcon for guaranteed visibility and performance
+        const marker = L.marker(
+          [hoveredPoint.lat, hoveredPoint.lng],
+          {
+            icon: hoverIcon,
+            pane: 'hoverPane',
+            interactive: false,
+          }
+        ).addTo(map);
+        
+        marker.bindTooltip('目前位置', {
+          permanent: true,
+          direction: 'top',
+          offset: [0, -10],
+          className: 'user-pos-label'
+        }).openTooltip();
 
-      
-      // Add a label to the circle marker
-      marker.bindTooltip('目前位置', {
-        permanent: true,
-        direction: 'top',
-        offset: [0, -10],
-        className: 'user-pos-label'
-      }).openTooltip();
-
-      hoverRef.current = marker;
+        hoverRef.current = marker;
+      } else {
+        hoverRef.current.setLatLng([hoveredPoint.lat, hoveredPoint.lng]);
+      }
+    } else {
+      if (hoverRef.current) {
+        map.removeLayer(hoverRef.current);
+        hoverRef.current = null;
+      }
     }
   }, [hoveredPoint]);
+
 
   // ── Handle search location ───────────────────────────────────────
   useEffect(() => {

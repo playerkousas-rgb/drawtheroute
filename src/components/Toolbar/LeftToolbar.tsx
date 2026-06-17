@@ -14,7 +14,7 @@ interface Props {
   onExportGPX: () => void;
   hasRoute: boolean;
   isProcessing: boolean;
-  onSearchCoord: (coord: string) => Promise<void>;
+  onSearchCoord: (coord: string, mode: 'utm' | 'hk80' | 'latlng') => Promise<void>;
 }
 
 export default function LeftToolbar({
@@ -24,22 +24,27 @@ export default function LeftToolbar({
   hasRoute, isProcessing,
   onSearchCoord,
 }: Props) {
-  // 🟢 控制左側工具列本身是否收合的狀態
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchVal, setSearchVal] = useState('');
+  const [searchMode, setSearchMode] = useState<'utm' | 'hk80' | 'latlng'>('utm');
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchVal.trim()) return;
-    await onSearchCoord(searchVal);
+    await onSearchCoord(searchVal, searchMode);
     setIsSearching(false);
     setSearchVal('');
   };
 
+  const modeConfig = {
+    utm: { label: 'UTM 縮寫', placeholder: '50Q KK 0670 2346' },
+    hk80: { label: 'HK80 全座標', placeholder: '830670 82346' },
+    latlng: { label: '經緯度', placeholder: '22.3, 114.1' },
+  };
+
   return (
     <div className="absolute left-3 top-1/2 -translate-y-1/2 z-[1000] flex items-center gap-2">
-      {/* 🟢 搜尋輸入框 (當 isSearching 為 true 時顯示) */}
       <AnimatePresence>
         {isSearching && (
           <motion.form
@@ -47,38 +52,48 @@ export default function LeftToolbar({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             onSubmit={handleSearch}
-            className="absolute left-16 flex items-center gap-2"
+            className="absolute left-16 flex flex-col gap-2"
             style={{
               background: 'rgba(8,14,28,0.94)',
               backdropFilter: 'blur(20px)',
               border: '1px solid rgba(148,163,184,0.2)',
               borderRadius: 12,
-              padding: '6px 12px',
+              padding: '10px 12px',
               boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
               zIndex: 1001
             }}
           >
-            <input
-              autoFocus
-              className="bg-transparent text-white text-xs outline-none w-48 font-mono"
-              placeholder="Lat, Lng 或 8位座標..."
-              value={searchVal}
-              onChange={(e) => setSearchVal(e.target.value)}
-              onBlur={() => {
-                // Delay closing to allow submit
-                setTimeout(() => setIsSearching(false), 200);
-              }}
-            />
-            <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1">
-              <Search size={14} />
-            </button>
+            <div className="flex items-center gap-2">
+              <select 
+                value={searchMode}
+                onChange={(e) => setSearchMode(e.target.value as any)}
+                className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-1 outline-none border border-slate-700"
+              >
+                <option value="utm">UTM 縮寫</option>
+                <option value="hk80">HK80 全座標</option>
+                <option value="latlng">經緯度</option>
+              </select>
+              <div className="flex items-center gap-2 flex-1">
+                <input
+                  autoFocus
+                  className="bg-transparent text-white text-xs outline-none w-40 font-mono"
+                  placeholder={modeConfig[searchMode].placeholder}
+                  value={searchVal}
+                  onChange={(e) => setSearchVal(e.target.value)}
+                  onBlur={() => {
+                    setTimeout(() => setIsSearching(false), 200);
+                  }}
+                />
+                <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1">
+                  <Search size={14} />
+                </button>
+              </div>
+            </div>
           </motion.form>
         )}
       </AnimatePresence>
 
-      {/* 🟢 工具列本體（帶有平滑滑出動畫） */}
       <AnimatePresence mode="wait">
-
         {!isCollapsed && (
           <motion.div
             initial={{ x: -60, opacity: 0 }}
@@ -95,7 +110,6 @@ export default function LeftToolbar({
               boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
             }}
           >
-            {/* 路由模式 */}
             <Group label="路由">
               <Btn
                 icon={<Footprints size={16} />}
@@ -112,19 +126,13 @@ export default function LeftToolbar({
                 color="amber"
               />
             </Group>
-
             <Divider />
-
-            {/* 地圖圖層 */}
             <Group label="圖層">
               <Btn icon={<Map size={15} />}      label="街道圖 (OSM)"  active={mapLayer === 'osm'}       onClick={() => onMapLayer('osm')}       color="slate" small />
               <Btn icon={<Layers size={15} />}   label="地形圖 (Topo)" active={mapLayer === 'topo'}      onClick={() => onMapLayer('topo')}      color="slate" small />
               <Btn icon={<Satellite size={15} />} label="衛星圖 (Esri)" active={mapLayer === 'satellite'} onClick={() => onMapLayer('satellite')} color="slate" small />
             </Group>
-
             <Divider />
-
-            {/* 操作 */}
             <Group label="操作">
               <Btn icon={<Search size={15} />}   label="座標搜尋"  onClick={() => setIsSearching(true)} color="slate" small />
               <Btn icon={<Undo2 size={15} />}    label="撤銷上一段"  onClick={onUndo}       color="slate" small disabled={!hasRoute} />
@@ -132,8 +140,6 @@ export default function LeftToolbar({
               <Btn icon={<Upload size={15} />}   label="匯入 GPX"   onClick={onImportGPX}  color="slate" small />
               <Btn icon={<Download size={15} />} label="匯出 GPX"   onClick={onExportGPX}  color="slate" small disabled={!hasRoute} />
             </Group>
-
-            {/* Processing dot */}
             {isProcessing && (
               <div className="flex justify-center pt-1">
                 <motion.div
@@ -147,7 +153,6 @@ export default function LeftToolbar({
         )}
       </AnimatePresence>
 
-      {/* 🟢 核心：收摺/展開小按鈕（永遠留在畫面上供點擊） */}
       <motion.button
         onClick={() => setIsCollapsed(!isCollapsed)}
         whileHover={{ scale: 1.1 }}
@@ -166,7 +171,6 @@ export default function LeftToolbar({
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
@@ -181,7 +185,6 @@ function Divider() {
 }
 
 type BtnColor = 'emerald' | 'amber' | 'slate' | 'rose';
-
 const COLORS: Record<BtnColor, { active: string; hover: string }> = {
   emerald: { active: 'bg-emerald-500/25 border-emerald-500/50 text-emerald-300', hover: 'hover:bg-emerald-500/15 hover:text-emerald-400' },
   amber:   { active: 'bg-amber-500/25  border-amber-500/50  text-amber-300',     hover: 'hover:bg-amber-500/15  hover:text-amber-400' },

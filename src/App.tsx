@@ -11,6 +11,7 @@ import { useItineraryData } from './hooks/useItineraryData';
 import { exportGPX } from './lib/gpxExport';
 import { saveAs } from 'file-saver';
 import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './types';
+import { hk80ToWgs84 } from './utils/coordUtils';
 
 
 
@@ -44,70 +45,76 @@ export default function App() {
     addWaypoint(latlng);
   }, [isProcessing, addWaypoint]);
 
-  const goToLocation = useCallback(async (input: string) => {
+  const goToLocation = useCallback(async (input: string, mode: 'utm' | 'hk80' | 'latlng') => {
     const cleanInput = input.trim();
     if (!cleanInput) return;
 
     try {
-      // 1. 🚀 優先匹配：檢查是否為路程表中的已知座標 (Exact Match)
-      const matchIdx = materials?.findIndex((m: any) => m.grid === cleanInput);
-      if (matchIdx !== -1 && waypoints[matchIdx]) {
-        setSearchLocation(waypoints[matchIdx].latlng);
-        return;
-      }
-
-      // 2. 專業 UTM 縮寫解析 (e.g. "50Q KK 0670 2346")
-      const utmMatch = cleanInput.match(/^(\d{2}[A-Z])?\s*([A-Z]{2})\s*(\d{4})\s*(\d{4})$/i);
-      if (utmMatch) {
-        const square = utmMatch[2].toUpperCase();
-        const rawE = utmMatch[3];
-        const rawN = utmMatch[4];
+      if (mode === 'utm') {
+        const normalizedInput = cleanInput.toUpperCase().replace(/\s+/g, ' ');
         
-        const squareMap: Record<string, [string, string]> = {
-          'KK': ['83', '82'], 'JK': ['83', '81'], 'HE': ['81', '82'], 'GE': ['81', '81'],
-          'LK': ['84', '82'], 'MK': ['84', '81'], 'KE': ['82', '82'], 'JE': ['82', '81'],
-        };
-
-        const prefix = squareMap[square];
-        if (prefix) {
-          const easting = `${prefix[0]}${rawE}`;
-          const northing = `${prefix[1]}${rawN}`;
-          const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${easting}&n=${northing}`);
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data.wgsLat && data.wgsLong) {
-              setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
-              return;
-            }
-          }
-        } else {
-          throw new Error(`未知的方格碼 ${square}。請輸入 6 位全座標或直接複製路程表座標。`);
-        }
-      }
-
-      // 3. Try Full HK80 or LatLng (6 digits)
-      const parts = cleanInput.split(/[\s,]+/).filter(Boolean);
-      if (parts.length === 2) {
-        const val1 = parseFloat(parts[0]);
-        const val2 = parseFloat(parts[1]);
-        if (!isNaN(val1) && !isNaN(val2)) {
-          if (Math.abs(val1) < 180 && Math.abs(val2) < 180) {
-            setSearchLocation({ lat: val1, lng: val2 });
+        // 1. 🚀 絕對優先：匹配路程表 (只有在 UTM 模式下才檢查)
+        if (materials && materials.length > 0) {
+          const matchIdx = materials.findIndex((m: any) => 
+            m.grid?.toUpperCase().replace(/\s+/g, ' ') === normalizedInput
+          );
+          if (matchIdx !== -1 && waypoints[matchIdx]) {
+            setSearchLocation(waypoints[matchIdx].latlng);
             return;
-          } else {
-            const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${val1}&n=${val2}`);
-            if (resp.ok) {
-              const data = await resp.json();
-              if (data.wgsLat && data.wgsLong) {
-                setSearchLocation({ lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) });
-                return;
-              }
-            }
           }
         }
+
+        // 2. UTM 縮寫 $\rightarrow$ 全座標 $\rightarrow$ 數學轉換
+        const utmMatch = cleanInput.match(/^(\d{2}[A-Z])?\s*([A-Z]{2})\s*(\d{4})\s*(\d{4})$/i);
+        if (utmMatch) {
+          const square = utmMatch[2].toUpperCase();
+          const rawE = utmMatch[3];
+          const rawN = utmMatch[4];
+          const squareMap: Record<string, [string, string]> = {
+            'KK': ['83', '82'], 'JK': ['83', '81'], 'HE': ['81', '82'], 'GE': ['81', '81'],
+            'LK': ['84', '82'], 'MK': ['84', '81'], 'KE': ['82', '82'], 'JE': ['82', '81'],
+            'FK': ['80', '82'], 'GK': ['80', '81'], 'FE': ['80', '82'], 
+            'AK': ['79', '82'], 'BK': ['79', '81'],
+          };
+          const prefix = squareMap[square];
+          if (prefix) {
+            const easting = parseInt(`${prefix[0]}${rawE}`, 10);
+            const northing = parseInt(`${prefix[1]}${rawN}`, 10);
+            const coords = hk80ToWgs84(northing, easting);
+            setSearchLocation(coords);
+            return;
+          }
+          throw new Error(`無法辨識方格碼 "${square}"。`);
+        }
+        throw new Error('UTM 格式不正確。請使用: 50Q KK 0670 2346');
       }
-      
-      throw new Error('無法識別的格式。請使用 "經緯度", "50Q KK 0670 2346" 或 "830670 82346"。');
+
+      if (mode === 'hk80') {
+        const parts = cleanInput.split(/[\s,]+/).filter(Boolean);
+        if (parts.length === 2) {
+          const easting = parseFloat(parts[0]);
+          const northing = parseFloat(parts[1]);
+          if (!isNaN(easting) && !isNaN(northing)) {
+            const coords = hk80ToWgs84(northing, easting);
+            setSearchLocation(coords);
+            return;
+          }
+        }
+        throw new Error('HK80 格式不正確。請使用: 830670 82346');
+      }
+
+      if (mode === 'latlng') {
+        const parts = cleanInput.split(/[\s,]+/).filter(Boolean);
+        if (parts.length === 2) {
+          const lat = parseFloat(parts[0]);
+          const lng = parseFloat(parts[1]);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            setSearchLocation({ lat, lng });
+            return;
+          }
+        }
+        throw new Error('經緯度格式不正確。請使用: 22.3, 114.1');
+      }
     } catch (e: any) {
       alert(e.message || 'Invalid coordinates');
     }
