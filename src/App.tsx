@@ -7,6 +7,7 @@ import LeftToolbar from './components/Toolbar/LeftToolbar';
 import RightPanel from './components/RightPanel/RightPanel';
 import { useRouteManager } from './hooks/useRouteManager';
 import { useTerrainAnalysis } from './hooks/useTerrainAnalysis';
+import { useItineraryData } from './hooks/useItineraryData';
 import { exportGPX } from './lib/gpxExport';
 import { saveAs } from 'file-saver';
 import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './types';
