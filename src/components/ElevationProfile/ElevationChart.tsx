@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { ElevationProfilePoint, RouteStats, WaypointMarker, RouteSegment, NaismithSettings } from '../../types';
 import { hoverSync } from '../../utils/hoverSync';
+import { calculateBearing } from '../../utils/coordUtils';
 
 import { useItineraryData } from '../../hooks/useItineraryData';
 import * as XLSX from 'xlsx';
