@@ -490,13 +490,15 @@ export default function ElevationChart({
 
       {activeTab === 'chart' ? (
         <div className="flex-1 min-h-0 relative" ref={chartContainerRef}>
-          {/* 🚀 CSS 實時懸停線：完全脫離 Recharts 渲染週期 */}
+          {/* 🚀 登山者 Marker：沿著曲線移動的發光圓點 */}
           <div 
             ref={hoverLineRef}
             style={{
-              position: 'absolute', top: 0, bottom: 0, width: '2px', 
-              backgroundColor: '#fff', boxShadow: '0 0 8px rgba(255,255,255,0.8)',
-              zIndex: 10, pointerEvents: 'none', opacity: 0, transition: 'opacity 0.2s'
+              position: 'absolute', width: '10px', height: '10px', 
+              backgroundColor: '#fff', border: '2px solid #3b82f6', 
+              borderRadius: '50%', zIndex: 10, pointerEvents: 'none', 
+              opacity: 0, boxShadow: '0 0 10px #3b82f6',
+              transition: 'opacity 0.2s'
             }}
           />
           <ResponsiveContainer width="100%" height="100%">
@@ -507,6 +509,7 @@ export default function ElevationChart({
               onMouseLeave={onLeave} 
               margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
             >
+
 
               <defs>
                 <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
