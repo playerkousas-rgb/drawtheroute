@@ -67,38 +67,57 @@ export default React.memo(function MapCore({
   const onRouteClickRef    = useRef(onRouteClick);
   useEffect(() => { onRouteClickRef.current = onRouteClick; },    [onRouteClick]);
 
-  const getClosestPointOnRoute = (latlng: L.LatLng) => {
+export default React.memo(function MapCore({
+  segments, waypoints, mapLayer,
+  onRouteClick, isProcessing,
+  searchLocation, onSearchCleared,
+  externalDistance, onCursorMove,
+}: MapCoreProps) {
+  const divRef    = useRef<HTMLDivElement>(null);
+  const coordRef   = useRef<HTMLDivElement>(null);
+  const mapRef    = useRef<L.Map | null>(null);
+  const tileRef   = useRef<L.TileLayer | null>(null);
+  const routeGrp  = useRef<L.LayerGroup | null>(null);
+  const wpGrp     = useRef<L.LayerGroup | null>(null);
+  const progressGrp    = useRef<L.LayerGroup | null>(null);
+  const cursorMarkerRef = useRef<L.Marker | null>(null);
+
+  const onRouteClickRef    = useRef(onRouteClick);
+  useEffect(() => { onRouteClickRef.current = onRouteClick; },    [onRouteClick]);
+
+  // --- 🚀 核心優化：極速路徑投影算法 ---
+  const projectToRoute = (latlng: L.LatLng) => {
     if (!segments.length) return null;
     let minDistance = Infinity;
     let closestPt: {lat: number, lng: number, distFromStart: number} | null = null;
     let accumulatedDist = 0;
 
-    segments.forEach(seg => {
+    for (const seg of segments) {
       let segAccumulatedDist = 0;
       for (let i = 0; i < seg.points.length - 1; i++) {
         const p1 = seg.points[i];
         const p2 = seg.points[i+1];
-        const x = p1.lng; const y = p1.lat;
-        const dx = p2.lng - p1.lng; const dy = p2.lat - p1.lat;
-        const segmentLenSq = dx*dx + dy*dy;
+        const dx = p2.lng - p1.lng;
+        const dy = p2.lat - p1.lat;
+        const lenSq = dx*dx + dy*dy;
         
-        let clampedT = 0;
-        if (segmentLenSq > 0) {
-          clampedT = Math.max(0, Math.min(1, ((latlng.lng - x) * dx + (latlng.lat - y) * dy) / segmentLenSq));
+        let t = 0;
+        if (lenSq > 0) {
+          t = Math.max(0, Math.min(1, ((latlng.lng - p1.lng) * dx + (latlng.lat - p1.lat) * dy) / lenSq));
         }
         
-        const closest = { lat: y + clampedT * dy, lng: x + clampedT * dx };
+        const closest = { lat: p1.lat + t * dy, lng: p1.lng + t * dx };
         const d = Math.sqrt(Math.pow(latlng.lat - closest.lat, 2) + Math.pow(latlng.lng - closest.lng, 2));
         
         if (d < minDistance) {
           minDistance = d;
-          const currentSubSegLen = Math.sqrt(segmentLenSq);
-          closestPt = { ...closest, distFromStart: accumulatedDist + segAccumulatedDist + clampedT * currentSubSegLen };
+          const segLen = Math.sqrt(lenSq);
+          closestPt = { ...closest, distFromStart: accumulatedDist + segAccumulatedDist + t * segLen };
         }
-        segAccumulatedDist += Math.sqrt(segmentLenSq);
+        segAccumulatedDist += Math.sqrt(lenSq);
       }
       accumulatedDist += seg.distance; 
-    });
+    }
     return closestPt;
   };
 
@@ -115,8 +134,8 @@ export default React.memo(function MapCore({
 
     const cursorIcon = L.divIcon({
       className: '',
-      html: `<div style="width:16px; height:16px; background:#ccff00; border:3px solid white; border-radius:50%; box-shadow:0 0 15px #ccff00; z-index:10000"></div>`,
-      iconSize: [16, 16], iconAnchor: [8, 8]
+      html: `<div style="width:12px; height:12px; background:#fff; border:2px solid #3b82f6; border-radius:50%; box-shadow:0 0 8px rgba(59,130,246,0.8); z-index:10000"></div>`,
+      iconSize: [12, 12], iconAnchor: [6, 6]
     });
 
     cursorMarkerRef.current = L.marker([22.3964, 114.1095], {
@@ -125,16 +144,32 @@ export default React.memo(function MapCore({
       zIndexOffset: 10000
     }).addTo(map);
 
+    // 🚀 監聽事件總線：直接操作 DOM，跳過 React 渲染
+    const unsubscribe = hoverSync.subscribe((point, source) => {
+      if (source === 'chart' && point && cursorMarkerRef.current) {
+        // 直接移動 Marker，實現 0 延遲
+        cursorMarkerRef.current.setLatLng([point.lat, point.lng]);
+      }
+    });
+
     cursorMarkerRef.current.on('drag', (e) => {
       const pos = e.target.getLatLng();
-      const closest = getClosestPointOnRoute(pos) as {lat: number, lng: number, distFromStart: number} | null;
+      const closest = projectToRoute(pos);
       if (closest) {
         e.target.setLatLng([closest.lat, closest.lng]);
         onCursorMove(closest.distFromStart, { lat: closest.lat, lng: closest.lng });
+        // 同步回圖表
+        hoverSync.emit({ 
+          lat: closest.lat, 
+          lng: closest.lng, 
+          distance: closest.distFromStart, 
+          elevation: 0 
+        }, 'map');
       }
     });
 
     map.on('mousemove', (e) => {
+      // 1. 更新坐標儀表板 (直接 DOM)
       if (!coordRef.current) return;
       const { lat, lng } = e.latlng;
       const hk80 = wgs84ToHk80(lat, lng);
@@ -143,14 +178,54 @@ export default React.memo(function MapCore({
         <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
         <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>
       `;
+
+      // 2. 🚀 同步到剖面圖：將鼠標位置投影到路徑並發送
+      const closest = projectToRoute(e.latlng);
+      if (closest) {
+        hoverSync.emit({
+          lat: closest.lat,
+          lng: closest.lng,
+          distance: closest.distFromStart,
+          elevation: 0 // elevation 可由 Chart 端根據 distance 補全
+        }, 'map');
+      }
     });
 
     map.on('click', (e: L.LeafletMouseEvent) => {
       onRouteClickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
     });
 
-    return () => { map.remove(); mapRef.current = null; };
+    return () => { 
+      unsubscribe();
+      map.remove(); 
+      mapRef.current = null; 
+    };
   }, []);
+
+  // 保持對 externalDistance 的響應（用於點擊圖表跳轉）
+  useEffect(() => {
+    if (!cursorMarkerRef.current || externalDistance === undefined) return;
+    let currentDist = 0;
+    let found = false;
+    for (const seg of segments) {
+      if (currentDist + seg.distance >= externalDistance) {
+        const ratio = (externalDistance - currentDist) / seg.distance;
+        const p1 = seg.points[0];
+        const p2 = seg.points[seg.points.length - 1];
+        const lat = p1.lat + ratio * (p2.lat - p1.lat);
+        const lng = p1.lng + ratio * (p2.lng - p1.lng);
+        cursorMarkerRef.current.setLatLng([lat, lng]);
+        found = true;
+        break;
+      }
+      currentDist += seg.distance;
+    }
+    if (!found && segments.length > 0) {
+      const lastPt = segments[segments.length - 1].points[segments[segments.length - 1].points.length - 1];
+      cursorMarkerRef.current.setLatLng([lastPt.lat, lastPt.lng]);
+    }
+  }, [externalDistance, segments]);
+
 
   useEffect(() => {
     if (!cursorMarkerRef.current || externalDistance === undefined) return;

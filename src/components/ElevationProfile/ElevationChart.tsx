@@ -185,11 +185,32 @@ export default function ElevationChart({
     }
   }, [externalDistance, profile, onHoverPoint]);
 
+  // 🚀 監聽地圖同步：直接更新圖表懸停狀態
+  useEffect(() => {
+    const unsubscribe = hoverSync.subscribe((point, source) => {
+      if (source === 'map' && point && profile.length > 0) {
+        setHoverX(point.distance);
+        // 尋找最接近的剖面點以觸發 Tooltip
+        let closest = profile[0];
+        let minDiff = Math.abs(profile[0].distance - point.distance);
+        for (const p of profile) {
+          const diff = Math.abs(p.distance - point.distance);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closest = p;
+          }
+        }
+        onHoverPoint(closest);
+      }
+    });
+    return unsubscribe;
+  }, [profile, onHoverPoint]);
+
   const onMove = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {
       const pt = e.activePayload[0].payload as ElevationProfilePoint;
       setHoverX(pt.distance);
-      hoverSync.emit(pt);     // 🚀 Fast sync
+      hoverSync.emit(pt, 'chart');     // 🚀 指定來源為 chart
     }
   }, []);
 
