@@ -333,23 +333,24 @@ export default React.memo(function MapCore({
         ref={divRef}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       />
-      {/* 📍 Real-time Coordinate Display */}
+      {/* 📍 Real-time Coordinate Display (Top Right - Professional GIS style) */}
       <div
         ref={coordRef}
         style={{
           position: 'absolute',
-          bottom: 20,
+          top: 20,
           right: 20,
-          padding: '6px 12px',
+          padding: '8px 14px',
           background: 'rgba(8, 14, 28, 0.85)',
-          backdropFilter: 'blur(8px)',
+          backdropFilter: 'blur(12px)',
           border: '1px solid rgba(148, 163, 184, 0.3)',
-          borderRadius: '8px',
+          borderRadius: '10px',
           zIndex: 10000,
           pointerEvents: 'none',
           fontFamily: 'monospace',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-          textAlign: 'right'
+          boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+          textAlign: 'right',
+          borderRight: '4px solid #34d399'
         }}
       />
     </div>
