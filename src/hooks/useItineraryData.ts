@@ -69,26 +69,27 @@ export const useItineraryData = (
           bearing = calculateBearing(wp.latlng.lat, wp.latlng.lng, nextLoc.lat, nextLoc.lng);
         }
 
-        // 🎯 核心修正：統一使用 HKGrid 座標的後四位，確保與搜尋功能 100% 一致
+        // 🎯 核心修正：統一使用 HKGrid 座標的整數後四位，確保與搜尋功能 100% 一致
         let gridStr = "Calculating...";
         try {
           const resp1 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=hkgrid&lat=${wp.latlng.lat}&long=${wp.latlng.lng}`);
           if (resp1.ok) {
             const data1 = await resp1.json();
             if (data1.hkE && data1.hkN) {
-              const hkE = data1.hkE.toString();
-              const hkN = data1.hkN.toString();
+              // 🚀 重要修正：必須先四捨五入為整數，防止出現 .xxx 這種浮點數碎片
+              const roundedE = Math.round(data1.hkE).toString();
+              const roundedN = Math.round(data1.hkN).toString();
               
-              const resp2 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${hkE}&n=${hkN}`);
+              const resp2 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${roundedE}&n=${roundedN}`);
               if (resp2.ok) {
                 const data2 = await resp2.json();
                 if (data2.utmGridZone && data2.utmRefZone) {
                   const zone = data2.utmGridZone; // "50Q"
                   const square = data2.utmRefZone.split('-')[1] || "XX"; // "KK"
                   
-                  // 🚀 重要修正：使用 HKGrid 的後四位，而非 API 返回的 UTM 座標後四位
-                  const easting = hkE.slice(-4).padStart(4, '0');
-                  const northing = hkN.slice(-4).padStart(4, '0');
+                  // 提取整數部分的後四位
+                  const easting = roundedE.slice(-4).padStart(4, '0');
+                  const northing = roundedN.slice(-4).padStart(4, '0');
                   gridStr = `${zone} ${square} ${easting} ${northing}`;
                 }
               }
