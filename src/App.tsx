@@ -127,6 +127,7 @@ export default function App() {
         isProcessing={isProcessing}
         searchLocation={searchLocation}
         onSearchCleared={() => setSearchLocation(null)}
+        profile={elevationProfile}
         externalDistance={cursorDistance}
         onCursorMove={handleCursorMove}
       />

@@ -16,7 +16,8 @@ interface MapCoreProps {
   isProcessing: boolean;
   searchLocation: LatLng | null;
   onSearchCleared: () => void;
-  // 🚀 For bidirectional sync
+  // 🚀 數據對位：直接傳入剖面圖的所有點
+  profile: ElevationProfilePoint[]; 
   externalDistance?: number;
   onCursorMove: (distance: number, point: LatLng) => void;
 }
@@ -53,7 +54,7 @@ export default React.memo(function MapCore({
   segments, waypoints, mapLayer,
   onRouteClick, isProcessing,
   searchLocation, onSearchCleared,
-  externalDistance, onCursorMove,
+  profile, externalDistance, onCursorMove,
 }: MapCoreProps) {
   const divRef    = useRef<HTMLDivElement>(null);
   const coordRef   = useRef<HTMLDivElement>(null);
@@ -66,42 +67,6 @@ export default React.memo(function MapCore({
 
   const onRouteClickRef    = useRef(onRouteClick);
   useEffect(() => { onRouteClickRef.current = onRouteClick; },    [onRouteClick]);
-
-  // --- 🚀 核心優化：極速路徑投影算法 ---
-  const projectToRoute = (latlng: L.LatLng) => {
-    if (!segments.length) return null;
-    let minDistance = Infinity;
-    let closestPt: {lat: number, lng: number, distFromStart: number} | null = null;
-    let accumulatedDist = 0;
-
-    for (const seg of segments) {
-      let segAccumulatedDist = 0;
-      for (let i = 0; i < seg.points.length - 1; i++) {
-        const p1 = seg.points[i];
-        const p2 = seg.points[i+1];
-        const dx = p2.lng - p1.lng;
-        const dy = p2.lat - p1.lat;
-        const lenSq = dx*dx + dy*dy;
-        
-        let t = 0;
-        if (lenSq > 0) {
-          t = Math.max(0, Math.min(1, ((latlng.lng - p1.lng) * dx + (latlng.lat - p1.lat) * dy) / lenSq));
-        }
-        
-        const closest = { lat: p1.lat + t * dy, lng: p1.lng + t * dx };
-        const d = Math.sqrt(Math.pow(latlng.lat - closest.lat, 2) + Math.pow(latlng.lng - closest.lng, 2));
-        
-        if (d < minDistance) {
-          minDistance = d;
-          const segLen = Math.sqrt(lenSq);
-          closestPt = { ...closest, distFromStart: accumulatedDist + segAccumulatedDist + t * segLen };
-        }
-        segAccumulatedDist += Math.sqrt(lenSq);
-      }
-      accumulatedDist += seg.distance; 
-    }
-    return closestPt;
-  };
 
   useEffect(() => {
     if (!divRef.current || mapRef.current) return;
@@ -116,8 +81,19 @@ export default React.memo(function MapCore({
 
     const cursorIcon = L.divIcon({
       className: '',
-      html: `<div style="width:12px; height:12px; background:#fff; border:2px solid #3b82f6; border-radius:50%; box-shadow:0 0 8px rgba(59,130,246,0.8); z-index:10000"></div>`,
-      iconSize: [12, 12], iconAnchor: [6, 6]
+      html: `
+        <div style="position:relative; width:20px; height:20px; display:flex; align-items:center; justify-content:center;">
+          <div style="position:absolute; width:6px; height:6px; background:#fff; border:2px solid #3b82f6; border-radius:50%; z-index:10; box-shadow:0 0 10px #3b82f6;"></div>
+          <div style="position:absolute; width:100%; height:100%; border:2px solid #3b82f6; border-radius:50%; animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; opacity: 0;"></div>
+          <style>
+            @keyframes pulse-ring {
+              0% { transform: scale(0.33); opacity: 0.8; }
+              80%, 100% { transform: scale(1.5); opacity: 0; }
+            }
+          </style>
+        </div>
+      `,
+      iconSize: [20, 20], iconAnchor: [10, 10]
     });
 
     cursorMarkerRef.current = L.marker([22.3964, 114.1095], {
@@ -126,32 +102,41 @@ export default React.memo(function MapCore({
       zIndexOffset: 10000
     }).addTo(map);
 
-    // 🚀 監聽事件總線：直接操作 DOM，實現 0 延遲吸附
-    const unsubscribe = hoverSync.subscribe((point, source) => {
-      if (point && cursorMarkerRef.current) {
-        // 不論來源是 'chart' 還是 'map'，只要有路徑點，游標就立即吸附過去
-        cursorMarkerRef.current.setLatLng([point.lat, point.lng]);
+    // 🚀 數據對位同步：直接根據 profile 點移動 + 觸發視覺閃爍
+    const unsubscribe = hoverSync.subscribe((payload, source) => {
+      if (payload && cursorMarkerRef.current) {
+        // 1. 立即移動到對應座標
+        cursorMarkerRef.current.setLatLng([payload.lat, payload.lng]);
+        
+        // 2. 觸發「漲起來」的動畫效果 (透過重新賦值 HTML 強制瀏覽器重繪動畫)
+        const el = cursorMarkerRef.current.getElement();
+        if (el) {
+          const iconDiv = el.querySelector('.leaflet-marker-icon');
+          if (iconDiv) {
+            // 輕微抖動或重新觸發動畫
+            iconDiv.style.animation = 'none';
+            iconDiv.offsetHeight; // trigger reflow
+            iconDiv.style.animation = '';
+          }
+        }
       }
     });
 
     cursorMarkerRef.current.on('drag', (e) => {
       const pos = e.target.getLatLng();
-      const closest = projectToRoute(pos);
-      if (closest) {
-        e.target.setLatLng([closest.lat, closest.lng]);
-        onCursorMove(closest.distFromStart, { lat: closest.lat, lng: closest.lng });
-        // 同步回圖表
-        hoverSync.emit({ 
-          lat: closest.lat, 
-          lng: closest.lng, 
-          distance: closest.distFromStart, 
-          elevation: 0 
-        }, 'map');
+      // 尋找 profile 中最近的點，確保游標永遠在「剖面圖定義的點」上
+      let closest = profile[0];
+      let minD = Infinity;
+      for (const p of profile) {
+        const d = Math.pow(p.lat - pos.lat, 2) + Math.pow(p.lng - pos.lng, 2);
+        if (d < minD) { minD = d; closest = p; }
       }
+      e.target.setLatLng([closest.lat, closest.lng]);
+      onCursorMove(closest.distance, { lat: closest.lat, lng: closest.lng });
+      hoverSync.emit(closest, 'map');
     });
 
     map.on('mousemove', (e) => {
-      // 1. 更新坐標儀表板 (直接 DOM)
       if (!coordRef.current) return;
       const { lat, lng } = e.latlng;
       const hk80 = wgs84ToHk80(lat, lng);
@@ -161,15 +146,20 @@ export default React.memo(function MapCore({
         <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>
       `;
 
-      // 2. 🚀 同步到剖面圖：將鼠標位置投影到路徑並發送
-      const closest = projectToRoute(e.latlng);
-      if (closest) {
-        hoverSync.emit({
-          lat: closest.lat,
-          lng: closest.lng,
-          distance: closest.distFromStart,
-          elevation: 0 
-        }, 'map');
+      // 🚀 核心同步：在地圖上移動時，尋找 profile 陣列中最近的那個點
+      if (profile.length > 0) {
+        let closest = profile[0];
+        let minD = Infinity;
+        for (const p of profile) {
+          const d = Math.pow(p.lat - lat, 2) + Math.pow(p.lng - lng, 2);
+          if (d < minD) { minD = d; closest = p; }
+        }
+        // 立即同步該點到剖面圖
+        hoverSync.emit(closest, 'map');
+        // 讓地圖游標也吸附到這個點上
+        if (cursorMarkerRef.current) {
+          cursorMarkerRef.current.setLatLng([closest.lat, closest.lng]);
+        }
       }
     });
 
@@ -182,9 +172,9 @@ export default React.memo(function MapCore({
       map.remove(); 
       mapRef.current = null; 
     };
-  }, []);
+  }, [profile]);
 
-  // 保持對 externalDistance 的響應（用於點擊圖表跳轉）
+  // 保持對 externalDistance 的響應
   useEffect(() => {
     if (!cursorMarkerRef.current || externalDistance === undefined) return;
     let currentDist = 0;
@@ -207,6 +197,7 @@ export default React.memo(function MapCore({
       cursorMarkerRef.current.setLatLng([lastPt.lat, lastPt.lng]);
     }
   }, [externalDistance, segments]);
+
 
   useEffect(() => {
     const map = mapRef.current;
