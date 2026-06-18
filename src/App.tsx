@@ -11,7 +11,7 @@ import { useItineraryData } from './hooks/useItineraryData';
 import { exportGPX } from './lib/gpxExport';
 import { saveAs } from 'file-saver';
 import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './types';
-import { hk80ToWgs84 } from './utils/coordUtils';
+import { hk80ToWgs84, wgs84ToHk80, formatToHk80Shorthand } from './utils/coordUtils';
 
 
 
@@ -68,19 +68,18 @@ export default function App() {
           }
         }
 
-        // 2. 專業 8 位坐標解析 (支持: "KK 0670 2346" 或 "0670 2346")
-        const utmMatch = cleanInput.match(/^([A-Z]{2})?\s*(\d{4})\s*(\d{4})$/i);
+        // 2. 專業坐標解析 (支持: "50Q KK 0670 2346", "KK 0670 2346", 或 "0670 2346")
+        const utmMatch = cleanInput.match(/^([45]0[PQ])?\s*([A-Z]{2})?\s*(\d{4})\s*(\d{4})$/i);
         if (utmMatch) {
-          let square = utmMatch[1]?.toUpperCase();
-          const rawE = utmMatch[2];
-          const rawN = utmMatch[3];
+          const zone = utmMatch[1]?.toUpperCase(); // e.g. 50Q
+          let square = utmMatch[2]?.toUpperCase(); // e.g. KK
+          const rawE = utmMatch[3];
+          const rawN = utmMatch[4];
           
           // 如果沒有方格碼，嘗試從現有路點中智能推斷方格碼
           if (!square && waypoints.length > 0) {
             const sampleWp = waypoints[0];
             const sampleHk80 = wgs84ToHk80(sampleWp.latlng.lat, sampleWp.latlng.lng);
-            // 這裡簡化處理：使用第一個路點的方格碼作為基準
-            // 在實際專業 GIS 中會根據 8 位數範圍推斷，但對童軍計劃書，通常路徑在同一方格內
             const sampleShorthand = formatToHk80Shorthand(sampleHk80.easting, sampleHk80.northing);
             square = sampleShorthand.split(' ')[0];
           }
