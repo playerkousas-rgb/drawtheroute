@@ -507,7 +507,6 @@ export default function ElevationChart({
                   stroke="#3b82f6" 
                   strokeWidth={2}
                   filter="url(#glow)"
-                  isAnimationActive={false}
                 />
               )}
             </AreaChart>
