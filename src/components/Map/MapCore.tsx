@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -64,53 +64,35 @@ function makeWpIcon(wp: WaypointMarker, idx: number): L.DivIcon {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [7, 12] });
 }
 
-// ── User Position marker HTML ──────────────────────────────────────────
-function makeUserPosIcon(): L.DivIcon {
+// ── User Position marker HTML (Neon Pulse) ──────────────────────────
+function makeHoverIcon(): L.DivIcon {
   return L.divIcon({
     className: '',
     html: `
       <div style="
-        display:flex; align-items:center; gap:5px;
-        background:rgba(30,58,138,0.92);
-        border:2px solid #60a5fa;
-        border-radius:20px;
-        padding:3px 8px 3px 4px;
-        box-shadow:0 0 15px rgba(96,165,250,0.6);
-        white-space:nowrap;
-        pointer-events:none;
-        font-family:'Noto Sans TC',sans-serif;
-        animation: pulse 2s infinite;
-      ">
-        <div style="
-          width:9px; height:9px; border-radius:50%;
-          background:#fff; border:2px solid #60a5fa;
-          box-shadow:0 0 8px #fff; flex-shrink:0;
-        "></div>
-        <span style="color:#fff; font-size:11px; font-weight:bold; line-height:1;">目前位置</span>
-      </div>
+        position: relative;
+        width: 16px; height: 16px;
+        background: #bc13fe;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 0 15px #bc13fe, 0 0 5px #fff;
+        animation: marker-pulse 1.5s infinite;
+        z-index: 9999;
+      "></div>
       <style>
-        @keyframes pulse {
-          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(96,165,250, 0.7); }
-          70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(96,165,250, 0); }
-          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(96,165,250, 0); }
+        @keyframes marker-pulse {
+          0% { box-shadow: 0 0 0 0 rgba(188, 19, 254, 0.7); transform: scale(1); }
+          70% { box-shadow: 0 0 0 15px rgba(188, 19, 254, 0); transform: scale(1.2); }
+          100% { box-shadow: 0 0 0 0 rgba(188, 19, 254, 0); transform: scale(1); }
         }
       </style>
     `,
-    iconSize: [0, 0],
-    iconAnchor: [7, 12]
+    iconSize: [16, 16],
+    iconAnchor: [8, 8]
   });
 }
 
-// Hover crosshair
-const hoverIcon = L.divIcon({
-
-  className: '',
-  html: `<div style="width:16px;height:16px;background:#60a5fa;border:3px solid #fff;border-radius:50%;box-shadow:0 0 14px #60a5fa"></div>`,
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
-});
-
-export default function MapCore({
+export default React.memo(function MapCore({
   segments, waypoints, mapLayer,
   onRouteClick, hoveredPoint, isProcessing,
   searchLocation, onSearchCleared,
@@ -121,10 +103,7 @@ export default function MapCore({
   const routeGrp  = useRef<L.LayerGroup | null>(null);
   const wpGrp     = useRef<L.LayerGroup | null>(null);
   const hoverRef  = useRef<L.CircleMarker | null>(null);
-  const progressLineRef = useRef<L.Polyline | null>(null);
   const progressGrp    = useRef<L.LayerGroup | null>(null);
-
-
 
   // Keep latest callbacks in refs to avoid stale closures
   const onRouteClickRef    = useRef(onRouteClick);
@@ -259,14 +238,14 @@ export default function MapCore({
 
     if (hoveredPoint) {
       if (!hoverRef.current) {
-        // 創建一個極其顯眼的 CircleMarker
+        // 創建一個最簡單、最高對比度的圓形標記
         const marker = L.circleMarker(
           [hoveredPoint.lat, hoveredPoint.lng],
           {
-            radius: 10,
-            fillColor: '#00ffff',
+            radius: 8,
+            fillColor: '#00ffff', // 亮青色，極其顯眼
             color: '#ffffff',
-            weight: 3,
+            weight: 2,
             opacity: 1,
             fillOpacity: 1,
           }
@@ -281,11 +260,13 @@ export default function MapCore({
 
         hoverRef.current = marker;
       } else {
-        // 更新位置
+        // 僅更新位置，不重新創建
         hoverRef.current.setLatLng([hoveredPoint.lat, hoveredPoint.lng]);
       }
-      // CircleMarker 沒有 bringToFront, 但在 Canvas 模式下-
-      // 只要它是最後被添加的- 且不斷 setLatLng, 它可以保持在頂層
+      // 強制將標記移至最頂層 (對抗 Canvas 遮擋)
+      if (hoverRef.current) {
+        hoverRef.current.bringToFront();
+      }
     } else {
       if (hoverRef.current) {
         map.removeLayer(hoverRef.current);
@@ -293,6 +274,7 @@ export default function MapCore({
       }
     }
   }, [hoveredPoint]);
+
 
 
 
@@ -343,3 +325,4 @@ export default function MapCore({
     />
   );
 }
+)
