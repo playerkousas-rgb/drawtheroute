@@ -1,8 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { hoverSync } from '../../utils/hoverSync';
 import {
   LatLng, RouteSegment, WaypointMarker,
+
   MapLayer, ElevationProfilePoint,
 } from '../../types';
 
@@ -11,7 +13,6 @@ interface MapCoreProps {
   waypoints: WaypointMarker[];
   mapLayer: MapLayer;
   onRouteClick: (latlng: LatLng) => void;
-  hoveredPoint: ElevationProfilePoint | null;
   isProcessing: boolean;
   searchLocation: LatLng | null;
   onSearchCleared: () => void;
@@ -94,11 +95,13 @@ function makeHoverIcon(): L.DivIcon {
 
 export default React.memo(function MapCore({
   segments, waypoints, mapLayer,
-  onRouteClick, hoveredPoint, isProcessing,
+  onRouteClick, isProcessing,
   searchLocation, onSearchCleared,
 }: MapCoreProps) {
   const divRef    = useRef<HTMLDivElement>(null);
+  const dotRef    = useRef<HTMLDivElement>(null);
   const mapRef    = useRef<L.Map | null>(null);
+
   const tileRef   = useRef<L.TileLayer | null>(null);
   const routeGrp  = useRef<L.LayerGroup | null>(null);
   const wpGrp     = useRef<L.LayerGroup | null>(null);
@@ -139,7 +142,20 @@ export default React.memo(function MapCore({
     wpGrp.current    = L.layerGroup().addTo(map);
     progressGrp.current = L.layerGroup().addTo(map);
 
+    // 🟢 Subscription to HoverSync for the DOM Overlay dot
+    const unsubscribeHover = hoverSync.subscribe((point) => {
+      if (!dotRef.current) return;
+      if (point) {
+        const pointPx = map.latLngToContainerPoint([point.lat, point.lng]);
+        dotRef.current.style.transform = `translate(${pointPx.x}px, ${pointPx.y}px)`;
+        dotRef.current.style.opacity = '1';
+      } else {
+        dotRef.current.style.opacity = '0';
+      }
+    });
+
     // Ensure progress group is always on top
+
     map.addLayer(progressGrp.current);
 
     // Map click → add waypoint
@@ -148,7 +164,11 @@ export default React.memo(function MapCore({
       onRouteClickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
     });
 
-    return () => { map.remove(); mapRef.current = null; };
+    return () => { 
+      unsubscribeHover(); 
+      map.remove(); 
+      mapRef.current = null; 
+    };
   }, []); // eslint-disable-line
 
   // ── Tile layer swap ───────────────────────────────────────────────
@@ -231,49 +251,7 @@ export default React.memo(function MapCore({
     });
   }, [waypoints]);
 
-  // ── Elevation profile hover marker ──────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    if (hoveredPoint) {
-      if (!hoverRef.current) {
-        // 創建一個最簡單、最高對比度的圓形標記
-        const marker = L.circleMarker(
-          [hoveredPoint.lat, hoveredPoint.lng],
-          {
-            radius: 8,
-            fillColor: '#00ffff', // 亮青色，極其顯眼
-            color: '#ffffff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 1,
-          }
-        ).addTo(map);
-        
-        marker.bindTooltip('目前位置', {
-          permanent: true,
-          direction: 'top',
-          offset: [0, -10],
-          className: 'user-pos-label'
-        }).openTooltip();
-
-        hoverRef.current = marker;
-      } else {
-        // 僅更新位置，不重新創建
-        hoverRef.current.setLatLng([hoveredPoint.lat, hoveredPoint.lng]);
-      }
-      // 強制將標記移至最頂層 (對抗 Canvas 遮擋)
-      if (hoverRef.current) {
-        hoverRef.current.bringToFront();
-      }
-    } else {
-      if (hoverRef.current) {
-        map.removeLayer(hoverRef.current);
-        hoverRef.current = null;
-      }
-    }
-  }, [hoveredPoint]);
+  // ── Handle search location ──────────────────────────────────────
 
 
 
@@ -319,10 +297,33 @@ export default React.memo(function MapCore({
   }, [segments]);
 
   return (
-    <div
-      ref={divRef}
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }}
-    />
+    <div style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }}>
+      <div
+        ref={divRef}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      />
+      {/* 🚀 High-performance Hover Dot Overlay */}
+      <div
+        ref={dotRef}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: 16,
+          height: 16,
+          backgroundColor: '#00ffff',
+          border: '2px solid white',
+          borderRadius: '50%',
+          boxShadow: '0 0 15px #00ffff, 0 0 5px white',
+          zIndex: 10000,
+          pointerEvents: 'none',
+          opacity: 0,
+          transition: 'opacity 0.1s ease',
+          marginLeft: -8,
+          marginTop: -8,
+        }}
+      />
+    </div>
   );
 }
 )

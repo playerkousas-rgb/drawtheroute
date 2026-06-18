@@ -20,8 +20,8 @@ const DEFAULT_NAISMITH: NaismithSettings = { baseSpeedKmh: 3.5, ascentPer20m: 7,
 export default function App() {
   const [mapLayer, setMapLayer]       = useState<MapLayer>('topo');
   const [naismith, setNaismith]       = useState<NaismithSettings>(DEFAULT_NAISMITH);
-  const [hoveredPt, setHoveredPt]     = useState<ElevationProfilePoint | null>(null);
   const [profileOpen, setProfileOpen] = useState(true);
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchLocation, setSearchLocation] = useState<LatLng | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -153,7 +153,6 @@ export default function App() {
         waypoints={waypoints}
         mapLayer={mapLayer}
         onRouteClick={handleMapClick}
-        hoveredPoint={hoveredPt}
         isProcessing={isProcessing}
         searchLocation={searchLocation}
         onSearchCleared={() => setSearchLocation(null)}
@@ -251,7 +250,6 @@ export default function App() {
               waypoints={waypoints}
               segments={analyzedSegments} // 🟢 原本是 segments，請換成經由 Mapzen 修正後的 analyzedSegments！
               naismithSettings={naismith}
-              onHoverPoint={setHoveredPt}
             />
           </div>
         </div>

@@ -4,7 +4,8 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
 import { ElevationProfilePoint, RouteStats, WaypointMarker, RouteSegment, NaismithSettings } from '../../types';
-import { calculateBearing } from '../../utils/coordUtils';
+import { hoverSync } from '../../utils/hoverSync';
+
 import { useItineraryData } from '../../hooks/useItineraryData';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
@@ -15,7 +16,6 @@ interface Props {
   waypoints: WaypointMarker[];
   segments: RouteSegment[];
   naismithSettings: NaismithSettings;
-  onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
 const CustomTooltip = ({ active, payload }: {
@@ -78,12 +78,9 @@ export default function ElevationChart({
   waypoints,
   segments,
   naismithSettings,
-  onHoverPoint
 }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
-  const onHoverRef = useRef(onHoverPoint);
-  onHoverRef.current = onHoverPoint;
 
   const [coordMode, setCoordMode] = useState<'grid' | 'latlng'>('grid');
   
@@ -168,13 +165,13 @@ export default function ElevationChart({
     if (e?.activePayload?.[0]) {
       const pt = e.activePayload[0].payload as ElevationProfilePoint;
       setHoverX(pt.distance);
-      onHoverRef.current(pt);
+      hoverSync.emit(pt);     // 🚀 Fast sync
     }
   }, []);
 
   const onLeave = useCallback(() => {
     setHoverX(null);
-    onHoverRef.current(null);
+    hoverSync.emit(null);     // 🚀 Fast sync
   }, []);
 
   const handleDownloadChartPNG = async () => {
