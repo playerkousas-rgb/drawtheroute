@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import MapCore from './components/Map/MapCore';
@@ -39,11 +39,20 @@ export default function App() {
     addWaypoint, deleteWaypoint, undoLastSegment, clearAll, importGPX,
   } = useRouteManager();
 
+  useEffect(() => {
+    if (segments.length > 0 && cursorDistance === undefined) {
+      setCursorDistance(0);
+    } else if (segments.length === 0) {
+      setCursorDistance(undefined);
+    }
+  }, [segments.length, cursorDistance]);
+
   const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismith);
   const { materials } = useItineraryData(waypoints, segments, selectedDate);
 
   const handlePointClick = useCallback((pt: ElevationProfilePoint) => {
     setSearchLocation({ lat: pt.lat, lng: pt.lng });
+    setCursorDistance(pt.distance);
   }, []);
 
   const handleCursorMove = useCallback((distance: number, point: LatLng) => {
