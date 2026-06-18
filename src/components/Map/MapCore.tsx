@@ -2,8 +2,10 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { hoverSync } from '../../utils/hoverSync';
+import { wgs84ToHk80, formatToHk80Shorthand } from '../../utils/coordUtils';
 import {
   LatLng, RouteSegment, WaypointMarker,
+
 
   MapLayer, ElevationProfilePoint,
 } from '../../types';
@@ -100,6 +102,7 @@ export default React.memo(function MapCore({
 }: MapCoreProps) {
   const divRef    = useRef<HTMLDivElement>(null);
   const dotRef    = useRef<HTMLDivElement>(null);
+  const coordRef   = useRef<HTMLDivElement>(null);
   const mapRef    = useRef<L.Map | null>(null);
 
   const tileRef   = useRef<L.TileLayer | null>(null);
@@ -154,7 +157,20 @@ export default React.memo(function MapCore({
       }
     });
 
+    // 🟢 Cursor Coordinate Tracking
+    map.on('mousemove', (e) => {
+      if (!coordRef.current) return;
+      const { lat, lng } = e.latlng;
+      const hk80 = wgs84ToHk80(lat, lng);
+      const shorthand = formatToHk80Shorthand(hk80.easting, hk80.northing);
+      coordRef.current.innerHTML = `
+        <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+        <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>
+      `;
+    });
+
     // Ensure progress group is always on top
+
 
     map.addLayer(progressGrp.current);
 
@@ -309,18 +325,37 @@ export default React.memo(function MapCore({
           position: 'absolute',
           left: 0,
           top: 0,
-          width: 16,
-          height: 16,
+          width: 20,
+          height: 20,
           backgroundColor: '#00ffff',
-          border: '2px solid white',
+          border: '3px solid white',
           borderRadius: '50%',
-          boxShadow: '0 0 15px #00ffff, 0 0 5px white',
+          boxShadow: '0 0 20px #00ffff, 0 0 8px white',
           zIndex: 10000,
           pointerEvents: 'none',
           opacity: 0,
           transition: 'opacity 0.1s ease',
-          marginLeft: -8,
-          marginTop: -8,
+          marginLeft: -10,
+          marginTop: -10,
+        }}
+      />
+      {/* 📍 Real-time Coordinate Display */}
+      <div
+        ref={coordRef}
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          right: 20,
+          padding: '6px 12px',
+          background: 'rgba(8, 14, 28, 0.85)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(148, 163, 184, 0.3)',
+          borderRadius: '8px',
+          zIndex: 10000,
+          pointerEvents: 'none',
+          fontFamily: 'monospace',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+          textAlign: 'right'
         }}
       />
     </div>

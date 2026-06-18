@@ -17,6 +17,7 @@ interface Props {
   waypoints: WaypointMarker[];
   segments: RouteSegment[];
   naismithSettings: NaismithSettings;
+  onPointClick: (p: ElevationProfilePoint) => void;
 }
 
 const CustomTooltip = ({ active, payload }: {
@@ -79,6 +80,7 @@ export default function ElevationChart({
   waypoints,
   segments,
   naismithSettings,
+  onPointClick
 }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
@@ -169,6 +171,13 @@ export default function ElevationChart({
       hoverSync.emit(pt);     // 🚀 Fast sync
     }
   }, []);
+
+  const onClickChart = useCallback((e: any) => {
+    if (e?.activePayload?.[0]) {
+      const pt = e.activePayload[0].payload as ElevationProfilePoint;
+      onPointClick(pt);
+    }
+  }, [onPointClick]);
 
   const onLeave = useCallback(() => {
     setHoverX(null);
@@ -414,7 +423,13 @@ export default function ElevationChart({
       {activeTab === 'chart' ? (
         <div className="flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={profile} onMouseMove={onMove} onMouseLeave={onLeave} margin={{ top: 20, right: 16, left: 0, bottom: 4 }}>
+            <AreaChart 
+              data={profile} 
+              onMouseMove={onMove} 
+              onClick={onClickChart}
+              onMouseLeave={onLeave} 
+              margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
+            >
               <defs>
                 <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.4} />

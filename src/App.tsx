@@ -40,6 +40,10 @@ export default function App() {
   const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismith);
   const { materials } = useItineraryData(waypoints, segments, selectedDate);
 
+  const handlePointClick = useCallback((pt: ElevationProfilePoint) => {
+    setSearchLocation({ lat: pt.lat, lng: pt.lng });
+  }, []);
+
   const handleMapClick = useCallback((latlng: LatLng) => {
     if (isProcessing) return;
     addWaypoint(latlng);
@@ -53,7 +57,7 @@ export default function App() {
       if (mode === 'utm') {
         const normalizedInput = cleanInput.toUpperCase().replace(/\s+/g, ' ');
         
-        // 1. 🚀 絕對優先：匹配路程表 (只有在 UTM 模式下才檢查)
+        // 1. 🚀 絕對優先：匹配路程表
         if (materials && materials.length > 0) {
           const matchIdx = materials.findIndex((m: any) => 
             m.grid?.toUpperCase().replace(/\s+/g, ' ') === normalizedInput
@@ -64,27 +68,41 @@ export default function App() {
           }
         }
 
-        // 2. UTM 縮寫 $\rightarrow$ 全座標 $\rightarrow$ 數學轉換
-        const utmMatch = cleanInput.match(/^(\d{2}[A-Z])?\s*([A-Z]{2})\s*(\d{4})\s*(\d{4})$/i);
+        // 2. 專業 8 位坐標解析 (支持: "KK 0670 2346" 或 "0670 2346")
+        const utmMatch = cleanInput.match(/^([A-Z]{2})?\s*(\d{4})\s*(\d{4})$/i);
         if (utmMatch) {
-          const square = utmMatch[2].toUpperCase();
-          const rawE = utmMatch[3];
-          const rawN = utmMatch[4];
-          const squareMap: Record<string, [string, string]> = {
-            'KK': ['83', '82'], 'JK': ['83', '81'], 'HE': ['81', '82'], 'GE': ['81', '81'],
-            'LK': ['84', '82'], 'MK': ['84', '81'], 'KE': ['82', '82'], 'JE': ['82', '81'],
-            'FK': ['80', '82'], 'GK': ['80', '81'], 'FE': ['80', '82'], 
-            'AK': ['79', '82'], 'BK': ['79', '81'],
-          };
-          const prefix = squareMap[square];
-          if (prefix) {
-            const easting = parseInt(`${prefix[0]}${rawE}`, 10);
-            const northing = parseInt(`${prefix[1]}${rawN}`, 10);
-            const coords = hk80ToWgs84(northing, easting);
-            setSearchLocation(coords);
-            return;
+          let square = utmMatch[1]?.toUpperCase();
+          const rawE = utmMatch[2];
+          const rawN = utmMatch[3];
+          
+          // 如果沒有方格碼，嘗試從現有路點中智能推斷方格碼
+          if (!square && waypoints.length > 0) {
+            const sampleWp = waypoints[0];
+            const sampleHk80 = wgs84ToHk80(sampleWp.latlng.lat, sampleWp.latlng.lng);
+            // 這裡簡化處理：使用第一個路點的方格碼作為基準
+            // 在實際專業 GIS 中會根據 8 位數範圍推斷，但對童軍計劃書，通常路徑在同一方格內
+            const sampleShorthand = formatToHk80Shorthand(sampleHk80.easting, sampleHk80.northing);
+            square = sampleShorthand.split(' ')[0];
           }
-          throw new Error(`無法辨識方格碼 "${square}"。`);
+
+          if (square) {
+            const squareMap: Record<string, [string, string]> = {
+              'KK': ['83', '82'], 'JK': ['83', '81'], 'HE': ['81', '82'], 'GE': ['81', '81'],
+              'LK': ['84', '82'], 'MK': ['84', '81'], 'KE': ['82', '82'], 'JE': ['82', '81'],
+              'FK': ['80', '82'], 'GK': ['80', '81'], 'FE': ['80', '82'], 
+              'AK': ['79', '82'], 'BK': ['79', '81'],
+            };
+            const prefix = squareMap[square];
+            if (prefix) {
+              const easting = parseInt(`${prefix[0]}${rawE}`, 10);
+              const northing = parseInt(`${prefix[1]}${rawN}`, 10);
+              const coords = hk80ToWgs84(northing, easting);
+              setSearchLocation(coords);
+              return;
+            }
+            throw new Error(`無法辨識方格碼 "${square}"。`);
+          }
+          throw new Error('請提供方格碼 (例如: KK 0670 2346) 以精確定位。');
         }
         throw new Error('UTM 格式不正確。請使用: 50Q KK 0670 2346');
       }
@@ -250,6 +268,7 @@ export default function App() {
               waypoints={waypoints}
               segments={analyzedSegments} // 🟢 原本是 segments，請換成經由 Mapzen 修正後的 analyzedSegments！
               naismithSettings={naismith}
+              onPointClick={handlePointClick}
             />
           </div>
         </div>
