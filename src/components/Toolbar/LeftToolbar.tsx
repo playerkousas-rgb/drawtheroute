@@ -84,6 +84,13 @@ export default function LeftToolbar({
                 <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1">
                   <Search size={14} />
                 </button>
+                <button 
+                  type="button" 
+                  onClick={() => setIsSearching(false)} 
+                  className="text-slate-500 hover:text-slate-300 p-1"
+                >
+                  <ChevronLeft size={14} />
+                </button>
               </div>
             </div>
           </motion.form>

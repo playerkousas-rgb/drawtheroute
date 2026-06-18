@@ -128,12 +128,12 @@ export default React.memo(function MapCore({
     });
     mapRef.current = map;
 
-    // 🟢 Create a dedicated pane for the hover marker to ensure it's ALWAYS on top
-    map.createPane('hoverPane');
-    const hp = map.getPane('hoverPane');
-    if (hp) {
-      hp.style.zIndex = '1000';
-      hp.style.pointerEvents = 'none';
+    // 🟢 Create a dedicated pane for the sync marker to ensure it's ALWAYS on top
+    map.createPane('syncPane');
+    const sp = map.getPane('syncPane');
+    if (sp) {
+      sp.style.zIndex = '10000';
+      sp.style.pointerEvents = 'none';
     }
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -145,15 +145,30 @@ export default React.memo(function MapCore({
     wpGrp.current    = L.layerGroup().addTo(map);
     progressGrp.current = L.layerGroup().addTo(map);
 
-    // 🟢 Subscription to HoverSync for the DOM Overlay dot
+    // 🟢 Subscription to HoverSync for the marker in the syncPane
     const unsubscribeHover = hoverSync.subscribe((point) => {
-      if (!dotRef.current) return;
+      if (!hoverRef.current) {
+        // Create marker in syncPane
+        const marker = L.circleMarker(
+          [0, 0], 
+          {
+            radius: 10,
+            fillColor: '#ccff00', // High-visibility Neon Yellow
+            color: '#fff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 1,
+            pane: 'syncPane' // 🚀 CRITICAL: Use the high-zIndex pane
+          }
+        ).addTo(map);
+        hoverRef.current = marker;
+      }
+
       if (point) {
-        const pointPx = map.latLngToContainerPoint([point.lat, point.lng]);
-        dotRef.current.style.transform = `translate(${pointPx.x}px, ${pointPx.y}px)`;
-        dotRef.current.style.opacity = '1';
+        hoverRef.current.setLatLng([point.lat, point.lng]);
+        hoverRef.current.setStyle({ opacity: 1, fillOpacity: 1 });
       } else {
-        dotRef.current.style.opacity = '0';
+        hoverRef.current?.setStyle({ opacity: 0, fillOpacity: 0 });
       }
     });
 
@@ -161,6 +176,7 @@ export default React.memo(function MapCore({
     map.on('mousemove', (e) => {
       if (!coordRef.current) return;
       const { lat, lng } = e.latlng;
+      // Use local approx for smooth cursor movement, but search uses official API
       const hk80 = wgs84ToHk80(lat, lng);
       const shorthand = formatToHk80Shorthand(hk80.easting, hk80.northing);
       coordRef.current.innerHTML = `
@@ -170,7 +186,6 @@ export default React.memo(function MapCore({
     });
 
     // Ensure progress group is always on top
-
 
     map.addLayer(progressGrp.current);
 
@@ -317,27 +332,6 @@ export default React.memo(function MapCore({
       <div
         ref={divRef}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-      />
-      {/* 🚀 High-performance Hover Dot Overlay */}
-      <div
-        ref={dotRef}
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          width: 20,
-          height: 20,
-          backgroundColor: '#00ffff',
-          border: '3px solid white',
-          borderRadius: '50%',
-          boxShadow: '0 0 20px #00ffff, 0 0 8px white',
-          zIndex: 10000,
-          pointerEvents: 'none',
-          opacity: 0,
-          transition: 'opacity 0.1s ease',
-          marginLeft: -10,
-          marginTop: -10,
-        }}
       />
       {/* 📍 Real-time Coordinate Display */}
       <div
