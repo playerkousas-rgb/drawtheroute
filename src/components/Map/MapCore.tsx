@@ -67,24 +67,6 @@ export default React.memo(function MapCore({
   const onRouteClickRef    = useRef(onRouteClick);
   useEffect(() => { onRouteClickRef.current = onRouteClick; },    [onRouteClick]);
 
-export default React.memo(function MapCore({
-  segments, waypoints, mapLayer,
-  onRouteClick, isProcessing,
-  searchLocation, onSearchCleared,
-  externalDistance, onCursorMove,
-}: MapCoreProps) {
-  const divRef    = useRef<HTMLDivElement>(null);
-  const coordRef   = useRef<HTMLDivElement>(null);
-  const mapRef    = useRef<L.Map | null>(null);
-  const tileRef   = useRef<L.TileLayer | null>(null);
-  const routeGrp  = useRef<L.LayerGroup | null>(null);
-  const wpGrp     = useRef<L.LayerGroup | null>(null);
-  const progressGrp    = useRef<L.LayerGroup | null>(null);
-  const cursorMarkerRef = useRef<L.Marker | null>(null);
-
-  const onRouteClickRef    = useRef(onRouteClick);
-  useEffect(() => { onRouteClickRef.current = onRouteClick; },    [onRouteClick]);
-
   // --- 🚀 核心優化：極速路徑投影算法 ---
   const projectToRoute = (latlng: L.LatLng) => {
     if (!segments.length) return null;
@@ -186,7 +168,7 @@ export default React.memo(function MapCore({
           lat: closest.lat,
           lng: closest.lng,
           distance: closest.distFromStart,
-          elevation: 0 // elevation 可由 Chart 端根據 distance 補全
+          elevation: 0 
         }, 'map');
       }
     });
@@ -203,30 +185,6 @@ export default React.memo(function MapCore({
   }, []);
 
   // 保持對 externalDistance 的響應（用於點擊圖表跳轉）
-  useEffect(() => {
-    if (!cursorMarkerRef.current || externalDistance === undefined) return;
-    let currentDist = 0;
-    let found = false;
-    for (const seg of segments) {
-      if (currentDist + seg.distance >= externalDistance) {
-        const ratio = (externalDistance - currentDist) / seg.distance;
-        const p1 = seg.points[0];
-        const p2 = seg.points[seg.points.length - 1];
-        const lat = p1.lat + ratio * (p2.lat - p1.lat);
-        const lng = p1.lng + ratio * (p2.lng - p1.lng);
-        cursorMarkerRef.current.setLatLng([lat, lng]);
-        found = true;
-        break;
-      }
-      currentDist += seg.distance;
-    }
-    if (!found && segments.length > 0) {
-      const lastPt = segments[segments.length - 1].points[segments[segments.length - 1].points.length - 1];
-      cursorMarkerRef.current.setLatLng([lastPt.lat, lastPt.lng]);
-    }
-  }, [externalDistance, segments]);
-
-
   useEffect(() => {
     if (!cursorMarkerRef.current || externalDistance === undefined) return;
     let currentDist = 0;
