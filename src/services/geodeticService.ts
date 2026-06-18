@@ -29,7 +29,7 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
       const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&outSys=wgsgeog&e=${easting}&n=${northing}`);
       if (resp.ok) {
         const data = await resp.json();
-        if (data.lat && data.long) return { lat: parseFloat(data.lat), lng: parseFloat(data.long) };
+        if (data.wgsLat && data.wgsLong) return { lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) };
       }
     }
     throw new Error('HK80 格式不正確。請使用: 830670 82346');
@@ -60,7 +60,7 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
       const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&outSys=wgsgeog&e=${fullE}&n=${fullN}`);
       if (resp.ok) {
         const data = await resp.json();
-        if (data.lat && data.long) return { lat: parseFloat(data.lat), lng: parseFloat(data.long) };
+        if (data.wgsLat && data.wgsLong) return { lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) };
       }
     }
     throw new Error('UTM 格式不正確。請使用: 50Q KK 0670 2346');
