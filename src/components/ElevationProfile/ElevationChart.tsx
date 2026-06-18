@@ -521,7 +521,6 @@ export default function ElevationChart({
               {markers.map((m, i) => (
                 <ReferenceLine key={i} x={m.x} stroke={m.color} strokeOpacity={0.5} strokeDasharray="3 3" label={{ position: 'top', value: m.label, fill: m.color, fontSize: 10, fontWeight: 600 }} />
               ))}
-              {hoverX !== null && <ReferenceLine x={hoverX} stroke="#fff" strokeOpacity={0.2} />}
               <Area type="monotone" dataKey="elevation" stroke="#60a5fa" strokeWidth={2} fillOpacity={1} fill="url(#elev-grad)" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>

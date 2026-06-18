@@ -82,18 +82,18 @@ export default React.memo(function MapCore({
     const cursorIcon = L.divIcon({
       className: '',
       html: `
-        <div style="position:relative; width:20px; height:20px; display:flex; align-items:center; justify-content:center;">
-          <div style="position:absolute; width:6px; height:6px; background:#fff; border:2px solid #3b82f6; border-radius:50%; z-index:10; box-shadow:0 0 10px #3b82f6;"></div>
-          <div style="position:absolute; width:100%; height:100%; border:2px solid #3b82f6; border-radius:50%; animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; opacity: 0;"></div>
+        <div style="position:relative; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">
+          <div style="position:absolute; width:12px; height:12px; background:#fff; border:3px solid #3b82f6; border-radius:50%; z-index:10; box-shadow:0 0 15px rgba(0,0,0,0.8), 0 0 5px #3b82f6;"></div>
+          <div style="position:absolute; width:100%; height:100%; border:3px solid #3b82f6; border-radius:50%; animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; opacity: 0;"></div>
           <style>
             @keyframes pulse-ring {
               0% { transform: scale(0.33); opacity: 0.8; }
-              80%, 100% { transform: scale(1.5); opacity: 0; }
+              80%, 100% { transform: scale(1.8); opacity: 0; }
             }
           </style>
         </div>
       `,
-      iconSize: [20, 20], iconAnchor: [10, 10]
+      iconSize: [30, 30], iconAnchor: [15, 15]
     });
 
     cursorMarkerRef.current = L.marker([22.3964, 114.1095], {
