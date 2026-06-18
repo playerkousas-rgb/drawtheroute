@@ -10,18 +10,6 @@ type HoverPoint = {
   distance: number;
 } | null;
 
-/**
- * HoverSync provides a simple event-based mechanism to sync the elevation chart hover
- * with the map marker without triggering React re-renders of the entire application.
- */
-
-type HoverPoint = {
-  lat: number;
-  lng: number;
-  elevation: number;
-  distance: number;
-} | null;
-
 type HoverListener = (point: HoverPoint, source: 'map' | 'chart') => void;
 
 class HoverSync {
@@ -44,8 +32,5 @@ class HoverSync {
     this.listeners.forEach(l => l(point, source));
   }
 }
-
-export const hoverSync = new HoverSync();
-
 
 export const hoverSync = new HoverSync();

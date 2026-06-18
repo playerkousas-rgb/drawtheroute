@@ -223,7 +223,7 @@ export default function ElevationChart({
 
   const onLeave = useCallback(() => {
     setHoverX(null);
-    hoverSync.emit(null);     // 🚀 Fast sync
+    hoverSync.emit(null, 'chart');     // 🚀 指定來源為 chart
   }, []);
 
   const handleDownloadChartPNG = async () => {
