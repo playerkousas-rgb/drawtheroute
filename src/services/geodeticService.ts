@@ -47,7 +47,7 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
       const squareMap: Record<string, [string, string]> = {
         'KK': ['83', '82'], 'JK': ['83', '81'], 'HE': ['81', '82'], 'GE': ['81', '81'],
         'LK': ['84', '82'], 'MK': ['84', '81'], 'KE': ['82', '82'], 'JE': ['82', '81'],
-        'FK': ['80', '82'], 'GK': ['80', '81'], 'FE': ['80', '82'], 
+        'FK': ['80', '82'], 'GK': ['80', '81'], 
         'AK': ['79', '82'], 'BK': ['79', '81'],
       };
 

@@ -74,21 +74,28 @@ export default React.memo(function MapCore({
     let accumulatedDist = 0;
 
     segments.forEach(seg => {
+      let segAccumulatedDist = 0;
       for (let i = 0; i < seg.points.length - 1; i++) {
         const p1 = seg.points[i];
         const p2 = seg.points[i+1];
         const x = p1.lng; const y = p1.lat;
         const dx = p2.lng - p1.lng; const dy = p2.lat - p1.lat;
-        const t = ((latlng.lng - x) * dx + (latlng.lat - y) * dy) / (dx*dx + dy*dy);
-        const clampedT = Math.max(0, Math.min(1, t));
+        const segmentLenSq = dx*dx + dy*dy;
+        
+        let clampedT = 0;
+        if (segmentLenSq > 0) {
+          clampedT = Math.max(0, Math.min(1, ((latlng.lng - x) * dx + (latlng.lat - y) * dy) / segmentLenSq));
+        }
+        
         const closest = { lat: y + clampedT * dy, lng: x + clampedT * dx };
         const d = Math.sqrt(Math.pow(latlng.lat - closest.lat, 2) + Math.pow(latlng.lng - closest.lng, 2));
+        
         if (d < minDistance) {
           minDistance = d;
-          const segTotalDist = Math.sqrt(Math.pow(p2.lat - p1.lat, 2) + Math.pow(p2.lng - p1.lng, 2));
-          const distFromStart = accumulatedDist + (clampedT * segTotalDist);
-          closestPt = { ...closest, distFromStart };
+          const currentSubSegLen = Math.sqrt(segmentLenSq);
+          closestPt = { ...closest, distFromStart: accumulatedDist + segAccumulatedDist + clampedT * currentSubSegLen };
         }
+        segAccumulatedDist += Math.sqrt(segmentLenSq);
       }
       accumulatedDist += seg.distance; 
     });
@@ -226,11 +233,11 @@ export default React.memo(function MapCore({
       <div
         ref={coordRef}
         style={{
-          position: 'absolute', top: 20, right: 20, padding: '8px 14px',
+          position: 'absolute', top: 20, left: 20, padding: '8px 14px',
           background: 'rgba(8, 14, 28, 0.85)', backdropFilter: 'blur(12px)',
           border: '1px solid rgba(148, 163, 184, 0.3)', borderRadius: '10px',
           zIndex: 10000, pointerEvents: 'none', fontFamily: 'monospace',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.6)', textAlign: 'right', borderRight: '4px solid #34d399'
+          boxShadow: '0 4px 20px rgba(0,0,0,0.6)', textAlign: 'left', borderLeft: '4px solid #34d399'
         }}
       />
     </div>
