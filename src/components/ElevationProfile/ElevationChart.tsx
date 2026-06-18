@@ -88,8 +88,11 @@ export default function ElevationChart({
 }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const hoverLineRef = useRef<HTMLDivElement>(null);
 
   const [coordMode, setCoordMode] = useState<'grid' | 'latlng'>('grid');
+
   
   // Custom Intervals for Chart
   const [xInterval, setXInterval] = useState<string>('');
@@ -185,34 +188,57 @@ export default function ElevationChart({
     }
   }, [externalDistance, profile, onHoverPoint]);
 
-  // 🚀 監聽地圖同步：直接更新圖表懸停狀態
+  // 🚀 監聽地圖同步：直接操作 CSS DOM，實現 0 延遲
   useEffect(() => {
-    const unsubscribe = hoverSync.subscribe((point, source) => {
-      if (source === 'map' && point && profile.length > 0) {
-        setHoverX(point.distance);
-        // 尋找最接近的剖面點以觸發 Tooltip
+    const unsubscribe = hoverSync.subscribe((payload, source) => {
+      if (payload && profile.length > 0) {
+        const dist = payload.distance;
+        const totalDist = stats.totalDistance;
+        const percentage = (dist / totalDist) * 100;
+        
+        // 1. 直接移動 CSS 懸停線，完全繞過 React 渲染
+        if (hoverLineRef.current) {
+          hoverLineRef.current.style.left = `${percentage}%`;
+          hoverLineRef.current.style.opacity = '1';
+        }
+
+        // 2. 緩慢更新狀態以驅動 Tooltip (不需要 60fps)
+        setHoverX(dist);
+        
         let closest = profile[0];
-        let minDiff = Math.abs(profile[0].distance - point.distance);
+        let minDiff = Math.abs(profile[0].distance - dist);
         for (const p of profile) {
-          const diff = Math.abs(p.distance - point.distance);
+          const diff = Math.abs(p.distance - dist);
           if (diff < minDiff) {
             minDiff = diff;
             closest = p;
           }
         }
         onHoverPoint(closest);
+      } else if (!payload && hoverLineRef.current) {
+        hoverLineRef.current.style.opacity = '0';
       }
     });
     return unsubscribe;
-  }, [profile, onHoverPoint]);
+  }, [profile, stats.totalDistance, onHoverPoint]);
 
   const onMove = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {
       const pt = e.activePayload[0].payload as ElevationProfilePoint;
-      setHoverX(pt.distance);
-      hoverSync.emit(pt, 'chart');     // 🚀 指定來源為 chart
+      const dist = pt.distance;
+      
+      // 1. 即時更新本地 CSS 線
+      if (hoverLineRef.current) {
+        const percentage = (dist / stats.totalDistance) * 100;
+        hoverLineRef.current.style.left = `${percentage}%`;
+        hoverLineRef.current.style.opacity = '1';
+      }
+
+      setHoverX(dist);
+      hoverSync.emit(pt, 'chart');
     }
-  }, []);
+  }, [stats.totalDistance]);
+
 
   const onClickChart = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {
@@ -463,7 +489,16 @@ export default function ElevationChart({
       </div>
 
       {activeTab === 'chart' ? (
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 relative" ref={chartContainerRef}>
+          {/* 🚀 CSS 實時懸停線：完全脫離 Recharts 渲染週期 */}
+          <div 
+            ref={hoverLineRef}
+            style={{
+              position: 'absolute', top: 0, bottom: 0, width: '2px', 
+              backgroundColor: '#fff', boxShadow: '0 0 8px rgba(255,255,255,0.8)',
+              zIndex: 10, pointerEvents: 'none', opacity: 0, transition: 'opacity 0.2s'
+            }}
+          />
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart 
               data={profile} 
@@ -472,6 +507,7 @@ export default function ElevationChart({
               onMouseLeave={onLeave} 
               margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
             >
+
               <defs>
                 <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.4} />

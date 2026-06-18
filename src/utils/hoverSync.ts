@@ -1,23 +1,20 @@
 /**
- * HoverSync provides a simple event-based mechanism to sync the elevation chart hover
- * with the map marker without triggering React re-renders of the entire application.
+ * HoverSync provides a high-performance bridge for bidirectional sync.
+ * It uses absolute distance as the common key.
  */
 
-type HoverPoint = {
+type SyncPayload = {
+  distance: number; // Absolute distance from start (km)
   lat: number;
   lng: number;
   elevation: number;
-  distance: number;
 } | null;
 
-type HoverListener = (point: HoverPoint, source: 'map' | 'chart') => void;
+type HoverListener = (payload: SyncPayload, source: 'map' | 'chart') => void;
 
 class HoverSync {
   private listeners: HoverListener[] = [];
 
-  /**
-   * Subscribe to hover updates.
-   */
   subscribe(listener: HoverListener): () => void {
     this.listeners.push(listener);
     return () => {
@@ -25,11 +22,8 @@ class HoverSync {
     };
   }
 
-  /**
-   * Emit a hover update to all subscribers.
-   */
-  emit(point: HoverPoint, source: 'map' | 'chart') {
-    this.listeners.forEach(l => l(point, source));
+  emit(payload: SyncPayload, source: 'map' | 'chart') {
+    this.listeners.forEach(l => l(payload, source));
   }
 }
 
