@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
@@ -18,6 +18,8 @@ interface Props {
   segments: RouteSegment[];
   naismithSettings: NaismithSettings;
   onPointClick: (p: ElevationProfilePoint) => void;
+  externalDistance?: number;
+  onHoverPoint: (p: ElevationProfilePoint | null) => void;
 }
 
 const CustomTooltip = ({ active, payload }: {
@@ -80,7 +82,9 @@ export default function ElevationChart({
   waypoints,
   segments,
   naismithSettings,
-  onPointClick
+  onPointClick,
+  externalDistance,
+  onHoverPoint
 }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
@@ -163,6 +167,23 @@ export default function ElevationChart({
       };
     });
   }, [profile, waypoints]);
+
+  useEffect(() => {
+    if (externalDistance !== undefined && profile.length > 0) {
+      setHoverX(externalDistance);
+      // find closest point in profile for the tooltip
+      let closest = profile[0];
+      let minDiff = Math.abs(profile[0].distance - externalDistance);
+      for (const p of profile) {
+        const diff = Math.abs(p.distance - externalDistance);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = p;
+        }
+      }
+      onHoverPoint(closest);
+    }
+  }, [externalDistance, profile, onHoverPoint]);
 
   const onMove = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {

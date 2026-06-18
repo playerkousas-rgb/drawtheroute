@@ -20,6 +20,8 @@ const DEFAULT_NAISMITH: NaismithSettings = { baseSpeedKmh: 3.5, ascentPer20m: 7,
 export default function App() {
   const [mapLayer, setMapLayer]       = useState<MapLayer>('topo');
   const [naismith, setNaismith]       = useState<NaismithSettings>(DEFAULT_NAISMITH);
+  const [hoveredPt, setHoveredPt] = useState<ElevationProfilePoint | null>(null);
+  const [cursorDistance, setCursorDistance] = useState<number | undefined>(undefined);
   const [profileOpen, setProfileOpen] = useState(true);
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -43,6 +45,25 @@ export default function App() {
   const handlePointClick = useCallback((pt: ElevationProfilePoint) => {
     setSearchLocation({ lat: pt.lat, lng: pt.lng });
   }, []);
+
+  const handleCursorMove = useCallback((distance: number, point: LatLng) => {
+    setCursorDistance(distance);
+    // Also update hovered point for the chart
+    const profile = elevationProfile;
+    if (profile.length > 0) {
+      // Find closest point in profile to this distance
+      let closest = profile[0];
+      let minDiff = Math.abs(profile[0].distance - distance);
+      for (const p of profile) {
+        const diff = Math.abs(p.distance - distance);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = p;
+        }
+      }
+      setHoveredPt(closest);
+    }
+  }, [elevationProfile]);
 
   const handleMapClick = useCallback((latlng: LatLng) => {
     if (isProcessing) return;
@@ -97,6 +118,8 @@ export default function App() {
         isProcessing={isProcessing}
         searchLocation={searchLocation}
         onSearchCleared={() => setSearchLocation(null)}
+        externalDistance={cursorDistance}
+        onCursorMove={handleCursorMove}
       />
 
       {/* ── Left toolbar ── */}
@@ -192,6 +215,8 @@ export default function App() {
               segments={analyzedSegments} // 🟢 原本是 segments，請換成經由 Mapzen 修正後的 analyzedSegments！
               naismithSettings={naismith}
               onPointClick={handlePointClick}
+              externalDistance={cursorDistance}
+              onHoverPoint={setHoveredPt}
             />
           </div>
         </div>
