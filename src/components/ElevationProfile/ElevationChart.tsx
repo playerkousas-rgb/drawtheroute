@@ -188,19 +188,33 @@ export default function ElevationChart({
     }
   }, [externalDistance, profile, onHoverPoint]);
 
-  // 🚀 監聽地圖同步：直接操作 CSS DOM，實現 0 延遲
+  const updateMarkerPosition = useCallback((pt: ElevationProfilePoint | null) => {
+    if (!hoverLineRef.current) return;
+    if (!pt || !profile.length || finalMax === 0) {
+      hoverLineRef.current.style.opacity = '0';
+      return;
+    }
+
+    const totalDist = stats.totalDistance;
+    const xRatio = pt.distance / totalDist;
+    const yRatio = 1 - (pt.elevation / finalMax);
+
+    // 精確對位：考慮 Recharts 的 margin {{ top: 20, right: 16, left: 0, bottom: 4 }}
+    // X: 0px 到 (100% - 16px)
+    hoverLineRef.current.style.left = `calc(${xRatio * 100}% - ${xRatio * 16}px)`;
+    // Y: 20px 到 (100% - 24px)
+    hoverLineRef.current.style.top = `calc(20px + ${yRatio * 100}% - ${yRatio * 24}px)`;
+    
+    hoverLineRef.current.style.opacity = '1';
+  }, [stats.totalDistance, finalMax, profile.length]);
+
   useEffect(() => {
     const unsubscribe = hoverSync.subscribe((payload, source) => {
       if (payload && profile.length > 0) {
         const dist = payload.distance;
-        const totalDist = stats.totalDistance;
-        const percentage = (dist / totalDist) * 100;
         
         // 1. 直接移動 CSS 懸停線，完全繞過 React 渲染
-        if (hoverLineRef.current) {
-          hoverLineRef.current.style.left = `${percentage}%`;
-          hoverLineRef.current.style.opacity = '1';
-        }
+        updateMarkerPosition(payload);
 
         // 2. 緩慢更新狀態以驅動 Tooltip (不需要 60fps)
         setHoverX(dist);
@@ -220,24 +234,19 @@ export default function ElevationChart({
       }
     });
     return unsubscribe;
-  }, [profile, stats.totalDistance, onHoverPoint]);
+  }, [profile, stats.totalDistance, onHoverPoint, updateMarkerPosition]);
 
   const onMove = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {
       const pt = e.activePayload[0].payload as ElevationProfilePoint;
-      const dist = pt.distance;
       
       // 1. 即時更新本地 CSS 線
-      if (hoverLineRef.current) {
-        const percentage = (dist / stats.totalDistance) * 100;
-        hoverLineRef.current.style.left = `${percentage}%`;
-        hoverLineRef.current.style.opacity = '1';
-      }
+      updateMarkerPosition(pt);
 
-      setHoverX(dist);
+      setHoverX(pt.distance);
       hoverSync.emit(pt, 'chart');
     }
-  }, [stats.totalDistance]);
+  }, [updateMarkerPosition]);
 
 
   const onClickChart = useCallback((e: any) => {
@@ -427,11 +436,14 @@ export default function ElevationChart({
     );
   }
 
-  const elevs = profile.map(p => p.elevation);
-  const maxE = Math.max(...elevs);
-  const roundedMax = Math.ceil(maxE / 100) * 100;
-  const finalMax = (roundedMax - maxE < 30) ? roundedMax + 100 : roundedMax;
-  const yDomain: [number, number] = [0, finalMax];
+  const { finalMax, yDomain } = useMemo(() => {
+    if (!profile.length) return { finalMax: 0, yDomain: [0, 0] };
+    const elevs = profile.map(p => p.elevation);
+    const maxE = Math.max(...elevs);
+    const roundedMax = Math.ceil(maxE / 100) * 100;
+    const fMax = (roundedMax - maxE < 30) ? roundedMax + 100 : roundedMax;
+    return { finalMax: fMax, yDomain: [0, fMax] };
+  }, [profile]);
 
   const customXTicks: number[] = [];
   const xVal = parseFloat(xInterval);
@@ -498,7 +510,8 @@ export default function ElevationChart({
               backgroundColor: '#fff', border: '2px solid #3b82f6', 
               borderRadius: '50%', zIndex: 10, pointerEvents: 'none', 
               opacity: 0, boxShadow: '0 0 10px #3b82f6',
-              transition: 'opacity 0.2s'
+              transition: 'opacity 0.2s',
+              transform: 'translate(-50%, -50%)'
             }}
           />
           <ResponsiveContainer width="100%" height="100%">
