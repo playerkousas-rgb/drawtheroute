@@ -188,6 +188,15 @@ export default function ElevationChart({
     }
   }, [externalDistance, profile, onHoverPoint]);
 
+  const { finalMax, yDomain } = useMemo(() => {
+    if (!profile.length) return { finalMax: 0, yDomain: [0, 0] };
+    const elevs = profile.map(p => p.elevation);
+    const maxE = Math.max(...elevs);
+    const roundedMax = Math.ceil(maxE / 100) * 100;
+    const fMax = (roundedMax - maxE < 30) ? roundedMax + 100 : roundedMax;
+    return { finalMax: fMax, yDomain: [0, fMax] };
+  }, [profile]);
+
   const updateMarkerPosition = useCallback((pt: ElevationProfilePoint | null) => {
     if (!hoverLineRef.current) return;
     if (!pt || !profile.length || finalMax === 0) {
@@ -435,15 +444,6 @@ export default function ElevationChart({
       </div>
     );
   }
-
-  const { finalMax, yDomain } = useMemo(() => {
-    if (!profile.length) return { finalMax: 0, yDomain: [0, 0] };
-    const elevs = profile.map(p => p.elevation);
-    const maxE = Math.max(...elevs);
-    const roundedMax = Math.ceil(maxE / 100) * 100;
-    const fMax = (roundedMax - maxE < 30) ? roundedMax + 100 : roundedMax;
-    return { finalMax: fMax, yDomain: [0, fMax] };
-  }, [profile]);
 
   const customXTicks: number[] = [];
   const xVal = parseFloat(xInterval);
