@@ -126,10 +126,10 @@ export default React.memo(function MapCore({
       zIndexOffset: 10000
     }).addTo(map);
 
-    // 🚀 監聽事件總線：直接操作 DOM，跳過 React 渲染
+    // 🚀 監聽事件總線：直接操作 DOM，實現 0 延遲吸附
     const unsubscribe = hoverSync.subscribe((point, source) => {
-      if (source === 'chart' && point && cursorMarkerRef.current) {
-        // 直接移動 Marker，實現 0 延遲
+      if (point && cursorMarkerRef.current) {
+        // 不論來源是 'chart' 還是 'map'，只要有路徑點，游標就立即吸附過去
         cursorMarkerRef.current.setLatLng([point.lat, point.lng]);
       }
     });
