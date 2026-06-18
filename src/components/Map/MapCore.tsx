@@ -107,18 +107,6 @@ export default React.memo(function MapCore({
       if (payload && cursorMarkerRef.current) {
         // 1. 立即移動到對應座標
         cursorMarkerRef.current.setLatLng([payload.lat, payload.lng]);
-        
-        // 2. 觸發「漲起來」的動畫效果 (透過重新賦值 HTML 強制瀏覽器重繪動畫)
-        const el = cursorMarkerRef.current.getElement();
-        if (el) {
-          const iconDiv = el.querySelector('.leaflet-marker-icon') as HTMLElement | null;
-          if (iconDiv) {
-            // 輕微抖動或重新觸發動畫
-            iconDiv.style.animation = 'none';
-            void iconDiv.offsetHeight; // trigger reflow
-            iconDiv.style.animation = '';
-          }
-        }
       }
     });
 
