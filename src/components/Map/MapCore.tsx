@@ -120,7 +120,7 @@ export default function MapCore({
   const tileRef   = useRef<L.TileLayer | null>(null);
   const routeGrp  = useRef<L.LayerGroup | null>(null);
   const wpGrp     = useRef<L.LayerGroup | null>(null);
-  const hoverRef  = useRef<L.Marker | null>(null);
+  const hoverRef  = useRef<L.CircleMarker | null>(null);
   const progressLineRef = useRef<L.Polyline | null>(null);
   const progressGrp    = useRef<L.LayerGroup | null>(null);
 
@@ -259,13 +259,16 @@ export default function MapCore({
 
     if (hoveredPoint) {
       if (!hoverRef.current) {
-        // Use a DivIcon for guaranteed visibility and performance
-        const marker = L.marker(
+        // 創建一個極其顯眼的 CircleMarker
+        const marker = L.circleMarker(
           [hoveredPoint.lat, hoveredPoint.lng],
           {
-            icon: hoverIcon,
-            pane: 'hoverPane',
-            interactive: false,
+            radius: 10,
+            fillColor: '#00ffff',
+            color: '#ffffff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 1,
           }
         ).addTo(map);
         
@@ -278,8 +281,11 @@ export default function MapCore({
 
         hoverRef.current = marker;
       } else {
+        // 更新位置
         hoverRef.current.setLatLng([hoveredPoint.lat, hoveredPoint.lng]);
       }
+      // CircleMarker 沒有 bringToFront, 但在 Canvas 模式下-
+      // 只要它是最後被添加的- 且不斷 setLatLng, 它可以保持在頂層
     } else {
       if (hoverRef.current) {
         map.removeLayer(hoverRef.current);
@@ -287,6 +293,8 @@ export default function MapCore({
       }
     }
   }, [hoveredPoint]);
+
+
 
 
   // ── Handle search location ───────────────────────────────────────

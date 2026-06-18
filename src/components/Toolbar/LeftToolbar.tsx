@@ -80,9 +80,6 @@ export default function LeftToolbar({
                   placeholder={modeConfig[searchMode].placeholder}
                   value={searchVal}
                   onChange={(e) => setSearchVal(e.target.value)}
-                  onBlur={() => {
-                    setTimeout(() => setIsSearching(false), 200);
-                  }}
                 />
                 <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1">
                   <Search size={14} />
