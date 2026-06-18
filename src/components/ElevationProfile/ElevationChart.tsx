@@ -88,8 +88,8 @@ export default function ElevationChart({
 }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
+  const [activePoint, setActivePoint] = useState<ElevationProfilePoint | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const hoverLineRef = useRef<HTMLDivElement>(null);
 
   const [coordMode, setCoordMode] = useState<'grid' | 'latlng'>('grid');
 
@@ -197,65 +197,29 @@ export default function ElevationChart({
     return { finalMax: fMax, yDomain: [0, fMax] };
   }, [profile]);
 
-  const updateMarkerPosition = useCallback((pt: ElevationProfilePoint | null) => {
-    if (!hoverLineRef.current) return;
-    if (!pt || !profile.length || finalMax === 0) {
-      hoverLineRef.current.style.opacity = '0';
-      return;
-    }
-
-    const totalDist = stats.totalDistance;
-    const xRatio = pt.distance / totalDist;
-    const yRatio = 1 - (pt.elevation / finalMax);
-
-    // 精確對位：考慮 Recharts 的 margin {{ top: 20, right: 16, left: 0, bottom: 4 }}
-    // X: 0px 到 (100% - 16px)
-    hoverLineRef.current.style.left = `calc(${xRatio * 100}% - ${xRatio * 16}px)`;
-    // Y: 20px 到 (100% - 24px)
-    hoverLineRef.current.style.top = `calc(20px + ${yRatio * 100}% - ${yRatio * 24}px)`;
-    
-    hoverLineRef.current.style.opacity = '1';
-  }, [stats.totalDistance, finalMax, profile.length]);
-
+  // 🚀 監聽同步：直接更新 activePoint 狀態，讓圖表內部點亮
   useEffect(() => {
     const unsubscribe = hoverSync.subscribe((payload, source) => {
       if (payload && profile.length > 0) {
-        const dist = payload.distance;
-        
-        // 1. 直接移動 CSS 懸停線，完全繞過 React 渲染
-        updateMarkerPosition(payload);
-
-        // 2. 緩慢更新狀態以驅動 Tooltip (不需要 60fps)
-        setHoverX(dist);
-        
-        let closest = profile[0];
-        let minDiff = Math.abs(profile[0].distance - dist);
-        for (const p of profile) {
-          const diff = Math.abs(p.distance - dist);
-          if (diff < minDiff) {
-            minDiff = diff;
-            closest = p;
-          }
-        }
-        onHoverPoint(closest);
-      } else if (!payload && hoverLineRef.current) {
-        hoverLineRef.current.style.opacity = '0';
+        setActivePoint(payload);
+        setHoverX(payload.distance);
+        onHoverPoint(payload);
+      } else {
+        setActivePoint(null);
+        setHoverX(null);
       }
     });
     return unsubscribe;
-  }, [profile, stats.totalDistance, onHoverPoint, updateMarkerPosition]);
+  }, [profile, onHoverPoint]);
 
   const onMove = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {
       const pt = e.activePayload[0].payload as ElevationProfilePoint;
-      
-      // 1. 即時更新本地 CSS 線
-      updateMarkerPosition(pt);
-
+      setActivePoint(pt);
       setHoverX(pt.distance);
       hoverSync.emit(pt, 'chart');
     }
-  }, [updateMarkerPosition]);
+  }, []);
 
 
   const onClickChart = useCallback((e: any) => {
@@ -502,18 +466,6 @@ export default function ElevationChart({
 
       {activeTab === 'chart' ? (
         <div className="flex-1 min-h-0 relative" ref={chartContainerRef}>
-          {/* 🚀 登山者 Marker：沿著曲線移動的發光圓點 */}
-          <div 
-            ref={hoverLineRef}
-            style={{
-              position: 'absolute', width: '10px', height: '10px', 
-              backgroundColor: '#fff', border: '2px solid #3b82f6', 
-              borderRadius: '50%', zIndex: 10, pointerEvents: 'none', 
-              opacity: 0, boxShadow: '0 0 10px #3b82f6',
-              transition: 'opacity 0.2s',
-              transform: 'translate(-50%, -50%)'
-            }}
-          />
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart 
               data={profile} 
@@ -522,13 +474,19 @@ export default function ElevationChart({
               onMouseLeave={onLeave} 
               margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
             >
-
-
               <defs>
                 <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.4} />
                   <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.01} />
                 </linearGradient>
+                {/* 🚀 讓光點「亮起來」的 SVG 發光濾鏡 */}
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+                  <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
               <XAxis dataKey="distance" type="number" domain={[0, stats.totalDistance]} tickFormatter={(v) => v.toFixed(1)} stroke="#475569" tick={{ fill: '#64748b', fontSize: 11 }} tickMargin={8} {...(customXTicks.length > 0 ? { ticks: customXTicks } : {})} />
@@ -538,6 +496,20 @@ export default function ElevationChart({
                 <ReferenceLine key={i} x={m.x} stroke={m.color} strokeOpacity={0.5} strokeDasharray="3 3" label={{ position: 'top', value: m.label, fill: m.color, fontSize: 10, fontWeight: 600 }} />
               ))}
               <Area type="monotone" dataKey="elevation" stroke="#60a5fa" strokeWidth={2} fillOpacity={1} fill="url(#elev-grad)" isAnimationActive={false} />
+              
+              {/* 🚀 核心：直接在圖表內部點亮對應的點 */}
+              {activePoint && (
+                <ReferenceDot 
+                  x={activePoint.distance} 
+                  y={activePoint.elevation} 
+                  r={4} 
+                  fill="#fff" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  filter="url(#glow)"
+                  isAnimationActive={false}
+                />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>
