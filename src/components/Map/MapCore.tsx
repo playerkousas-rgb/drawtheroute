@@ -124,15 +124,20 @@ export default React.memo(function MapCore({
       hoverSync.emit(closest, 'map');
     });
 
-    map.on('mousemove', (e) => {
+    map.on('mousemove', async (e) => {
       if (!coordRef.current) return;
       const { lat, lng } = e.latlng;
-      const hk80 = wgs84ToHk80(lat, lng);
-      const shorthand = formatToHk80Shorthand(hk80.easting, hk80.northing);
-      coordRef.current.innerHTML = `
-        <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
-        <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>
-      `;
+      
+      try {
+        const hk80 = await wgs84ToHk80(lat, lng);
+        const shorthand = formatToHk80Shorthand(hk80.easting, hk80.northing);
+        coordRef.current.innerHTML = `
+          <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+          <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>
+        `;
+      } catch (err) {
+        coordRef.current.innerHTML = `<div style="color:#ef4444; font-size:11px">坐標轉換錯誤</div>`;
+      }
 
       // 🚀 核心同步：在地圖上移動時，尋找 profile 陣列中最近的那個點
       if (profile.length > 0) {
