@@ -89,6 +89,17 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
 };
 
 /**
+ * 專業 UTM 方格基準座標表 (100km x 100km)
+ * 格式: 'Zone_Square': [EastingBase, NorthingBase]
+ */
+export const UTM_SQUARE_BASES: Record<string, [number, number]> = {
+  '50Q_KK': [200000, 2400000],
+  '50Q_JK': [100000, 2400000],
+  '49Q_HE': [800000, 2400000],
+  '49Q_GE': [700000, 2400000],
+};
+
+/**
  * 將 True UTM 座標轉換為專業 8 位坐標格式 (例如: 50Q KK 0670 2346)
  * 採用動態分區判定法，完全對接 49Q 與 50Q 雙分區標準
  */
@@ -97,27 +108,15 @@ export const formatToHk80Shorthand = (E: number, N: number, lng: number): string
   let square = '??';
 
   if (lng < 114.0) {
-    // --- Zone 49Q 邏輯 ---
     zone = '49Q';
-    // 在 Zone 49 中，東經 700k-800k 為 GE, 800k-900k 為 HE
-    if (E >= 700000 && E < 800000) {
-      square = 'GE';
-    } else if (E >= 800000 && E < 900000) {
-      square = 'HE';
-    }
+    if (E >= 700000 && E < 800000) square = 'GE';
+    else if (E >= 800000 && E < 900000) square = 'HE';
   } else {
-    // --- Zone 50Q 邏輯 ---
     zone = '50Q';
-    // 在 Zone 50 中，東經 100k-200k 為 JK, 200k-300k 為 KK
-    if (E >= 100000 && E < 200000) {
-      square = 'JK';
-    } else if (E >= 200000 && E < 300000) {
-      square = 'KK';
-    }
+    if (E >= 100000 && E < 200000) square = 'JK';
+    else if (E >= 200000 && E < 300000) square = 'KK';
   }
 
-  // 3. 計算該點相對於 10km 基準線的精確尾數 (XXXX XXXX)
-  // 專業習慣是取座標對 10,000 取模，保留最後四位
   const eOffset = Math.floor(Math.abs(E % 10000)).toString().padStart(4, '0');
   const nOffset = Math.floor(Math.abs(N % 10000)).toString().padStart(4, '0');
   

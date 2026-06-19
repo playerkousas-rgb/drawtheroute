@@ -3,7 +3,7 @@
  * Handles all authoritative coordinate conversions.
  */
 import proj4 from 'proj4';
-import { SQUARE_MAP } from '../utils/coordUtils';
+import { UTM_SQUARE_BASES } from '../utils/coordUtils';
 
 // 定義 UTM Zone 50N (EPSG:32650)
 proj4.defs("EPSG:32650", "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs");
@@ -41,7 +41,6 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
   }
 
   if (mode === 'utm') {
-    // 🚀 優化正則：允許 8 位連續數字 (例如 07656848) 或 用空格分開的 4+4 數字
     const utmMatch = cleanInput.match(/^([45]0[PQ])?\s*([A-Z]{2})?\s*(\d{8}|\d{4}\s*\d{4})$/i);
     if (utmMatch) {
       const zone = utmMatch[1]?.toUpperCase() || '50Q'; 
@@ -65,15 +64,15 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
       if (!square) throw new Error('請提供方格碼 (例如: 50Q KK 0670 2346)。');
 
       const lookupKey = `${zone}_${square}`;
-      const base = SQUARE_MAP[lookupKey];
+      const base = UTM_SQUARE_BASES[lookupKey];
       if (!base) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。`);
 
-      // 🚀 真正 UTM 座標 = 基準點 + 偏移量
       const fullE = base[0] + eastingOffset;
       const fullN = base[1] + northingOffset;
       
-      // 直接使用 proj4 將 True UTM (EPSG:32650) 轉為 WGS84 (EPSG:4326)
-      const wgs = proj4("EPSG:32650", "EPSG:4326", [fullE, fullN]);
+      // 根據 Zone 選擇投影
+      const projZone = zone.startsWith('49') ? "EPSG:32649" : "EPSG:32650";
+      const wgs = proj4(projZone, "EPSG:4326", [fullE, fullN]);
       return { lat: wgs[1], lng: wgs[0] };
     }
     throw new Error('UTM 格式不正確或超出香港範圍。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。正確格式示例: 50Q KK 0670 2346');

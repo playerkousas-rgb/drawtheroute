@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getKKGrid, fetchWeatherData } from '../../services/weatherService';
-import { calculateBearing, addMinutesToTime, calculateSunrise, SQUARE_MAP } from '../utils/coordUtils';
+import { calculateBearing, addMinutesToTime, calculateSunrise, formatToHk80Shorthand } from '../utils/coordUtils';
 import { WaypointMarker, RouteSegment } from '../types';
+import proj4 from 'proj4';
 
 export const useItineraryData = (
   waypoints: WaypointMarker[], 
@@ -14,12 +15,10 @@ export const useItineraryData = (
   // 🚂 引擎 A：獨立負責「氣象與天文數據」，只要日期一變，就算還沒畫地圖也要抓得到預設值！
   useEffect(() => {
     const fetchWeatherOnly = async () => {
-      // 預設參考點（如果沒畫地圖，預設拿香港市中心或預設座標，避免斷流；若有點，則拿第一個點的坐標）
       const lat = waypoints && waypoints.length > 0 ? waypoints[0].latlng.lat : 22.3193;
       const lng = waypoints && waypoints.length > 0 ? waypoints[0].latlng.lng : 114.1694;
 
       try {
-        // 動態戳全球引擎：直接把經緯度與日期拋給 Open-Meteo
         const data = await fetchWeatherData(lat, lng, selectedDate);
         setWeather(data);
       } catch (e) {
@@ -29,7 +28,7 @@ export const useItineraryData = (
     };
 
     fetchWeatherOnly();
-  }, [selectedDate, waypoints]); // 🟢 當手動修改日期，或地圖起點變更時，即時重刷氣象與天文！
+  }, [selectedDate, waypoints]);
 
 
   // 🚂 引擎 B：負責「行程表 CP 格網與時間加工循環」
@@ -69,44 +68,15 @@ export const useItineraryData = (
           bearing = calculateBearing(wp.latlng.lat, wp.latlng.lng, nextLoc.lat, nextLoc.lng);
         }
 
-        // 🎯 核心修正：統一使用共享的 SQUARE_MAP 決定方格碼，確保與搜尋功能 100% 一致
+        // 🎯 核心修正：不再依賴外部 API 進行格網轉換，直接在本地用 WGS84 投影到 UTM
         let gridStr = "Calculating...";
         try {
-          const resp1 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=hkgrid&lat=${wp.latlng.lat}&long=${wp.latlng.lng}`);
-          if (resp1.ok) {
-            const data1 = await resp1.json();
-            if (data1.hkE && data1.hkN) {
-              const roundedE = Math.round(data1.hkE);
-              const roundedN = Math.round(data1.hkN);
-              
-              const eastPrefix = Math.floor(roundedE / 10000);
-              const northPrefix = Math.floor(roundedN / 10000);
-              
-              let square = '??';
-              let zone = '50Q';
-              for (const [key, p] of Object.entries(SQUARE_MAP)) {
-                if (p[0] === eastPrefix && p[1] === northPrefix) {
-                  square = key.split('_')[1];
-                  zone = key.split('_')[0];
-                  break;
-                }
-              }
-              
-              const easting = roundedE.toString().slice(-4).padStart(4, '0');
-              const northing = roundedN.toString().slice(-4).padStart(4, '0');
-              
-              const resp2 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${roundedE}&n=${roundedN}`);
-              if (resp2.ok) {
-                const data2 = await resp2.json();
-                const apiZone = data2.utmGridZone || zone;
-                gridStr = `${apiZone} ${square} ${easting} ${northing}`;
-              } else {
-                gridStr = `${zone} ${square} ${easting} ${northing}`;
-              }
-            }
-          }
+          const { lat, lng } = wp.latlng;
+          const utmZone = lng < 114.0 ? "EPSG:32649" : "EPSG:32650";
+          const utm = proj4("EPSG:4326", utmZone, [lng, lat]);
+          gridStr = formatToHk80Shorthand(utm[0], utm[1], lng);
         } catch (e) {
-          console.error("Grid conversion API error", e);
+          console.error("Local Grid conversion error", e);
         }
 
         result.push({
