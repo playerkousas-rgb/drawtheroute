@@ -5,7 +5,8 @@
 import proj4 from 'proj4';
 import { UTM_SQUARE_CONFIG } from '../utils/coordUtils';
 
-// 定義 UTM Zone 50N (EPSG:32650)
+// 定義 UTM Zone 49N & 50N
+proj4.defs("EPSG:32649", "+proj=utm +zone=49 +datum=WGS84 +units=m +no_defs");
 proj4.defs("EPSG:32650", "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs");
 
 export interface LatLng {
@@ -54,11 +55,17 @@ export async function convertToWgs84(
 
     const numberMatches = cleanInput.match(/\d+/g);
     if (!numberMatches || numberMatches.length < 2) {
-      throw new Error('請輸入 8 位座標數字 (例如: 0670 2346)');
+      throw new Error('請輸入坐標數字 (例如: 017 688 或 0170 6880)');
     }
 
-    let eOffset = parseInt(numberMatches[0]);
-    let nOffset = parseInt(numberMatches[1]);
+    const eStr = numberMatches[0];
+    const nStr = numberMatches[1];
+
+    // 🚀 核心修正：修正倍率還原
+    // 3位 = 100m, 4位 = 10m, 5位 = 1m
+    // 公式：實際偏移 = 數字 * 10^(5 - 長度)
+    const eOffset = parseInt(eStr) * Math.pow(10, 5 - eStr.length);
+    const nOffset = parseInt(nStr) * Math.pow(10, 5 - nStr.length);
 
     const fullE = eOffset >= 100000 ? eOffset : (config.eastBase + eOffset);
     const fullN = nOffset >= 100000 ? nOffset : (config.northBase + nOffset);

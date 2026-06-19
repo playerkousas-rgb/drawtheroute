@@ -1,45 +1,105 @@
-/**
- * 遠足徑幾何與時間計算工具 (純運算)
- */
+import proj4 from 'proj4';
 
-// 1. 計算兩點間的前視方位 (Bearing)
+// 1. 權威投影定義
+proj4.defs("EPSG:2326", "+proj=tmerc +lat_0=22.31213333333333 +lon_0=114.1787222222222 +k=1 +x_0=836694.05 +y_0=819069.8 +ellps=intl +towgs84=-162.619,-276.959,-161.764,0.0677,-2.6556,0.8942,-10.624 +units=m +no_defs");
+proj4.defs("EPSG:32649", "+proj=utm +zone=49 +datum=WGS84 +units=m +no_defs");
+proj4.defs("EPSG:32650", "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs");
+
+export const convertWgs84ToHk80 = (lat: number, lng: number): [number, number] => {
+  return proj4("EPSG:4326", "EPSG:2326", [lng, lat]);
+};
+
+export const convertHk80ToWgs84 = (easting: number, northing: number): [number, number] => {
+  return proj4("EPSG:2326", "EPSG:4326", [easting, northing]);
+};
+
+/**
+ * 專業 UTM 方格權威映射表
+ * 🚀 核心修正：恢復正確的 Easting 範圍 (700k - 900k)
+ * 北基準線統一為 2,370,000 (根據 GEOINFO MAP 實測)
+ */
+export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
+  '50Q_KK': { zone: '49', eastBase: 800000, northBase: 2370000 }, // 修正：KK 位於 Zone 49 的 800k 帶
+  '50Q_JK': { zone: '49', eastBase: 800000, northBase: 2370000 },
+  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2370000 },
+  '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2370000 },
+};
+
+/**
+ * 🚀 核心修正：生成地圖上的藍色標籤格式 (如 GE963712)
+ * 格式：[Square][Easting 3-digit][Northing 3-digit] (100m 精度)
+ */
+export const formatToMapLabel = (E: number, N: number, lng: number): string => {
+  let square = '??';
+  let eastBase = 0;
+  const northBase = 2370000;
+
+  if (lng < 114.0) {
+    if (E >= 700000 && E < 800000) { square = 'GE'; eastBase = 700000; }
+    else if (E >= 800000 && E < 900000) { square = 'HE'; eastBase = 800000; }
+  } else {
+    if (E >= 700000 && E < 800000) { square = 'GE'; eastBase = 700000; }
+    else if (E >= 800000 && E < 900000) { square = 'KK'; eastBase = 800000; }
+  }
+
+  const eOff = Math.floor((E - eastBase) / 100);
+  const nOff = Math.floor((N - northBase) / 100);
+  
+  return `${square}${eOff.toString().padStart(3, '0')}${nOff.toString().padStart(3, '0')}`;
+}
+
+/**
+ * 生成專業 8 位縮寫格式 (如 49Q GE 9630 0712)
+ * 格式：[Zone] [Square] [Easting 4-digit] [Northing 4-digit] (10m 精度)
+ */
+export const formatToHk80Shorthand = (E: number, N: number, lng: number): string => {
+  let zone = '49Q';
+  let square = '??';
+  let eastBase = 0;
+  const northBase = 2370000;
+
+  if (E >= 700000 && E < 800000) {
+    square = 'GE';
+    eastBase = 700000;
+  } else if (E >= 800000 && E < 900000) {
+    // 根據經度區分 HE (西) 和 KK (東)
+    square = lng < 114.1 ? 'HE' : 'KK';
+    eastBase = 800000;
+  }
+
+  const eOff = Math.floor((E - eastBase) / 10);
+  const nOff = Math.floor((N - northBase) / 10);
+  
+  return `${zone} ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
+}
+
+// --- 其餘工具函數保持不變 ---
 export const calculateBearing = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const toDeg = (rad: number) => (rad * 180) / Math.PI;
-
   const φ1 = toRad(lat1);
   const φ2 = toRad(lat2);
   const Δλ = toRad(lon2 - lon1);
-
   const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x = Math.cos(φ1) * Math.sin(φ2) -
-            Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-  
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
   const theta = Math.atan2(y, x);
-  const brng = (toDeg(theta) + 360) % 360;
-  return Math.round(brng);
+  return Math.round((toDeg(theta) + 360) % 360);
 };
 
-// 2. 時間連動換算 (Time Addition)
 export const addMinutesToTime = (timeStr: string, minutesToAdd: number): string => {
   if (!timeStr || timeStr.indexOf(':') === -1) return "--:--";
-  
   const [hrs, mins] = timeStr.split(':').map(Number);
   if (isNaN(hrs) || isNaN(mins)) return "--:--";
-
   const totalMinutes = hrs * 60 + mins + Math.round(minutesToAdd);
   const finalHrs = Math.floor(totalMinutes / 60) % 24;
   const finalMins = totalMinutes % 60;
-
   return `${String(finalHrs).padStart(2, '0')}:${String(finalMins).padStart(2, '0')}`;
 };
 
-// 3. 距離單位轉換
 export const formatDistance = (distMeter: number): string => {
   return (distMeter / 1000).toFixed(1);
 };
 
-// 4. 日出計算器
 export const calculateSunrise = (lat: number, lng: number, dateStr: string): string => {
   try {
     const date = new Date(dateStr);
@@ -73,54 +133,3 @@ export const calculateSunrise = (lat: number, lng: number, dateStr: string): str
     return "08:30";
   }
 };
-
-import proj4 from 'proj4';
-
-// 定義香港 1980 方格網 (EPSG:2326) - 權威標準解
-proj4.defs("EPSG:2326", "+proj=tmerc +lat_0=22.31213333333333 +lon_0=114.1787222222222 +k=1 +x_0=836694.05 +y_0=819069.8 +ellps=intl +towgs84=-162.619,-276.959,-161.764,0.0677,-2.6556,0.8942,-10.624 +units=m +no_defs");
-
-export const convertWgs84ToHk80 = (lat: number, lng: number): [number, number] => {
-  // proj4 接收 [lng, lat]
-  return proj4("EPSG:4326", "EPSG:2326", [lng, lat]);
-};
-
-export const convertHk80ToWgs84 = (easting: number, northing: number): [number, number] => {
-  return proj4("EPSG:2326", "EPSG:4326", [easting, northing]);
-};
-
-/**
- * 專業 UTM 方格權威映射表
- * 包含：方格名稱 -> { 投影分區, 東經基數, 北緯基數 }
- * 
- * 注意：JK 方格雖然名稱標為 50Q，但地理上位於 Zone 49 區域，
- * 為了讓政府 API 定位準確，必須使用 Zone 49 投影 (800k基數)。
- */
-export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
-  '50Q_KK': { zone: '50', eastBase: 200000, northBase: 2470000 },
-  '50Q_JK': { zone: '49', eastBase: 800000, northBase: 2470000 }, // 關鍵修正：JK 使用 Zone 49
-  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2470000 },
-  '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2470000 },
-};
-
-/**
- * 將 True UTM 座標轉換為專業 8 位坐標格式 (例如: 50Q KK 0670 2346)
- */
-export const formatToHk80Shorthand = (E: number, N: number, lng: number): string => {
-  let zone = '';
-  let square = '??';
-
-  if (lng < 114.0) {
-    zone = '49Q';
-    if (E >= 700000 && E < 800000) square = 'GE';
-    else if (E >= 800000 && E < 900000) square = 'HE';
-  } else {
-    zone = '50Q';
-    if (E >= 100000 && E < 200000) square = 'JK';
-    else if (E >= 200000 && E < 300000) square = 'KK';
-  }
-
-  const eOffset = Math.floor(Math.abs(E % 10000)).toString().padStart(4, '0');
-  const nOffset = Math.floor(Math.abs(N % 10000)).toString().padStart(4, '0');
-  
-  return `${zone} ${square} ${eOffset} ${nOffset}`;
-}
