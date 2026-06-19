@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { hoverSync } from '../../utils/hoverSync';
-import { wgs84ToHk80, formatToHk80Shorthand } from '../../utils/coordUtils';
+import { convertWgs84ToHk80, formatToHk80Shorthand } from '../../utils/coordUtils';
 import {
   LatLng, RouteSegment, WaypointMarker,
   MapLayer, ElevationProfilePoint,
@@ -129,8 +129,8 @@ export default React.memo(function MapCore({
       const { lat, lng } = e.latlng;
       
       try {
-        const hk80 = await wgs84ToHk80(lat, lng);
-        const shorthand = formatToHk80Shorthand(hk80.easting, hk80.northing);
+        const hk80 = await convertWgs84ToHk80(lat, lng);
+        const shorthand = formatToHk80Shorthand(hk80[0], hk80[1]);
         coordRef.current.innerHTML = `
           <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
           <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>
