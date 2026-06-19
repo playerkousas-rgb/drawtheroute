@@ -89,14 +89,17 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
 };
 
 /**
- * 專業 UTM 方格基準座標表 (100km x 100km)
- * 注意：北緯基數統一使用 2,470,000，這是香港專業遠足縮寫的通用基準線
+ * 專業 UTM 方格權威映射表
+ * 包含：方格名稱 -> { 投影分區, 東經基數, 北緯基數 }
+ * 
+ * 注意：JK 方格雖然名稱標為 50Q，但地理上位於 Zone 49 區域，
+ * 為了讓政府 API 定位準確，必須使用 Zone 49 投影 (800k基數)。
  */
-export const UTM_SQUARE_BASES: Record<string, [number, number]> = {
-  '50Q_KK': [200000, 2470000],
-  '50Q_JK': [100000, 2470000],
-  '49Q_HE': [800000, 2470000],
-  '49Q_GE': [700000, 2470000],
+export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
+  '50Q_KK': { zone: '50', eastBase: 200000, northBase: 2470000 },
+  '50Q_JK': { zone: '49', eastBase: 800000, northBase: 2470000 }, // 關鍵修正：JK 使用 Zone 49
+  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2470000 },
+  '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2470000 },
 };
 
 /**

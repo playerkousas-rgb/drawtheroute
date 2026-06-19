@@ -3,7 +3,7 @@
  * Handles all authoritative coordinate conversions.
  */
 import proj4 from 'proj4';
-import { UTM_SQUARE_BASES } from '../utils/coordUtils';
+import { UTM_SQUARE_CONFIG } from '../utils/coordUtils';
 
 // 定義 UTM Zone 50N (EPSG:32650)
 proj4.defs("EPSG:32650", "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs");
@@ -49,8 +49,8 @@ export async function convertToWgs84(
     
     const { zone, square } = utmOptions;
     const lookupKey = `${zone}_${square}`;
-    const base = UTM_SQUARE_BASES[lookupKey];
-    if (!base) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。`);
+    const config = UTM_SQUARE_CONFIG[lookupKey];
+    if (!config) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。`);
 
     const numberMatches = cleanInput.match(/\d+/g);
     if (!numberMatches || numberMatches.length < 2) {
@@ -60,17 +60,11 @@ export async function convertToWgs84(
     let eOffset = parseInt(numberMatches[0]);
     let nOffset = parseInt(numberMatches[1]);
 
-    // 🚀 核心邏輯：還原為全座標 (Full UTM)
-    // 如果輸入的是完整 6 位數/7 位數，則直接使用；否則加上基數
-    const fullE = eOffset >= 100000 ? eOffset : (base[0] + eOffset);
-    const fullN = nOffset >= 100000 ? nOffset : (2470000 + nOffset);
+    const fullE = eOffset >= 100000 ? eOffset : (config.eastBase + eOffset);
+    const fullN = nOffset >= 100000 ? nOffset : (config.northBase + nOffset);
     
-    // 🚀 終極方案：將全座標發送給政府 API 進行權威轉換
     try {
-      // UTM 轉換 API 接口: inSys=utmgrid (True UTM) -> outSys=wgsgeog (經緯度)
-      // 注意：API 需要知道 Zone，我們將 zone 傳入參數中 (例如 50)
-      const zoneNum = zone.replace('Q', ''); 
-      const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=utmgrid&outSys=wgsgeog&zone=${zoneNum}&e=${fullE}&n=${fullN}`);
+      const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=utmgrid&outSys=wgsgeog&zone=${config.zone}&e=${fullE}&n=${fullN}`);
       
       if (resp.ok) {
         const data = await resp.json();
