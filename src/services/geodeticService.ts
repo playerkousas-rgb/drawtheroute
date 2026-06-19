@@ -2,7 +2,11 @@
  * Geodetic Service
  * Handles all authoritative coordinate conversions.
  */
+import proj4 from 'proj4';
 import { SQUARE_MAP } from '../utils/coordUtils';
+
+// 定義 UTM Zone 50N (EPSG:32650)
+proj4.defs("EPSG:32650", "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs");
 
 export interface LatLng {
   lat: number;
@@ -41,23 +45,23 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
     if (utmMatch) {
       const zone = utmMatch[1]?.toUpperCase() || '50Q'; 
       const square = utmMatch[2]?.toUpperCase();
-      const easting = utmMatch[3];
-      const northing = utmMatch[4];
+      const eastingOffset = parseInt(utmMatch[3]);
+      const northingOffset = parseInt(utmMatch[4]);
 
       if (!square) throw new Error('請提供方格碼 (例如: 50Q KK 0670 2346)。');
 
       const lookupKey = `${zone}_${square}`;
-      const prefix = SQUARE_MAP[lookupKey];
-      if (!prefix) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。`);
+      const base = SQUARE_MAP[lookupKey];
+      if (!base) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。`);
 
-      const fullE = `${prefix[0]}${easting}`;
-      const fullN = `${prefix[1]}${northing}`;
+      // 🚀 真正 UTM 座標 = 基準點 + 偏移量
+      const fullE = base[0] + eastingOffset;
+      const fullN = base[1] + northingOffset;
       
-      const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&outSys=wgsgeog&e=${fullE}&n=${fullN}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.wgsLat && data.wgsLong) return { lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) };
-      }
+      // 直接使用 proj4 將 True UTM (EPSG:32650) 轉為 WGS84 (EPSG:4326)
+      // 徹底避免政府 API 的 inSys=hkgrid 誤導
+      const wgs = proj4("EPSG:32650", "EPSG:4326", [fullE, fullN]);
+      return { lat: wgs[1], lng: wgs[0] };
     }
     throw new Error('UTM 格式不正確或超出香港範圍。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。正確格式示例: 50Q KK 0670 2346');
   }
