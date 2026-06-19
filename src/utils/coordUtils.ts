@@ -15,32 +15,38 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
 
 /**
  * 專業 UTM 方格權威映射表
- * 🚀 核心修正：恢復正確的 Easting 範圍 (700k - 900k)
- * 北基準線統一為 2,370,000 (根據 GEOINFO MAP 實測)
+ * 基準線必須與分區 (Zone) 嚴格對應
  */
 export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
-  '50Q_KK': { zone: '49', eastBase: 800000, northBase: 2370000 }, // 修正：KK 位於 Zone 49 的 800k 帶
-  '50Q_JK': { zone: '49', eastBase: 800000, northBase: 2370000 },
-  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2370000 },
   '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2370000 },
+  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2370000 },
+  '50Q_JK': { zone: '50', eastBase: 100000, northBase: 2370000 },
+  '50Q_KK': { zone: '50', eastBase: 200000, northBase: 2370000 },
 };
 
 /**
- * 🚀 核心修正：生成地圖上的藍色標籤格式 (如 GE963712)
- * 格式：[Square][Easting 3-digit][Northing 3-digit] (100m 精度)
+ * 🚀 核心修正：自動根據經緯度與 UTM 坐標判定方格
+ * 邏輯：經度 $\rightarrow$ Zone $\rightarrow$ Easting 範圍 $\rightarrow$ 方格代號 $\rightarrow$ 基線
  */
-export const formatToMapLabel = (E: number, N: number, lng: number): string => {
-  let square = '??';
-  let eastBase = 0;
+const resolveUtmGrid = (E: number, N: number, lng: number) => {
   const northBase = 2370000;
-
+  
   if (lng < 114.0) {
-    if (E >= 700000 && E < 800000) { square = 'GE'; eastBase = 700000; }
-    else if (E >= 800000 && E < 900000) { square = 'HE'; eastBase = 800000; }
+    // Zone 49: Easting 700k - 900k
+    if (E >= 700000 && E < 800000) return { zone: '49Q', square: 'GE', eastBase: 700000, northBase };
+    if (E >= 800000 && E < 900000) return { zone: '49Q', square: 'HE', eastBase: 800000, northBase };
   } else {
-    if (E >= 700000 && E < 800000) { square = 'GE'; eastBase = 700000; }
-    else if (E >= 800000 && E < 900000) { square = 'KK'; eastBase = 800000; }
+    // Zone 50: Easting 100k - 300k
+    if (E >= 100000 && E < 200000) return { zone: '50Q', square: 'JK', eastBase: 100000, northBase };
+    if (E >= 200000 && E < 300000) return { zone: '50Q', square: 'KK', eastBase: 200000, northBase };
   }
+  
+  return { zone: '??', square: '??', eastBase: 0, northBase: 0 };
+};
+
+export const formatToMapLabel = (E: number, N: number, lng: number): string => {
+  const { square, eastBase, northBase } = resolveUtmGrid(E, N, lng);
+  if (square === '??') return '??';
 
   const eOff = Math.floor((E - eastBase) / 100);
   const nOff = Math.floor((N - northBase) / 100);
@@ -48,24 +54,9 @@ export const formatToMapLabel = (E: number, N: number, lng: number): string => {
   return `${square}${eOff.toString().padStart(3, '0')}${nOff.toString().padStart(3, '0')}`;
 }
 
-/**
- * 生成專業 8 位縮寫格式 (如 49Q GE 9630 0712)
- * 格式：[Zone] [Square] [Easting 4-digit] [Northing 4-digit] (10m 精度)
- */
 export const formatToHk80Shorthand = (E: number, N: number, lng: number): string => {
-  let zone = '49Q';
-  let square = '??';
-  let eastBase = 0;
-  const northBase = 2370000;
-
-  if (E >= 700000 && E < 800000) {
-    square = 'GE';
-    eastBase = 700000;
-  } else if (E >= 800000 && E < 900000) {
-    // 根據經度區分 HE (西) 和 KK (東)
-    square = lng < 114.1 ? 'HE' : 'KK';
-    eastBase = 800000;
-  }
+  const { zone, square, eastBase, northBase } = resolveUtmGrid(E, N, lng);
+  if (square === '??') return `?? ?? ???? ????`;
 
   const eOff = Math.floor((E - eastBase) / 10);
   const nOff = Math.floor((N - northBase) / 10);
