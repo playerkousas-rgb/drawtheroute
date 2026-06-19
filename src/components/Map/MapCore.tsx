@@ -131,11 +131,14 @@ export default React.memo(function MapCore({
       
       try {
         const hk80 = convertWgs84ToHk80(lat, lng);
-        // 🚀 修正：將 HKGrid 轉換為 True UTM 以便使用 formatToHk80Shorthand
-        // HKGrid (836694, 819069) -> True UTM (200000, 2470000)
-        // 我們可以使用 proj4 做這個中間轉換
-        const utm = proj4("EPSG:2326", "EPSG:32650", [hk80[0], hk80[1]]);
-        const shorthand = formatToHk80Shorthand(utm[0], utm[1]);
+        
+        // 🚀 核心修正：根據經度決定使用 Zone 49 還是 Zone 50
+        // 114.0E 是 Zone 49 與 Zone 50 的分界線
+        const utmZone = lng < 114.0 ? "EPSG:32649" : "EPSG:32650";
+        const utm = proj4("EPSG:2326", utmZone, [hk80[0], hk80[1]]);
+        
+        // 將經度傳入，以便在 formatToHk80Shorthand 中進行最終方格確認
+        const shorthand = formatToHk80Shorthand(utm[0], utm[1], lng);
         
         coordRef.current.innerHTML = `
           <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>

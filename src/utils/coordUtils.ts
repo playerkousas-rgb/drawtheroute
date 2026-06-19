@@ -90,33 +90,33 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
 
 /**
  * 將 True UTM 座標轉換為專業 8 位坐標格式 (例如: 50Q KK 0670 2346)
- * 採用 MGRS 100km 方格判定法，對接香港地政總署權威標準
+ * 採用動態分區判定法，完全對接 49Q 與 50Q 雙分區標準
  */
-export const formatToHk80Shorthand = (E: number, N: number): string => {
-  let zone = '50Q';
+export const formatToHk80Shorthand = (E: number, N: number, lng: number): string => {
+  let zone = '';
   let square = '??';
 
-  // 1. 根據 True UTM 東經決定大方格 (100km Square)
-  // 這是基於 MGRS 標準及地政總署 API Manual 的範圍判定
-  if (E >= 200000 && E < 300000) {
-    zone = '50Q';
-    square = 'KK';
-  } else if (E >= 100000 && E < 200000) {
-    zone = '50Q';
-    square = 'JK';
-  } else if (E >= 800000 && E < 900000) {
+  if (lng < 114.0) {
+    // --- Zone 49Q 邏輯 ---
     zone = '49Q';
-    square = 'HE';
-  } else if (E >= 700000 && E < 800000) {
-    zone = '49Q';
-    square = 'GE';
+    // 在 Zone 49 中，東經 700k-800k 為 GE, 800k-900k 為 HE
+    if (E >= 700000 && E < 800000) {
+      square = 'GE';
+    } else if (E >= 800000 && E < 900000) {
+      square = 'HE';
+    }
   } else {
-    // 備用：如果超出上述範圍，嘗試簡單推算
-    zone = E >= 500000 ? '50Q' : '49Q';
-    square = '??';
+    // --- Zone 50Q 邏輯 ---
+    zone = '50Q';
+    // 在 Zone 50 中，東經 100k-200k 為 JK, 200k-300k 為 KK
+    if (E >= 100000 && E < 200000) {
+      square = 'JK';
+    } else if (E >= 200000 && E < 300000) {
+      square = 'KK';
+    }
   }
 
-  // 2. 計算該點相對於 10km 基準線的精確尾數 (XXXX XXXX)
+  // 3. 計算該點相對於 10km 基準線的精確尾數 (XXXX XXXX)
   // 專業習慣是取座標對 10,000 取模，保留最後四位
   const eOffset = Math.floor(Math.abs(E % 10000)).toString().padStart(4, '0');
   const nOffset = Math.floor(Math.abs(N % 10000)).toString().padStart(4, '0');
