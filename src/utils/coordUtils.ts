@@ -88,49 +88,38 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
   return proj4("EPSG:2326", "EPSG:4326", [easting, northing]);
 };
 
-// 5. 香港 UTM 坐標方格基準座標對照表 (權威定義)
-// 格式: 'Zone_Square': [EastingBase, NorthingBase]
-// 基於 True UTM 投影
-export const SQUARE_MAP: Record<string, [number, number]> = {
-  // --- 50Q 分區 (基準點由 True UTM 確定) ---
-  '50Q_KK': [200000, 2470000],
-  '50Q_JK': [190000, 2470000],
-  '50Q_HE': [180000, 2470000],
-  '50Q_GE': [170000, 2470000],
-  '50Q_LK': [210000, 2470000],
-  '50Q_MK': [220000, 2470000],
-  '50Q_KE': [200000, 2460000],
-  '50Q_JE': [190000, 2460000],
-  '50Q_LE': [210000, 2460000],
-  '50Q_ME': [220000, 2460000],
-  '50Q_FK': [170000, 2470000], 
-  '50Q_GK': [160000, 2470000],
-};
-
 /**
  * 將 True UTM 座標轉換為專業 8 位坐標格式 (例如: 50Q KK 0670 2346)
+ * 採用 MGRS 100km 方格判定法，對接香港地政總署權威標準
  */
 export const formatToHk80Shorthand = (E: number, N: number): string => {
-  // E, N 應為 True UTM 座標 (例如: 200670, 2472346)
-  const eastPrefix = Math.floor(E / 10000) * 10000;
-  const northPrefix = Math.floor(N / 10000) * 10000;
-  
-  let square = '??';
   let zone = '50Q';
-  
-  for (const [key, base] of Object.entries(SQUARE_MAP)) {
-    if (base[0] === eastPrefix && base[1] === northPrefix) {
-      square = key.split('_')[1];
-      zone = key.split('_')[0];
-      break;
-    }
+  let square = '??';
+
+  // 1. 根據 True UTM 東經決定大方格 (100km Square)
+  // 這是基於 MGRS 標準及地政總署 API Manual 的範圍判定
+  if (E >= 200000 && E < 300000) {
+    zone = '50Q';
+    square = 'KK';
+  } else if (E >= 100000 && E < 200000) {
+    zone = '50Q';
+    square = 'JK';
+  } else if (E >= 800000 && E < 900000) {
+    zone = '49Q';
+    square = 'HE';
+  } else if (E >= 700000 && E < 800000) {
+    zone = '49Q';
+    square = 'GE';
+  } else {
+    // 備用：如果超出上述範圍，嘗試簡單推算
+    zone = E >= 500000 ? '50Q' : '49Q';
+    square = '??';
   }
-  
-  // 如果找不到匹配的方格，zone 仍然保持-由座標確定-
-  // 這裡可以增加更複雜的 Zone 判定邏輯，但目前針對香港區域，50Q 為主
-  
-  const eOffset = Math.floor(E % 10000).toString().padStart(4, '0');
-  const nOffset = Math.floor(N % 10000).toString().padStart(4, '0');
+
+  // 2. 計算該點相對於 10km 基準線的精確尾數 (XXXX XXXX)
+  // 專業習慣是取座標對 10,000 取模，保留最後四位
+  const eOffset = Math.floor(Math.abs(E % 10000)).toString().padStart(4, '0');
+  const nOffset = Math.floor(Math.abs(N % 10000)).toString().padStart(4, '0');
   
   return `${zone} ${square} ${eOffset} ${nOffset}`;
 }
