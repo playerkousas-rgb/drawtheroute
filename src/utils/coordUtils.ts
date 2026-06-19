@@ -126,6 +126,9 @@ export const formatToHk80Shorthand = (E: number, N: number): string => {
     }
   }
   
+  // 如果找不到匹配的方格，zone 仍然保持-由座標確定-
+  // 這裡可以增加更複雜的 Zone 判定邏輯，但目前針對香港區域，50Q 為主
+  
   const eOffset = Math.floor(E % 10000).toString().padStart(4, '0');
   const nOffset = Math.floor(N % 10000).toString().padStart(4, '0');
   

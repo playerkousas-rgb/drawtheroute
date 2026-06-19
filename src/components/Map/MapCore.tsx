@@ -130,7 +130,12 @@ export default React.memo(function MapCore({
       
       try {
         const hk80 = await convertWgs84ToHk80(lat, lng);
-        const shorthand = formatToHk80Shorthand(hk80[0], hk80[1]);
+        // 🚀 修正：將 HKGrid 轉換為 True UTM 以便使用 formatToHk80Shorthand
+        // HKGrid (836694, 819069) -> True UTM (200000, 2470000)
+        // 我們可以使用 proj4 做這個中間轉換
+        const utm = proj4("EPSG:2326", "EPSG:32650", [hk80.easting, hk80.northing]);
+        const shorthand = formatToHk80Shorthand(utm[0], utm[1]);
+        
         coordRef.current.innerHTML = `
           <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
           <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>

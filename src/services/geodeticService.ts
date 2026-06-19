@@ -41,12 +41,26 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
   }
 
   if (mode === 'utm') {
-    const utmMatch = cleanInput.match(/^([45]0[PQ])?\s*([A-Z]{2})?\s*(\d{4})\s*(\d{4})$/i);
+    // 🚀 優化正則：允許 8 位連續數字 (例如 07656848) 或 用空格分開的 4+4 數字
+    const utmMatch = cleanInput.match(/^([45]0[PQ])?\s*([A-Z]{2})?\s*(\d{8}|\d{4}\s*\d{4})$/i);
     if (utmMatch) {
       const zone = utmMatch[1]?.toUpperCase() || '50Q'; 
       const square = utmMatch[2]?.toUpperCase();
-      const eastingOffset = parseInt(utmMatch[3]);
-      const northingOffset = parseInt(utmMatch[4]);
+      let eastingStr = '';
+      let northingStr = '';
+
+      const coordsPart = utmMatch[3];
+      if (coordsPart.length === 8) {
+        eastingStr = coordsPart.slice(0, 4);
+        northingStr = coordsPart.slice(4);
+      } else {
+        const parts = coordsPart.split(/\s+/).filter(Boolean);
+        eastingStr = parts[0];
+        northingStr = parts[1];
+      }
+
+      const eastingOffset = parseInt(eastingStr);
+      const northingOffset = parseInt(northingStr);
 
       if (!square) throw new Error('請提供方格碼 (例如: 50Q KK 0670 2346)。');
 
@@ -59,7 +73,6 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
       const fullN = base[1] + northingOffset;
       
       // 直接使用 proj4 將 True UTM (EPSG:32650) 轉為 WGS84 (EPSG:4326)
-      // 徹底避免政府 API 的 inSys=hkgrid 誤導
       const wgs = proj4("EPSG:32650", "EPSG:4326", [fullE, fullN]);
       return { lat: wgs[1], lng: wgs[0] };
     }
