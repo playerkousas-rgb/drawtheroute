@@ -60,18 +60,29 @@ export async function convertToWgs84(
     let eOffset = parseInt(numberMatches[0]);
     let nOffset = parseInt(numberMatches[1]);
 
+    // 🚀 核心邏輯：還原為全座標 (Full UTM)
+    // 如果輸入的是完整 6 位數/7 位數，則直接使用；否則加上基數
     const fullE = eOffset >= 100000 ? eOffset : (base[0] + eOffset);
     const fullN = nOffset >= 100000 ? nOffset : (2470000 + nOffset);
     
-    const projZone = zone.startsWith('49') ? "EPSG:32649" : "EPSH:32650"; // Corrected EPSG here
-    // Wait, EPSG:32650 is correct for Zone 50N
-    const wgs = proj4(zone.startsWith('49') ? "EPSG:32649" : "EPSG:32650", "EPSG:4326", [fullE, fullN]);
-    
-    if (wgs[1] < 22.1 || wgs[1] > 22.6 || wgs[0] < 113.7 || wgs[0] > 114.6) {
-      throw new Error('座標轉換後超出香港範圍，請檢查輸入的方格或數字是否正確。');
+    // 🚀 終極方案：將全座標發送給政府 API 進行權威轉換
+    try {
+      // UTM 轉換 API 接口: inSys=utmgrid (True UTM) -> outSys=wgsgeog (經緯度)
+      // 注意：API 需要知道 Zone，我們將 zone 傳入參數中 (例如 50)
+      const zoneNum = zone.replace('Q', ''); 
+      const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=utmgrid&outSys=wgsgeog&zone=${zoneNum}&e=${fullE}&n=${fullN}`);
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.wgsLat && data.wgsLong) {
+          return { lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) };
+        }
+      }
+    } catch (e) {
+      console.error("Government UTM API Error:", e);
     }
 
-    return { lat: wgs[1], lng: wgs[0] };
+    throw new Error('政府 API 轉換失敗或座標超出範圍，請檢查輸入。');
   }
 
   throw new Error('未知的坐標模式');

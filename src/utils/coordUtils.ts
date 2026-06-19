@@ -90,18 +90,17 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
 
 /**
  * 專業 UTM 方格基準座標表 (100km x 100km)
- * 格式: 'Zone_Square': [EastingBase, NorthingBase]
+ * 注意：北緯基數統一使用 2,470,000，這是香港專業遠足縮寫的通用基準線
  */
 export const UTM_SQUARE_BASES: Record<string, [number, number]> = {
-  '50Q_KK': [200000, 2400000],
-  '50Q_JK': [100000, 2400000],
-  '49Q_HE': [800000, 2400000],
-  '49Q_GE': [700000, 2400000],
+  '50Q_KK': [200000, 2470000],
+  '50Q_JK': [100000, 2470000],
+  '49Q_HE': [800000, 2470000],
+  '49Q_GE': [700000, 2470000],
 };
 
 /**
  * 將 True UTM 座標轉換為專業 8 位坐標格式 (例如: 50Q KK 0670 2346)
- * 採用動態分區判定法，完全對接 49Q 與 50Q 雙分區標準
  */
 export const formatToHk80Shorthand = (E: number, N: number, lng: number): string => {
   let zone = '';

@@ -73,57 +73,78 @@ export default function LeftToolbar({
               <div className="flex items-center gap-2">
                 <select 
                   value={searchMode}
-                  onChange={(e) => setSearchMode(e.target.value as any)}
-                  className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-1 outline-none border border-slate-700"
+                  onChange={(e) => {
+                    const mode = e.target.value as any;
+                    setSearchMode(mode);
+                    if (mode === 'utm') {
+                      setUtmZone('50Q');
+                      setUtmSquare('KK');
+                    }
+                  }}
+                  className="bg-slate-800 text-slate-300 text-[11px] rounded px-2 py-1 outline-none border border-slate-700 font-medium"
                 >
                   <option value="utm">UTM 縮寫</option>
                   <option value="hk80">HK80 全座標</option>
                   <option value="latlng">經緯度</option>
                 </select>
                 
-                {searchMode === 'utm' && (
-                  <div className="flex gap-1">
-                    <select 
-                      value={utmZone}
-                      onChange={(e) => setUtmZone(e.target.value)}
-                      className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-1 outline-none border border-slate-700"
-                    >
-                      <option value="50Q">50Q</option>
-                      <option value="49Q">49Q</option>
-                    </select>
-                    <select 
-                      value={utmSquare}
-                      onChange={(e) => setUtmSquare(e.target.value)}
-                      className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-1 outline-none border border-slate-700"
-                    >
-                      <option value="KK">KK</option>
-                      <option value="JK">JK</option>
-                      <option value="HE">HE</option>
-                      <option value="GE">GE</option>
-                    </select>
-                  </div>
-                )}
-
                 <div className="flex items-center gap-2 flex-1">
                   <input
                     autoFocus
-                    className="bg-transparent text-white text-xs outline-none w-40 font-mono"
+                    className="bg-transparent text-white text-xs outline-none flex-1 font-mono px-1"
                     placeholder={modeConfig[searchMode].placeholder}
                     value={searchVal}
                     onChange={(e) => setSearchVal(e.target.value)}
                   />
-                  <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1">
+                  <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1 transition-colors">
                     <Search size={14} />
                   </button>
                   <button 
                     type="button" 
                     onClick={() => setIsSearching(false)} 
-                    className="text-slate-500 hover:text-slate-300 p-1"
+                    className="text-slate-500 hover:text-slate-300 p-1 transition-colors"
                   >
                     <ChevronLeft size={14} />
                   </button>
                 </div>
               </div>
+
+              {searchMode === 'utm' && (
+                <div className="flex items-center gap-2 p-2 bg-slate-900/50 rounded-lg border border-slate-800">
+                  <span className="text-slate-500 text-[9px] font-mono whitespace-nowrap">UTM 設置:</span>
+                  <select 
+                    value={utmZone}
+                    onChange={(e) => {
+                      const zone = e.target.value;
+                      setUtmZone(zone);
+                      // 連動邏輯：切換 Zone 時自動更新預設 Square
+                      setUtmSquare(zone === '50Q' ? 'KK' : 'HE');
+                    }}
+                    className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-0.5 outline-none border border-slate-700"
+                  >
+                    <option value="50Q">50Q</option>
+                    <option value="49Q">49Q</option>
+                  </select>
+                  <select 
+                    value={utmSquare}
+                    onChange={(e) => setUtmSquare(e.target.value)}
+                    className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-0.5 outline-none border border-slate-700"
+                  >
+                    {utmZone === '50Q' ? (
+                      <>
+                        <option value="KK">KK</option>
+                        <option value="JK">JK</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="HE">HE</option>
+                        <option value="GE">GE</option>
+                      </>
+                    )}
+                  </select>
+                  <span className="text-slate-600 text-[9px] ml-auto italic">對接 MGRS</span>
+                </div>
+              )}
             </div>
           </motion.form>
         )}
