@@ -221,6 +221,38 @@ export default function ElevationChart({
     }
   }, []);
 
+  // 🚀 新增：原生容器監聽，解決 Recharts hit-test 不靈敏問題，實現「黏著」感
+  const handleContainerMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!chartContainerRef.current || !profile.length) return;
+    
+    const rect = chartContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    
+    // 扣除 Recharts 的 margin: { top: 20, right: 16, left: 0, bottom: 4 }
+    const leftMargin = 0; 
+    const rightMargin = 16;
+    const chartWidth = rect.width - leftMargin - rightMargin;
+    const relativeX = Math.max(0, Math.min(x - leftMargin, chartWidth));
+    const pct = relativeX / chartWidth;
+    
+    const targetDist = pct * stats.totalDistance;
+    
+    // 在 profile 中尋找距離 targetDist 最近的點
+    let closest = profile[0];
+    let minDiff = Math.abs(profile[0].distance - targetDist);
+    for (let i = 1; i < profile.length; i++) {
+      const diff = Math.abs(profile[i].distance - targetDist);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = profile[i];
+      }
+    }
+    
+    setActivePoint(closest);
+    setHoverX(closest.distance);
+    hoverSync.emit(closest, 'chart');
+  }, [profile, stats.totalDistance]);
+
 
   const onClickChart = useCallback((e: any) => {
     if (e?.activePayload?.[0]) {
@@ -465,13 +497,16 @@ export default function ElevationChart({
       </div>
 
       {activeTab === 'chart' ? (
-        <div className="flex-1 min-h-0 relative" ref={chartContainerRef}>
+        <div 
+          className="flex-1 min-h-0 relative" 
+          ref={chartContainerRef} 
+          onMouseMove={handleContainerMouseMove}
+          onMouseLeave={onLeave}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart 
               data={profile} 
-              onMouseMove={onMove} 
               onClick={onClickChart}
-              onMouseLeave={onLeave} 
               margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
             >
               <defs>
