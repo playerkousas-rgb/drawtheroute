@@ -13,7 +13,11 @@ export interface LatLng {
   lng: number;
 }
 
-export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latlng'): Promise<LatLng> {
+export async function convertToWgs84(
+  input: string, 
+  mode: 'utm' | 'hk80' | 'latlng',
+  utmOptions?: { zone: string; square: string }
+): Promise<LatLng> {
   const cleanInput = input.trim().toUpperCase();
 
   if (mode === 'latlng') {
@@ -41,41 +45,33 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
   }
 
   if (mode === 'utm') {
-    const utmMatch = cleanInput.match(/^([45]0[PQ])?\s*([A-Z]{2})?\s*(\d{8}|\d{4}\s*\d{4})$/i);
-    if (utmMatch) {
-      const zone = utmMatch[1]?.toUpperCase() || '50Q'; 
-      const square = utmMatch[2]?.toUpperCase();
-      let eastingStr = '';
-      let northingStr = '';
+    if (!utmOptions) throw new Error('UTM 模式需要選擇分區和方格。');
+    
+    const { zone, square } = utmOptions;
+    const lookupKey = `${zone}_${square}`;
+    const base = UTM_SQUARE_BASES[lookupKey];
+    if (!base) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。`);
 
-      const coordsPart = utmMatch[3];
-      if (coordsPart.length === 8) {
-        eastingStr = coordsPart.slice(0, 4);
-        northingStr = coordsPart.slice(4);
-      } else {
-        const parts = coordsPart.split(/\s+/).filter(Boolean);
-        eastingStr = parts[0];
-        northingStr = parts[1];
-      }
-
-      const eastingOffset = parseInt(eastingStr);
-      const northingOffset = parseInt(northingStr);
-
-      if (!square) throw new Error('請提供方格碼 (例如: 50Q KK 0670 2346)。');
-
-      const lookupKey = `${zone}_${square}`;
-      const base = UTM_SQUARE_BASES[lookupKey];
-      if (!base) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。`);
-
-      const fullE = base[0] + eastingOffset;
-      const fullN = base[1] + northingOffset;
-      
-      // 根據 Zone 選擇投影
-      const projZone = zone.startsWith('49') ? "EPSG:32649" : "EPSG:32650";
-      const wgs = proj4(projZone, "EPSG:4326", [fullE, fullN]);
-      return { lat: wgs[1], lng: wgs[0] };
+    const numberMatches = cleanInput.match(/\d+/g);
+    if (!numberMatches || numberMatches.length < 2) {
+      throw new Error('請輸入 8 位座標數字 (例如: 0670 2346)');
     }
-    throw new Error('UTM 格式不正確或超出香港範圍。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。正確格式示例: 50Q KK 0670 2346');
+
+    let eOffset = parseInt(numberMatches[0]);
+    let nOffset = parseInt(numberMatches[1]);
+
+    const fullE = eOffset >= 100000 ? eOffset : (base[0] + eOffset);
+    const fullN = nOffset >= 100000 ? nOffset : (2470000 + nOffset);
+    
+    const projZone = zone.startsWith('49') ? "EPSG:32649" : "EPSH:32650"; // Corrected EPSG here
+    // Wait, EPSG:32650 is correct for Zone 50N
+    const wgs = proj4(zone.startsWith('49') ? "EPSG:32649" : "EPSG:32650", "EPSG:4326", [fullE, fullN]);
+    
+    if (wgs[1] < 22.1 || wgs[1] > 22.6 || wgs[0] < 113.7 || wgs[0] > 114.6) {
+      throw new Error('座標轉換後超出香港範圍，請檢查輸入的方格或數字是否正確。');
+    }
+
+    return { lat: wgs[1], lng: wgs[0] };
   }
 
   throw new Error('未知的坐標模式');

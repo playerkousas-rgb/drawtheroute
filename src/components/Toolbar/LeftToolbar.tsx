@@ -14,7 +14,7 @@ interface Props {
   onExportGPX: () => void;
   hasRoute: boolean;
   isProcessing: boolean;
-  onSearchCoord: (coord: string, mode: 'utm' | 'hk80' | 'latlng') => Promise<void>;
+  onSearchCoord: (coord: string, mode: 'utm' | 'hk80' | 'latlng', utmOptions?: { zone: string; square: string }) => Promise<void>;
 }
 
 export default function LeftToolbar({
@@ -28,17 +28,23 @@ export default function LeftToolbar({
   const [isSearching, setIsSearching] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const [searchMode, setSearchMode] = useState<'utm' | 'hk80' | 'latlng'>('utm');
+  const [utmZone, setUtmZone] = useState('50Q');
+  const [utmSquare, setUtmSquare] = useState('KK');
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchVal.trim()) return;
-    await onSearchCoord(searchVal, searchMode);
+    await onSearchCoord(
+      searchVal, 
+      searchMode, 
+      searchMode === 'utm' ? { zone: utmZone, square: utmSquare } : undefined
+    );
     setIsSearching(false);
     setSearchVal('');
   };
 
   const modeConfig = {
-    utm: { label: 'UTM 縮寫', placeholder: '50Q KK 0670 2346' },
+    utm: { label: 'UTM 縮寫', placeholder: '0670 2346' },
     hk80: { label: 'HK80 全座標', placeholder: '830670 82346' },
     latlng: { label: '經緯度', placeholder: '22.3, 114.1' },
   };
@@ -63,34 +69,60 @@ export default function LeftToolbar({
               zIndex: 1001
             }}
           >
-            <div className="flex items-center gap-2">
-              <select 
-                value={searchMode}
-                onChange={(e) => setSearchMode(e.target.value as any)}
-                className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-1 outline-none border border-slate-700"
-              >
-                <option value="utm">UTM 縮寫</option>
-                <option value="hk80">HK80 全座標</option>
-                <option value="latlng">經緯度</option>
-              </select>
-              <div className="flex items-center gap-2 flex-1">
-                <input
-                  autoFocus
-                  className="bg-transparent text-white text-xs outline-none w-40 font-mono"
-                  placeholder={modeConfig[searchMode].placeholder}
-                  value={searchVal}
-                  onChange={(e) => setSearchVal(e.target.value)}
-                />
-                <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1">
-                  <Search size={14} />
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setIsSearching(false)} 
-                  className="text-slate-500 hover:text-slate-300 p-1"
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <select 
+                  value={searchMode}
+                  onChange={(e) => setSearchMode(e.target.value as any)}
+                  className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-1 outline-none border border-slate-700"
                 >
-                  <ChevronLeft size={14} />
-                </button>
+                  <option value="utm">UTM 縮寫</option>
+                  <option value="hk80">HK80 全座標</option>
+                  <option value="latlng">經緯度</option>
+                </select>
+                
+                {searchMode === 'utm' && (
+                  <div className="flex gap-1">
+                    <select 
+                      value={utmZone}
+                      onChange={(e) => setUtmZone(e.target.value)}
+                      className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-1 outline-none border border-slate-700"
+                    >
+                      <option value="50Q">50Q</option>
+                      <option value="49Q">49Q</option>
+                    </select>
+                    <select 
+                      value={utmSquare}
+                      onChange={(e) => setUtmSquare(e.target.value)}
+                      className="bg-slate-800 text-slate-300 text-[10px] rounded px-1 py-1 outline-none border border-slate-700"
+                    >
+                      <option value="KK">KK</option>
+                      <option value="JK">JK</option>
+                      <option value="HE">HE</option>
+                      <option value="GE">GE</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    autoFocus
+                    className="bg-transparent text-white text-xs outline-none w-40 font-mono"
+                    placeholder={modeConfig[searchMode].placeholder}
+                    value={searchVal}
+                    onChange={(e) => setSearchVal(e.target.value)}
+                  />
+                  <button type="submit" className="text-emerald-400 hover:text-emerald-300 p-1">
+                    <Search size={14} />
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsSearching(false)} 
+                    className="text-slate-500 hover:text-slate-300 p-1"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           </motion.form>

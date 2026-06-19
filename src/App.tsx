@@ -79,12 +79,12 @@ export default function App() {
     addWaypoint(latlng);
   }, [isProcessing, addWaypoint]);
 
-  const goToLocation = useCallback(async (input: string, mode: 'utm' | 'hk80' | 'latlng') => {
+  const goToLocation = useCallback(async (input: string, mode: 'utm' | 'hk80' | 'latlng', utmOptions?: { zone: string; square: string }) => {
     const cleanInput = input.trim();
     if (!cleanInput) return;
 
     try {
-      const coords = await convertToWgs84(cleanInput, mode);
+      const coords = await convertToWgs84(cleanInput, mode, utmOptions);
       setSearchLocation(coords);
     } catch (e: any) {
       alert(e.message || 'Invalid coordinates');
