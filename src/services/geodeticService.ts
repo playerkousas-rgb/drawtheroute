@@ -2,6 +2,7 @@
  * Geodetic Service
  * Handles all authoritative coordinate conversions.
  */
+import { SQUARE_MAP } from '../utils/coordUtils';
 
 export interface LatLng {
   lat: number;
@@ -38,17 +39,16 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
   if (mode === 'utm') {
     const utmMatch = cleanInput.match(/^([45]0[PQ])?\s*([A-Z]{2})?\s*(\d{4})\s*(\d{4})$/i);
     if (utmMatch) {
-      const zone = utmMatch[1]?.toUpperCase() || '50Q'; // 🚀 核心修正：明確處理分區，默認為 50Q
+      const zone = utmMatch[1]?.toUpperCase() || '50Q'; 
       const square = utmMatch[2]?.toUpperCase();
       const easting = utmMatch[3];
       const northing = utmMatch[4];
 
       if (!square) throw new Error('請提供方格碼 (例如: 50Q KK 0670 2346)。');
 
-      // 🚀 核心修正：使用 [Zone]_[Square] 作為 Key 進行精確查詢
       const lookupKey = `${zone}_${square}`;
       const prefix = SQUARE_MAP[lookupKey];
-      if (!prefix) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。`);
+      if (!prefix) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。`);
 
       const fullE = `${prefix[0]}${easting}`;
       const fullN = `${prefix[1]}${northing}`;
@@ -59,7 +59,7 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
         if (data.wgsLat && data.wgsLong) return { lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) };
       }
     }
-    throw new Error('UTM 格式不正確。請使用: 50Q KK 0670 2346');
+    throw new Error('UTM 格式不正確或超出香港範圍。請注意：50Q KK 等格式僅適用於香港地區，世界其他地方請使用經緯度。正確格式示例: 50Q KK 0670 2346');
   }
 
   throw new Error('未知的坐標模式');
