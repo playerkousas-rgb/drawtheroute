@@ -38,21 +38,17 @@ export async function convertToWgs84(input: string, mode: 'utm' | 'hk80' | 'latl
   if (mode === 'utm') {
     const utmMatch = cleanInput.match(/^([45]0[PQ])?\s*([A-Z]{2})?\s*(\d{4})\s*(\d{4})$/i);
     if (utmMatch) {
+      const zone = utmMatch[1]?.toUpperCase() || '50Q'; // 🚀 核心修正：明確處理分區，默認為 50Q
       const square = utmMatch[2]?.toUpperCase();
       const easting = utmMatch[3];
       const northing = utmMatch[4];
 
-      if (!square) throw new Error('請提供方格碼 (例如: KK 0670 2346)。');
+      if (!square) throw new Error('請提供方格碼 (例如: 50Q KK 0670 2346)。');
 
-      const squareMap: Record<string, [string, string]> = {
-        'KK': ['83', '82'], 'JK': ['83', '81'], 'HE': ['81', '82'], 'GE': ['81', '81'],
-        'LK': ['84', '82'], 'MK': ['84', '81'], 'KE': ['82', '82'], 'JE': ['82', '81'],
-        'FK': ['80', '82'], 'GK': ['80', '81'], 
-        'AK': ['79', '82'], 'BK': ['79', '81'],
-      };
-
-      const prefix = squareMap[square];
-      if (!prefix) throw new Error(`無法辨識方格碼 "${square}"。`);
+      // 🚀 核心修正：使用 [Zone]_[Square] 作為 Key 進行精確查詢
+      const lookupKey = `${zone}_${square}`;
+      const prefix = SQUARE_MAP[lookupKey];
+      if (!prefix) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。`);
 
       const fullE = `${prefix[0]}${easting}`;
       const fullN = `${prefix[1]}${northing}`;

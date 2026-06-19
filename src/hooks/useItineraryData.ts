@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getKKGrid, fetchWeatherData } from '../../services/weatherService';
-import { calculateBearing, addMinutesToTime, calculateSunrise } from '../utils/coordUtils';
+import { calculateBearing, addMinutesToTime, calculateSunrise, SQUARE_MAP } from '../utils/coordUtils';
 import { WaypointMarker, RouteSegment } from '../types';
 
 export const useItineraryData = (
@@ -69,29 +69,39 @@ export const useItineraryData = (
           bearing = calculateBearing(wp.latlng.lat, wp.latlng.lng, nextLoc.lat, nextLoc.lng);
         }
 
-        // 🎯 核心修正：統一使用 HKGrid 座標的整數後四位，確保與搜尋功能 100% 一致
+        // 🎯 核心修正：統一使用共享的 SQUARE_MAP 決定方格碼，確保與搜尋功能 100% 一致
         let gridStr = "Calculating...";
         try {
           const resp1 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=hkgrid&lat=${wp.latlng.lat}&long=${wp.latlng.lng}`);
           if (resp1.ok) {
             const data1 = await resp1.json();
             if (data1.hkE && data1.hkN) {
-              // 🚀 重要修正：必須先四捨五入為整數，防止出現 .xxx 這種浮點數碎片
-              const roundedE = Math.round(data1.hkE).toString();
-              const roundedN = Math.round(data1.hkN).toString();
+              const roundedE = Math.round(data1.hkE);
+              const roundedN = Math.round(data1.hkN);
+              
+              const eastPrefix = Math.floor(roundedE / 10000);
+              const northPrefix = Math.floor(roundedN / 10000);
+              
+              let square = '??';
+              let zone = '50Q';
+              for (const [key, p] of Object.entries(SQUARE_MAP)) {
+                if (p[0] === eastPrefix && p[1] === northPrefix) {
+                  square = key.split('_')[1];
+                  zone = key.split('_')[0];
+                  break;
+                }
+              }
+              
+              const easting = roundedE.toString().slice(-4).padStart(4, '0');
+              const northing = roundedN.toString().slice(-4).padStart(4, '0');
               
               const resp2 = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&e=${roundedE}&n=${roundedN}`);
               if (resp2.ok) {
                 const data2 = await resp2.json();
-                if (data2.utmGridZone && data2.utmRefZone) {
-                  const zone = data2.utmGridZone; // "50Q"
-                  const square = data2.utmRefZone.split('-')[1] || "XX"; // "KK"
-                  
-                  // 提取整數部分的後四位
-                  const easting = roundedE.slice(-4).padStart(4, '0');
-                  const northing = roundedN.slice(-4).padStart(4, '0');
-                  gridStr = `${zone} ${square} ${easting} ${northing}`;
-                }
+                const apiZone = data2.utmGridZone || zone;
+                gridStr = `${apiZone} ${square} ${easting} ${northing}`;
+              } else {
+                gridStr = `${zone} ${square} ${easting} ${northing}`;
               }
             }
           }

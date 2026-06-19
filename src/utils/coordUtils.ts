@@ -159,24 +159,41 @@ export const wgs84ToHk80 = (lat: number, lng: number): { easting: number; northi
   return { easting, northing };
 }
 
+// 5. 香港坐標方格對照表 (權威定義)
+// 格式: 'Zone_Square': [EastingPrefix, NorthingPrefix]
+// 基於政府地圖：同一橫排共享 NorthingPrefix, 同一縱列共享 EastingPrefix
+export const SQUARE_MAP: Record<string, [number, number]> = {
+  // --- 50Q 分區 ---
+  '50Q_KK': [83, 82], // 基準點
+  '50Q_JK': [82, 82], // KK 左邊
+  '50Q_LK': [84, 82], // KK 右邊
+  '50Q_MK': [85, 82], // LK 右邊
+  '50Q_KE': [83, 81], // KK 下方
+  '50Q_JE': [82, 81], // JK 下方
+  '50Q_LE': [84, 81], // LK 下方
+  '50Q_ME': [85, 81], // MK 下方
+  
+  // --- 49Q 分區 ---
+  '49Q_HE': [81, 82], // JK 左邊
+  '49Q_GE': [80, 82], // HE 左邊
+  '49Q_HF': [81, 81], // HE 下方
+  '49Q_GF': [80, 81], // GE 下方
+};
+
 /**
- * 將 HK80 全座標轉換為專業 8 位坐標格式 (例如: KK 0670 2346)
+ * 將 HK80 全座標轉換為專業 8 位坐標格式 (例如: 50Q KK 0670 2346)
  */
 export const formatToHk80Shorthand = (E: number, N: number): string => {
-  const squareMap: Record<string, [number, number]> = {
-    'KK': [83, 82], 'JK': [83, 81], 'HE': [81, 82], 'GE': [81, 81],
-    'LK': [84, 82], 'MK': [84, 81], 'KE': [82, 82], 'JE': [82, 81],
-    'FK': [80, 82], 'GK': [80, 81], 
-    'AK': [79, 82], 'BK': [79, 81],
-  };
-  
   const eastPrefix = Math.floor(E / 10000);
   const northPrefix = Math.floor(N / 10000);
   
   let square = '??';
-  for (const [s, p] of Object.entries(squareMap)) {
+  let zone = '50Q'; // 默認香港分區
+  
+  for (const [key, p] of Object.entries(SQUARE_MAP)) {
     if (p[0] === eastPrefix && p[1] === northPrefix) {
-      square = s;
+      square = key.split('_')[1];
+      zone = key.split('_')[0];
       break;
     }
   }
@@ -184,5 +201,5 @@ export const formatToHk80Shorthand = (E: number, N: number): string => {
   const e8 = Math.floor(E % 10000).toString().padStart(4, '0');
   const n8 = Math.floor(N % 10000).toString().padStart(4, '0');
   
-  return `${square} ${e8} ${n8}`;
+  return `${zone} ${square} ${e8} ${n8}`;
 }
