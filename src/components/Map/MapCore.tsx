@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import proj4 from 'proj4';
 import { hoverSync } from '../../utils/hoverSync';
 import { convertWgs84ToHk80, formatToHk80Shorthand } from '../../utils/coordUtils';
 import {
@@ -129,11 +130,11 @@ export default React.memo(function MapCore({
       const { lat, lng } = e.latlng;
       
       try {
-        const hk80 = await convertWgs84ToHk80(lat, lng);
+        const hk80 = convertWgs84ToHk80(lat, lng);
         // 🚀 修正：將 HKGrid 轉換為 True UTM 以便使用 formatToHk80Shorthand
         // HKGrid (836694, 819069) -> True UTM (200000, 2470000)
         // 我們可以使用 proj4 做這個中間轉換
-        const utm = proj4("EPSG:2326", "EPSG:32650", [hk80.easting, hk80.northing]);
+        const utm = proj4("EPSG:2326", "EPSG:32650", [hk80[0], hk80[1]]);
         const shorthand = formatToHk80Shorthand(utm[0], utm[1]);
         
         coordRef.current.innerHTML = `
