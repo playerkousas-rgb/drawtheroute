@@ -14,15 +14,15 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
 
 /** 保留給 geodeticService.ts 使用 */
 export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
-  '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2370000 },
-  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2370000 },
-  '50Q_JK': { zone: '50', eastBase: 100000, northBase: 2370000 },
-  '50Q_KK': { zone: '50', eastBase: 200000, northBase: 2370000 },
+  '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2470000 },
+  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2470000 },
+  '50Q_JK': { zone: '50', eastBase: 100000, northBase: 2470000 },
+  '50Q_KK': { zone: '50', eastBase: 200000, northBase: 2470000 },
 };
 
 /**
  * ✅ 即時版（方法 A）：WGS84 → 香港登山 UTM 4位數簡寫
- * 已修正 Northing 取模問題（港島/九龍/新界皆為 4 位數）
+ * northBase = 2470000 + 安全取模（避免負數）
  */
 export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
   const zone = lng < 114.0 ? 49 : 50;
@@ -34,7 +34,7 @@ export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
 
   let square = '';
   let eastBase = 0;
-  const northBase = 2370000;
+  const northBase = 2470000;
 
   if (zone === 49) {
     if (E >= 700000 && E < 800000) { square = 'GE'; eastBase = 700000; }
@@ -46,15 +46,15 @@ export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
 
   if (!square) return `${zone}Q ?? ${E} ${N}`;
 
-  // ✅ 關鍵修正：取模 100000，確保永遠是 4 位數
-  const eOff = Math.floor(((E - eastBase) % 100000) / 10);
-  const nOff = Math.floor(((N - northBase) % 100000) / 10);
+  // 安全取模（永遠正數）
+  const eOff = Math.floor((((E - eastBase) % 100000 + 100000) % 100000) / 10);
+  const nOff = Math.floor((((N - northBase) % 100000 + 100000) % 100000) / 10);
 
   return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
 }
 
 const resolveUtmGrid = (E: number, N: number, lng: number) => {
-  const northBase = 2370000;
+  const northBase = 2470000;
   if (lng < 114.0) {
     if (E >= 700000 && E < 800000) return { zone: '49Q', square: 'GE', eastBase: 700000, northBase };
     if (E >= 800000 && E < 900000) return { zone: '49Q', square: 'HE', eastBase: 800000, northBase };
