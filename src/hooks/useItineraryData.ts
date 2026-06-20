@@ -1,18 +1,46 @@
 import { useState, useEffect } from 'react';
 import { getKKGrid, fetchWeatherData } from '../../services/weatherService';
-import { calculateBearing, addMinutesToTime, calculateSunrise, formatToHk80Shorthand } from '../utils/coordUtils';
+import { calculateBearing, addMinutesToTime, calculateSunrise } from '../utils/coordUtils';
 import { WaypointMarker, RouteSegment } from '../types';
-import proj4 from 'proj4';
+
+/**
+ * 呼叫政府 API 把 WGS84 轉成 UTM 4位數簡寫
+ */
+async function getOfficialGrid(lat: number, lng: number): Promise<string> {
+  try {
+    const zone = lng < 114.0 ? 49 : 50;
+    const resp = await fetch(
+      `https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=utmgrid&zone=${zone}&lat=${lat}&lon=${lng}`
+    );
+    if (!resp.ok) throw new Error('API 失敗');
+    const data = await resp.json();
+    
+    if (data.utmE && data.utmN) {
+      const E = parseFloat(data.utmE);
+      const N = parseFloat(data.utmN);
+      
+      // 直接取 100000 模轉成 4 位數
+      const eOff = Math.floor(((E % 100000) + 100000) % 100000 / 10);
+      const nOff = Math.floor(((N % 100000) + 100000) % 100000 / 10);
+      
+      const square = E >= 200000 ? 'KK' : 'JK';
+      return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
+    }
+  } catch (e) {
+    console.error('政府 API 轉格網失敗', e);
+  }
+  return '?? ?? ???? ????';
+}
 
 export const useItineraryData = (
   waypoints: WaypointMarker[], 
   segments: RouteSegment[], 
-  selectedDate: string // 🟢 穩當接收：大表格傳進來的用戶選取日期
+  selectedDate: string
 ) => {
   const [weather, setWeather] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
 
-  // 🚂 引擎 A：獨立負責「氣象與天文數據」，只要日期一變，就算還沒畫地圖也要抓得到預設值！
+  // 氣象
   useEffect(() => {
     const fetchWeatherOnly = async () => {
       const lat = waypoints && waypoints.length > 0 ? waypoints[0].latlng.lat : 22.3193;
@@ -22,16 +50,13 @@ export const useItineraryData = (
         const data = await fetchWeatherData(lat, lng, selectedDate);
         setWeather(data);
       } catch (e) {
-        console.error("Open-Meteo 全球氣象獲取失敗，啟動核心防禦降級", e);
         setWeather(null);
       }
     };
-
     fetchWeatherOnly();
   }, [selectedDate, waypoints]);
 
-
-  // 🚂 引擎 B：負責「行程表 CP 格網與時間加工循環」
+  // 行程表（已改成走政府 API）
   useEffect(() => {
     const processRouteData = async () => {
       if (!waypoints || waypoints.length === 0) {
@@ -52,6 +77,7 @@ export const useItineraryData = (
       let currentTime = sunriseTime;
 
       const result = [];
+      
       for (let i = 0; i < waypoints.length; i++) {
         const wp = waypoints[i];
         const prevSeg = i > 0 ? segments[i - 1] : null;
@@ -68,16 +94,8 @@ export const useItineraryData = (
           bearing = calculateBearing(wp.latlng.lat, wp.latlng.lng, nextLoc.lat, nextLoc.lng);
         }
 
-        // 🎯 核心修正：不再依賴外部 API 進行格網轉換，直接在本地用 WGS84 投影到 UTM
-        let gridStr = "Calculating...";
-        try {
-          const { lat, lng } = wp.latlng;
-          const utmZone = lng < 114.0 ? "EPSG:32649" : "EPSG:32650";
-          const utm = proj4("EPSG:4326", utmZone, [lng, lat]);
-          gridStr = formatToHk80Shorthand(utm[0], utm[1], lng);
-        } catch (e) {
-          console.error("Local Grid conversion error", e);
-        }
+        // ✅ 已改成走政府 API
+        const gridStr = await getOfficialGrid(wp.latlng.lat, wp.latlng.lng);
 
         result.push({
           id: wp.id,
@@ -98,5 +116,5 @@ export const useItineraryData = (
     processRouteData();
   }, [waypoints, segments, selectedDate, weather?.sunrise]);
 
-  return { weather, materials };
+  return { materials, weather };
 };

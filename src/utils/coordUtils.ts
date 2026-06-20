@@ -13,7 +13,7 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
 };
 
 /** 
- * 給 geodeticService.ts 使用（搜尋功能走政府 API）
+ * 給 geodeticService.ts（搜尋功能）使用
  * northBase 已更新為 2480000（根據官方地圖）
  */
 export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
@@ -24,7 +24,7 @@ export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number;
 };
 
 /**
- * 地圖即時顯示用（本地計算，極快）
+ * 地圖左上角即時顯示用（本地計算）
  */
 export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
   const zone = lng < 114.0 ? 49 : 50;
