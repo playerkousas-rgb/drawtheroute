@@ -1,5 +1,5 @@
 /**
- * Geodetic Service - 正確使用 utmref 模式支援簡寫
+ * Geodetic Service - 搜尋功能（已針對限定方格優化）
  */
 import { UTM_SQUARE_CONFIG } from '../utils/coordUtils';
 
@@ -15,6 +15,7 @@ export async function convertToWgs84(
 ): Promise<LatLng> {
   const cleanInput = input.trim().toUpperCase();
 
+  // 經緯度
   if (mode === 'latlng') {
     const parts = cleanInput.split(/[\s,]+/).filter(Boolean);
     if (parts.length === 2) {
@@ -25,6 +26,7 @@ export async function convertToWgs84(
     throw new Error('經緯度格式不正確');
   }
 
+  // HK80
   if (mode === 'hk80') {
     const parts = cleanInput.split(/[\s,]+/).filter(Boolean);
     if (parts.length === 2) {
@@ -37,25 +39,29 @@ export async function convertToWgs84(
     throw new Error('HK80 格式不正確');
   }
 
+  // UTM 簡寫（已針對限定方格優化）
   if (mode === 'utm') {
     if (!utmOptions) throw new Error('請選擇分區和方格');
 
     const { zone, square } = utmOptions;
     const refZone = `${zone}Q-${square}`;   // 例如 50Q-KK
 
-    const numberMatches = cleanInput.match(/\d+/g);
-    if (!numberMatches || numberMatches.length < 2) {
-      throw new Error('請輸入坐標數字');
+    // 只取數字（支援 6~10 位數）
+    const digits = cleanInput.replace(/\D/g, '');
+
+    if (digits.length < 6) {
+      throw new Error('請輸入至少 6 位數字');
     }
 
-    const eStr = numberMatches[0];
-    const nStr = numberMatches[1];
+    // 取前一半當 Easting，後一半當 Northing
+    const half = Math.floor(digits.length / 2);
+    const eStr = digits.substring(0, half);
+    const nStr = digits.substring(half);
 
-    // 支援 3~5 位數
     const eOffset = parseInt(eStr);
     const nOffset = parseInt(nStr);
 
-    console.log(`[搜尋] 使用 utmref 模式: zone=${refZone}, e=${eStr}, n=${nStr}`);
+    console.log(`[搜尋] 輸入: ${cleanInput} → zone=${refZone}, e=${eStr}, n=${nStr}`);
 
     const resp = await fetch(
       `https://www.geodetic.gov.hk/transform/v2/?inSys=utmref&outSys=wgsgeog&zone=${refZone}&e=${eOffset}&n=${nOffset}`
