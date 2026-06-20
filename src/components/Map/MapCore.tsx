@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import proj4 from 'proj4';
 import { hoverSync } from '../../utils/hoverSync';
-import { convertWgs84ToHk80, formatToHk80Shorthand } from '../../utils/coordUtils';
+import { convertWgs84ToHk80, formatToHk80Shorthand, wgs84ToHikingShorthand4 } from '../../utils/coordUtils';
 import {
   LatLng, RouteSegment, WaypointMarker,
   MapLayer, ElevationProfilePoint,
@@ -136,7 +136,7 @@ export default React.memo(function MapCore({
         const utm = proj4("EPSG:4326", utmZone, [lng, lat]);
         
         // 直接將 UTM 座標和原經度傳入格式化函數
-        const shorthand = formatToHk80Shorthand(utm[0], utm[1], lng);
+        const shorthand = wgs84ToHikingShorthand4(lat, lng);
         
         coordRef.current.innerHTML = `
           <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>

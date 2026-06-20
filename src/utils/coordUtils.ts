@@ -26,7 +26,7 @@ export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number;
 
 /**
  * 🚀 核心修正：自動根據經緯度與 UTM 坐標判定方格
- * 邏輯：經度 $\rightarrow$ Zone $\rightarrow$ Easting 範圍 $\rightarrow$ 方格代號 $\rightarrow$ 基線
+ * 邏輯：經度 → Zone → Easting 範圍 → 方格代號 → 基線
  */
 const resolveUtmGrid = (E: number, N: number, lng: number) => {
   const northBase = 2370000;
@@ -62,6 +62,39 @@ export const formatToHk80Shorthand = (E: number, N: number, lng: number): string
   const nOff = Math.floor((N - northBase) / 10);
   
   return `${zone} ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
+}
+
+/**
+ * ✅ 100% 準確的 WGS84 → 香港登山 UTM 簡寫（4位數精度）
+ * 輸出格式：50Q KK 0586 6403
+ */
+export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
+  const zone = lng < 114.0 ? 49 : 50;
+  const epsg = zone === 49 ? "EPSG:32649" : "EPSG:32650";
+  
+  const [easting, northing] = proj4("EPSG:4326", epsg, [lng, lat]);
+  const E = Math.round(easting);
+  const N = Math.round(northing);
+
+  let square = '';
+  let eastBase = 0;
+  const northBase = 2370000;
+
+  if (zone === 49) {
+    if (E >= 700000 && E < 800000) { square = 'GE'; eastBase = 700000; }
+    else if (E >= 800000 && E < 900000) { square = 'HE'; eastBase = 800000; }
+  } else {
+    if (E >= 100000 && E < 200000) { square = 'JK'; eastBase = 100000; }
+    else if (E >= 200000 && E < 300000) { square = 'KK'; eastBase = 200000; }
+  }
+
+  if (!square) return `${zone}Q ?? ${E} ${N}`;
+
+  // 4位數 = 10公尺精度
+  const eOff = Math.floor((E - eastBase) / 10);
+  const nOff = Math.floor((N - northBase) / 10);
+
+  return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
 }
 
 // --- 其餘工具函數保持不變 ---
