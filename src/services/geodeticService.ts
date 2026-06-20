@@ -1,11 +1,10 @@
 /**
  * Geodetic Service
- * Implements authoritative projection formulae from HK Government PDF.
+ * Direct integration with Hong Kong Government Geodetic API.
  */
 import proj4 from 'proj4';
 import { UTM_SQUARE_CONFIG } from '../utils/coordUtils';
 
-// Standard projections for backup and WGS84
 proj4.defs("EPSG:32649", "+proj=utm +zone=49 +datum=WGS84 +units=m +no_defs");
 proj4.defs("EPSG:32650", "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs");
 
@@ -14,35 +13,30 @@ export interface LatLng {
   lng: number;
 }
 
-/**
- * 🚀 核心修正：統一童軍 8 位格式與搜尋框 3 位格式
- * 規則：UTM 偏移量的基本單位是 10m
- * 
- * 童軍 4 位數 (如 2251) -> 2251 * 10m = 22,510m
- * 搜尋 3 位數 (如 225) -> 0225 -> 225 * 10m = 2,250m
- * 搜尋 3 位數 (如 972) -> 9720 -> 972 * 100m = 97,200m
- */
-function parseUtmOffset(val: string, isEasting: boolean): number {
-  const num = parseInt(val);
-  if (isNaN(num)) return 0;
-  
-  if (val.length === 4) {
-    // 專業童軍 4 位格式: 直接 x 10m
-    return num * 10;
-  } else if (val.length === 3) {
-    // 搜尋框 3 位快捷格式:
-    if (isEasting) {
-      // 東向 3 位視為 0XXX (例如 225 -> 0225 -> 2,250m)
-      return num * 10;
-    } else {
-      // 北向 3 位視為 XXX0 (例如 972 -> 9720 -> 97,200m)
-      return num * 100;
-    }
-  }
-  
-  return num; 
+export interface UtmCoord {
+  easting: number;
+  northing: number;
+  zone: string;
 }
 
+/**
+ * 🚀 核心修正：將 WGS84 經緯度直接轉換為 UTM 全座標 (調用政府 API)
+ */
+export async function convertWgs84ToUtm(lat: number, lng: number): Promise<UtmCoord> {
+  const zone = lng < 114.0 ? '49' : '50';
+  const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=utmgrid&zone=${zone}&lat=${lat}&lon=${lng}`);
+  if (resp.ok) {
+    const data = await resp.json();
+    if (data.utmE && data.utmN) {
+      return { easting: parseFloat(data.utmE), northing: parseFloat(data.utmN), zone };
+    }
+  }
+  throw new Error('政府 API 轉換 WGS84 $\rightarrow$ UTM 失敗');
+}
+
+/**
+ * 🚀 核心修正：將 UTM 縮寫/全座標轉換為 WGS84 (調用政府 API)
+ */
 export async function convertToWgs84(
   input: string, 
   mode: 'utm' | 'hk80' | 'latlng',
@@ -80,33 +74,28 @@ export async function convertToWgs84(
     const { zone, square } = utmOptions;
     const lookupKey = `${zone}_${square}`;
     const config = UTM_SQUARE_CONFIG[lookupKey];
-    if (!config) throw new Error(`無法辨識分區/方格組合 "${lookupKey}"。`);
+    if (!config) throw new Error(`無法辨識分區/方格組合 "${zone} ${square}"。`);
 
     const numberMatches = cleanInput.match(/\d+/g);
     if (!numberMatches || numberMatches.length < 2) {
       throw new Error('請輸入坐標數字');
     }
 
-    // 🚀 關鍵修正：使用正確的童軍/搜尋還原邏輯
-    const eOffset = parseUtmOffset(numberMatches[0], true);
-    const nOffset = parseUtmOffset(numberMatches[1], false);
+    // 🚀 嚴格還原：3位數 = 100m 偏移 (對齊政府 6 位標籤)
+    const eOffset = numberMatches[0].length === 3 ? parseInt(numberMatches[0]) * 100 : parseInt(numberMatches[0]);
+    const nOffset = numberMatches[1].length === 3 ? parseInt(numberMatches[1]) * 100 : parseInt(numberMatches[1]);
 
     const fullE = config.eastBase + eOffset;
     const fullN = config.northBase + nOffset;
     
-    try {
-      const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=utmgrid&outSys=wgsgeog&zone=${config.zone}&e=${fullE}&n=${fullN}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.wgsLat && data.wgsLong) {
-          return { lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) };
-        }
+    const resp = await fetch(`https://www.geodetic.gov.hk/transform/v2/?inSys=utmgrid&outSys=wgsgeog&zone=${zone}&e=${fullE}&n=${fullN}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.wgsLat && data.wgsLong) {
+        return { lat: parseFloat(data.wgsLat), lng: parseFloat(data.wgsLong) };
       }
-    } catch (e) {
-      console.error("Government UTM API Error:", e);
     }
-
-    throw new Error('政府 API 轉換失敗，請檢查輸入。');
+    throw new Error('政府 API 轉換失敗');
   }
 
   throw new Error('未知的坐標模式');
