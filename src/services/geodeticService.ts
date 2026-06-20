@@ -1,8 +1,6 @@
 /**
- * Geodetic Service - 搜尋功能（已針對限定方格優化）
+ * Geodetic Service - 兩步驟轉換（utmref → hkgrid → wgsgeog）
  */
-import { UTM_SQUARE_CONFIG } from '../utils/coordUtils';
-
 export interface LatLng {
   lat: number;
   lng: number;
@@ -39,44 +37,49 @@ export async function convertToWgs84(
     throw new Error('HK80 格式不正確');
   }
 
-  // UTM 簡寫（已針對限定方格優化）
+  // UTM 簡寫（兩步驟轉換）
   if (mode === 'utm') {
     if (!utmOptions) throw new Error('請選擇分區和方格');
 
     const { zone, square } = utmOptions;
-    const refZone = `${zone}Q-${square}`;   // 例如 50Q-KK
+    const refZone = `${zone}Q-${square}`;
 
-    // 只取數字（支援 6~10 位數）
     const digits = cleanInput.replace(/\D/g, '');
+    if (digits.length < 6) throw new Error('請輸入至少 6 位數字');
 
-    if (digits.length < 6) {
-      throw new Error('請輸入至少 6 位數字');
-    }
-
-    // 取前一半當 Easting，後一半當 Northing
     const half = Math.floor(digits.length / 2);
     const eStr = digits.substring(0, half);
     const nStr = digits.substring(half);
 
-    const eOffset = parseInt(eStr);
-    const nOffset = parseInt(nStr);
+    console.log(`[搜尋] Step1: utmref → hkgrid | zone=${refZone}, e=${eStr}, n=${nStr}`);
 
-    console.log(`[搜尋] 輸入: ${cleanInput} → zone=${refZone}, e=${eStr}, n=${nStr}`);
-
-    const resp = await fetch(
-      `https://www.geodetic.gov.hk/transform/v2/?inSys=utmref&outSys=wgsgeog&zone=${refZone}&e=${eOffset}&n=${nOffset}`
+    // 步驟 1: utmref → hkgrid
+    const step1 = await fetch(
+      `https://www.geodetic.gov.hk/transform/v2/?inSys=utmref&outSys=hkgrid&e=${eStr}&n=${nStr}&zone=${refZone}`
     );
+    const step1Data = await step1.json();
 
-    const data = await resp.json();
+    if (!step1Data.hkE || !step1Data.hkN) {
+      console.error('[搜尋] Step1 失敗:', step1Data);
+      throw new Error('政府 API 轉換失敗（Step1）');
+    }
 
-    if (data.wgsLat && data.wgsLong) {
-      return { 
-        lat: parseFloat(data.wgsLat), 
-        lng: parseFloat(data.wgsLong) 
+    console.log(`[搜尋] Step2: hkgrid → wgsgeog | e=${step1Data.hkE}, n=${step1Data.hkN}`);
+
+    // 步驟 2: hkgrid → wgsgeog
+    const step2 = await fetch(
+      `https://www.geodetic.gov.hk/transform/v2/?inSys=hkgrid&outSys=wgsgeog&e=${step1Data.hkE}&n=${step1Data.hkN}`
+    );
+    const step2Data = await step2.json();
+
+    if (step2Data.wgsLat && step2Data.wgsLong) {
+      return {
+        lat: parseFloat(step2Data.wgsLat),
+        lng: parseFloat(step2Data.wgsLong)
       };
     } else {
-      console.error('[搜尋] API 錯誤:', data);
-      throw new Error('政府 API 轉換失敗：' + (data.ErrorCode || '格式錯誤'));
+      console.error('[搜尋] Step2 失敗:', step2Data);
+      throw new Error('政府 API 轉換失敗（Step2）');
     }
   }
 
