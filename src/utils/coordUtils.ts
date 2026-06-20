@@ -12,7 +12,10 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
   return proj4("EPSG:2326", "EPSG:4326", [easting, northing]);
 };
 
-/** 保留給 geodeticService.ts 使用 */
+/** 
+ * 給 geodeticService.ts 使用（搜尋功能走政府 API）
+ * northBase 已更新為 2480000（根據官方地圖）
+ */
 export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
   '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2480000 },
   '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2480000 },
@@ -21,7 +24,7 @@ export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number;
 };
 
 /**
- * ✅ 最終正確版本（直接取 100000 模，不用 northBase）
+ * 地圖即時顯示用（本地計算，極快）
  */
 export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
   const zone = lng < 114.0 ? 49 : 50;
@@ -44,7 +47,6 @@ export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
 
   if (!square) return `${zone}Q ?? ${E} ${N}`;
 
-  // ✅ 正確做法：直接取 100000 的模
   const eOff = Math.floor(((E - eastBase) % 100000 + 100000) % 100000 / 10);
   const nOff = Math.floor((N % 100000 + 100000) % 100000 / 10);
 
