@@ -1,5 +1,5 @@
 /**
- * Geodetic Service - 正確處理 4 位數簡寫
+ * Geodetic Service - 正確使用 utmref 模式支援簡寫
  */
 import { UTM_SQUARE_CONFIG } from '../utils/coordUtils';
 
@@ -41,9 +41,7 @@ export async function convertToWgs84(
     if (!utmOptions) throw new Error('請選擇分區和方格');
 
     const { zone, square } = utmOptions;
-    const lookupKey = `${zone}_${square}`;
-    const config = UTM_SQUARE_CONFIG[lookupKey];
-    if (!config) throw new Error(`無法辨識 "${zone} ${square}"`);
+    const refZone = `${zone}Q-${square}`;   // 例如 50Q-KK
 
     const numberMatches = cleanInput.match(/\d+/g);
     if (!numberMatches || numberMatches.length < 2) {
@@ -53,33 +51,14 @@ export async function convertToWgs84(
     const eStr = numberMatches[0];
     const nStr = numberMatches[1];
 
-    // ✅ 正確處理：4 位數已經是 10 公尺單位，直接使用
-    let eOffset: number;
-    let nOffset: number;
+    // 支援 3~5 位數
+    const eOffset = parseInt(eStr);
+    const nOffset = parseInt(nStr);
 
-    if (eStr.length === 3) {
-      eOffset = parseInt(eStr) * 100;      // 3 位數 = 100 公尺
-    } else if (eStr.length === 4) {
-      eOffset = parseInt(eStr) * 10;       // 4 位數 = 10 公尺（已修正）
-    } else {
-      eOffset = parseInt(eStr);
-    }
-
-    if (nStr.length === 3) {
-      nOffset = parseInt(nStr) * 100;
-    } else if (nStr.length === 4) {
-      nOffset = parseInt(nStr) * 10;
-    } else {
-      nOffset = parseInt(nStr);
-    }
-
-    const fullE = config.eastBase + eOffset;
-    const fullN = config.northBase + nOffset;
-
-    console.log(`[搜尋] 輸入: ${cleanInput} → 完整座標 E=${fullE}, N=${fullN}`);
+    console.log(`[搜尋] 使用 utmref 模式: zone=${refZone}, e=${eStr}, n=${nStr}`);
 
     const resp = await fetch(
-      `https://www.geodetic.gov.hk/transform/v2/?inSys=utmgrid&outSys=wgsgeog&zone=${zone}&e=${fullE}&n=${fullN}`
+      `https://www.geodetic.gov.hk/transform/v2/?inSys=utmref&outSys=wgsgeog&zone=${refZone}&e=${eOffset}&n=${nOffset}`
     );
 
     const data = await resp.json();
@@ -91,7 +70,7 @@ export async function convertToWgs84(
       };
     } else {
       console.error('[搜尋] API 錯誤:', data);
-      throw new Error('政府 API 轉換失敗：' + (data.ErrorCode || '座標超出範圍'));
+      throw new Error('政府 API 轉換失敗：' + (data.ErrorCode || '格式錯誤'));
     }
   }
 
