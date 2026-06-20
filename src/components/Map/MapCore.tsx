@@ -17,7 +17,6 @@ interface MapCoreProps {
   isProcessing: boolean;
   searchLocation: LatLng | null;
   onSearchCleared: () => void;
-  // 🚀 數據對位：直接傳入剖面圖的所有點
   profile: ElevationProfilePoint[]; 
   externalDistance?: number;
   onCursorMove: (distance: number, point: LatLng) => void;
@@ -103,17 +102,14 @@ export default React.memo(function MapCore({
       zIndexOffset: 10000
     }).addTo(map);
 
-    // 🚀 數據對位同步：直接根據 profile 點移動 + 觸發視覺閃爍
     const unsubscribe = hoverSync.subscribe((payload, source) => {
       if (payload && cursorMarkerRef.current) {
-        // 1. 立即移動到對應座標
         cursorMarkerRef.current.setLatLng([payload.lat, payload.lng]);
       }
     });
 
     cursorMarkerRef.current.on('drag', (e) => {
       const pos = e.target.getLatLng();
-      // 尋找 profile 中最近的點，確保游標永遠在「剖面圖定義的點」上
       let closest = profile[0];
       let minD = Infinity;
       for (const p of profile) {
@@ -130,12 +126,7 @@ export default React.memo(function MapCore({
       const { lat, lng } = e.latlng;
       
       try {
-        // 🚀 徹底修正：放棄 HKGrid 中轉，直接從 WGS84 投影到 UTM
-        // 這才是 50Q KK 等 MGRS 座標的正確生成路徑
-        const utmZone = lng < 114.0 ? "EPSG:32649" : "EPSG:32650";
-        const utm = proj4("EPSG:4326", utmZone, [lng, lat]);
-        
-        // 直接將 UTM 座標和原經度傳入格式化函數
+        // ✅ 已修改：使用 4 位數即時函式
         const shorthand = wgs84ToHikingShorthand4(lat, lng);
         
         coordRef.current.innerHTML = `
@@ -146,7 +137,6 @@ export default React.memo(function MapCore({
         coordRef.current.innerHTML = `<div style="color:#ef4444; font-size:11px">坐標轉換錯誤</div>`;
       }
 
-      // 🚀 核心同步：在地圖上移動時，尋找 profile 陣列中最近的那個點
       if (profile.length > 0) {
         let closest = profile[0];
         let minD = Infinity;
@@ -154,9 +144,7 @@ export default React.memo(function MapCore({
           const d = Math.pow(p.lat - lat, 2) + Math.pow(p.lng - lng, 2);
           if (d < minD) { minD = d; closest = p; }
         }
-        // 立即同步該點到剖面圖
         hoverSync.emit(closest, 'map');
-        // 讓地圖游標也吸附到這個點上
         if (cursorMarkerRef.current) {
           cursorMarkerRef.current.setLatLng([closest.lat, closest.lng]);
         }
@@ -174,7 +162,6 @@ export default React.memo(function MapCore({
     };
   }, [profile]);
 
-  // 保持對 externalDistance 的響應
   useEffect(() => {
     if (!cursorMarkerRef.current || externalDistance === undefined) return;
     let currentDist = 0;
@@ -197,7 +184,6 @@ export default React.memo(function MapCore({
       cursorMarkerRef.current.setLatLng([lastPt.lat, lastPt.lng]);
     }
   }, [externalDistance, segments]);
-
 
   useEffect(() => {
     const map = mapRef.current;
@@ -238,7 +224,7 @@ export default React.memo(function MapCore({
     if (!map || !searchLocation) return;
     map.flyTo([searchLocation.lat, searchLocation.lng], 15, { animate: true, duration: 1.5 });
     const marker = L.marker([searchLocation.lat, searchLocation.lng], {
-      icon: L.divIcon({ className: '', html: `<div style="width:12px;height:12px;background:white;border:2px solid #ef4444;border-radius:50%;box-shadow:0 0 10px #ef4444"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] }),
+      icon: L.divIcon({ className: '', html: `<div style="width:12px;height:12px;background:#3b82f6;border:2px solid white;border-radius:50%;box-shadow:0 0 10px #3b82f6;"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] }),
       interactive: false,
     }).addTo(map);
     setTimeout(() => { map.removeLayer(marker); onSearchCleared(); }, 3000);
@@ -247,24 +233,22 @@ export default React.memo(function MapCore({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !segments.length) return;
-    const pts = segments.flatMap(s => s.points.map(p => [p.lat, p.lng] as [number, number]));
-    if (pts.length > 1) { try { map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 15, animate: true }); } catch { } }
+    const pts = segments.flatMap(s => s.points);
+    if (pts.length > 0) {
+      const bounds = L.latLngBounds(pts.map(p => [p.lat, p.lng]));
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
   }, [segments]);
 
   return (
-    <div style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }}>
-      <div ref={divRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
-      <div
+    <div className="relative w-full h-full">
+      <div ref={divRef} className="w-full h-full" />
+      
+      {/* 左上角座標顯示 */}
+      <div 
         ref={coordRef}
-        style={{
-          position: 'absolute', top: 20, left: 20, padding: '8px 14px',
-          background: 'rgba(8, 14, 28, 0.85)', backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(148, 163, 184, 0.3)', borderRadius: '10px',
-          zIndex: 10000, pointerEvents: 'none', fontFamily: 'monospace',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.6)', textAlign: 'left', borderLeft: '4px solid #34d399'
-        }}
+        className="absolute top-3 left-3 bg-black/70 text-white px-3 py-1.5 rounded text-xs font-mono z-[1000] pointer-events-none border border-white/10"
       />
     </div>
   );
-}
-)
+});

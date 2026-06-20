@@ -1,6 +1,5 @@
 import proj4 from 'proj4';
 
-// 1. 權威投影定義
 proj4.defs("EPSG:2326", "+proj=tmerc +lat_0=22.31213333333333 +lon_0=114.1787222222222 +k=1 +x_0=836694.05 +y_0=819069.8 +ellps=intl +towgs84=-162.619,-276.959,-161.764,0.0677,-2.6556,0.8942,-10.624 +units=m +no_defs");
 proj4.defs("EPSG:32649", "+proj=utm +zone=49 +datum=WGS84 +units=m +no_defs");
 proj4.defs("EPSG:32650", "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs");
@@ -14,67 +13,16 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
 };
 
 /**
- * 專業 UTM 方格權威映射表
- * 基準線必須與分區 (Zone) 嚴格對應
- */
-export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
-  '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2370000 },
-  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2370000 },
-  '50Q_JK': { zone: '50', eastBase: 100000, northBase: 2370000 },
-  '50Q_KK': { zone: '50', eastBase: 200000, northBase: 2370000 },
-};
-
-/**
- * 🚀 核心修正：自動根據經緯度與 UTM 坐標判定方格
- * 邏輯：經度 → Zone → Easting 範圍 → 方格代號 → 基線
- */
-const resolveUtmGrid = (E: number, N: number, lng: number) => {
-  const northBase = 2370000;
-  
-  if (lng < 114.0) {
-    // Zone 49: Easting 700k - 900k
-    if (E >= 700000 && E < 800000) return { zone: '49Q', square: 'GE', eastBase: 700000, northBase };
-    if (E >= 800000 && E < 900000) return { zone: '49Q', square: 'HE', eastBase: 800000, northBase };
-  } else {
-    // Zone 50: Easting 100k - 300k
-    if (E >= 100000 && E < 200000) return { zone: '50Q', square: 'JK', eastBase: 100000, northBase };
-    if (E >= 200000 && E < 300000) return { zone: '50Q', square: 'KK', eastBase: 200000, northBase };
-  }
-  
-  return { zone: '??', square: '??', eastBase: 0, northBase: 0 };
-};
-
-export const formatToMapLabel = (E: number, N: number, lng: number): string => {
-  const { square, eastBase, northBase } = resolveUtmGrid(E, N, lng);
-  if (square === '??') return '??';
-
-  const eOff = Math.floor((E - eastBase) / 100);
-  const nOff = Math.floor((N - northBase) / 100);
-  
-  return `${square}${eOff.toString().padStart(3, '0')}${nOff.toString().padStart(3, '0')}`;
-}
-
-export const formatToHk80Shorthand = (E: number, N: number, lng: number): string => {
-  const { zone, square, eastBase, northBase } = resolveUtmGrid(E, N, lng);
-  if (square === '??') return `?? ?? ???? ????`;
-
-  const eOff = Math.floor((E - eastBase) / 10);
-  const nOff = Math.floor((N - northBase) / 10);
-  
-  return `${zone} ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
-}
-
-/**
- * ✅ 100% 準確的 WGS84 → 香港登山 UTM 簡寫（4位數精度）
+ * ✅ 即時版（方法 A）：WGS84 → 香港登山 UTM 4位數簡寫
  * 輸出格式：50Q KK 0586 6403
  */
 export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
   const zone = lng < 114.0 ? 49 : 50;
   const epsg = zone === 49 ? "EPSG:32649" : "EPSG:32650";
   
-  const [easting, northing] = proj4("EPSG:4326", epsg, [lng, lat]);
-  const E = Math.round(easting);
-  const N = Math.round(northing);
+  const [eastingRaw, northingRaw] = proj4("EPSG:4326", epsg, [lng, lat]);
+  const E = Math.round(eastingRaw);
+  const N = Math.round(northingRaw);
 
   let square = '';
   let eastBase = 0;
@@ -90,19 +38,44 @@ export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
 
   if (!square) return `${zone}Q ?? ${E} ${N}`;
 
-  // 4位數 = 10公尺精度
   const eOff = Math.floor((E - eastBase) / 10);
   const nOff = Math.floor((N - northBase) / 10);
 
   return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
 }
 
-// --- 其餘工具函數保持不變 ---
+const resolveUtmGrid = (E: number, N: number, lng: number) => {
+  const northBase = 2370000;
+  if (lng < 114.0) {
+    if (E >= 700000 && E < 800000) return { zone: '49Q', square: 'GE', eastBase: 700000, northBase };
+    if (E >= 800000 && E < 900000) return { zone: '49Q', square: 'HE', eastBase: 800000, northBase };
+  } else {
+    if (E >= 100000 && E < 200000) return { zone: '50Q', square: 'JK', eastBase: 100000, northBase };
+    if (E >= 200000 && E < 300000) return { zone: '50Q', square: 'KK', eastBase: 200000, northBase };
+  }
+  return { zone: '??', square: '??', eastBase: 0, northBase: 0 };
+};
+
+export const formatToHk80Shorthand = (E: number, N: number, lng: number): string => {
+  const { zone, square, eastBase, northBase } = resolveUtmGrid(E, N, lng);
+  if (square === '??') return `?? ?? ???? ????`;
+  const eOff = Math.floor((E - eastBase) / 10);
+  const nOff = Math.floor((N - northBase) / 10);
+  return `${zone} ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
+};
+
+export const formatToMapLabel = (E: number, N: number, lng: number): string => {
+  const { square, eastBase, northBase } = resolveUtmGrid(E, N, lng);
+  if (square === '??') return '??';
+  const eOff = Math.floor((E - eastBase) / 100);
+  const nOff = Math.floor((N - northBase) / 100);
+  return `${square}${eOff.toString().padStart(3, '0')}${nOff.toString().padStart(3, '0')}`;
+};
+
 export const calculateBearing = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const toDeg = (rad: number) => (rad * 180) / Math.PI;
-  const φ1 = toRad(lat1);
-  const φ2 = toRad(lat2);
+  const φ1 = toRad(lat1); const φ2 = toRad(lat2);
   const Δλ = toRad(lon2 - lon1);
   const y = Math.sin(Δλ) * Math.cos(φ2);
   const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
@@ -120,14 +93,12 @@ export const addMinutesToTime = (timeStr: string, minutesToAdd: number): string 
   return `${String(finalHrs).padStart(2, '0')}:${String(finalMins).padStart(2, '0')}`;
 };
 
-export const formatDistance = (distMeter: number): string => {
-  return (distMeter / 1000).toFixed(1);
-};
+export const formatDistance = (distMeter: number): string => (distMeter / 1000).toFixed(1);
 
 export const calculateSunrise = (lat: number, lng: number, dateStr: string): string => {
   try {
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return "08:30"; 
+    if (isNaN(date.getTime())) return "08:30";
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
     const day = date.getDate();
@@ -136,16 +107,16 @@ export const calculateSunrise = (lat: number, lng: number, dateStr: string): str
     const N3 = (1 + Math.floor((year - 4 * Math.floor(year / 4) + 2) / 3));
     const N = N1 - (N2 * N3) + day - 30;
     const longitudeHour = lng / 15;
-    const t = N + ((6 - longitudeHour) / 24); 
-    const M = (0.9856 * t) - 3.289;           
+    const t = N + ((6 - longitudeHour) / 24);
+    const M = (0.9856 * t) - 3.289;
     let L = M + (1.916 * Math.sin(M * Math.PI / 180)) + (0.020 * Math.sin(2 * M * Math.PI / 180)) + 282.634;
-    L = (L + 360) % 360;                      
+    L = (L + 360) % 360;
     const sinDec = 0.39782 * Math.sin(L * Math.PI / 180);
     const cosDec = Math.cos(Math.asin(sinDec));
     const cosH = (Math.sin(-0.833 * Math.PI / 180) - (sinDec * Math.sin(lat * Math.PI / 180))) / (cosDec * Math.cos(lat * Math.PI / 180));
-    if (cosH > 1 || cosH < -1) return "06:00"; 
+    if (cosH > 1 || cosH < -1) return "06:00";
     const H = 360 - (Math.acos(cosH) * 180 / Math.PI);
-    const T = H / 15; 
+    const T = H / 15;
     const UT = T + longitudeHour - (0.06571 * t) - 6.622;
     const localHour = (UT + 8 + 24) % 24;
     const hour = Math.floor(localHour);
@@ -153,7 +124,5 @@ export const calculateSunrise = (lat: number, lng: number, dateStr: string): str
     const finalHour = minute === 60 ? (hour + 1) % 24 : hour;
     const finalMinute = minute === 60 ? 0 : minute;
     return `${String(finalHour).padStart(2, '0')}:${String(finalMinute).padStart(2, '0')}`;
-  } catch (e) {
-    return "08:30";
-  }
+  } catch (e) { return "08:30"; }
 };
