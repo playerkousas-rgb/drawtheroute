@@ -12,9 +12,16 @@ export const convertHk80ToWgs84 = (easting: number, northing: number): [number, 
   return proj4("EPSG:2326", "EPSG:4326", [easting, northing]);
 };
 
+/** 保留給 geodeticService.ts 使用 */
+export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number; northBase: number }> = {
+  '49Q_GE': { zone: '49', eastBase: 700000, northBase: 2370000 },
+  '49Q_HE': { zone: '49', eastBase: 800000, northBase: 2370000 },
+  '50Q_JK': { zone: '50', eastBase: 100000, northBase: 2370000 },
+  '50Q_KK': { zone: '50', eastBase: 200000, northBase: 2370000 },
+};
+
 /**
  * ✅ 即時版（方法 A）：WGS84 → 香港登山 UTM 4位數簡寫
- * 輸出格式：50Q KK 0586 6403
  */
 export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
   const zone = lng < 114.0 ? 49 : 50;
