@@ -22,6 +22,7 @@ export const UTM_SQUARE_CONFIG: Record<string, { zone: string; eastBase: number;
 
 /**
  * ✅ 即時版（方法 A）：WGS84 → 香港登山 UTM 4位數簡寫
+ * 已修正 Northing 取模問題（港島/九龍/新界皆為 4 位數）
  */
 export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
   const zone = lng < 114.0 ? 49 : 50;
@@ -45,8 +46,9 @@ export function wgs84ToHikingShorthand4(lat: number, lng: number): string {
 
   if (!square) return `${zone}Q ?? ${E} ${N}`;
 
-  const eOff = Math.floor((E - eastBase) / 10);
-  const nOff = Math.floor((N - northBase) / 10);
+  // ✅ 關鍵修正：取模 100000，確保永遠是 4 位數
+  const eOff = Math.floor(((E - eastBase) % 100000) / 10);
+  const nOff = Math.floor(((N - northBase) % 100000) / 10);
 
   return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
 }
