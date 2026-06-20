@@ -1,25 +1,28 @@
 import { useState, useEffect } from 'react';
-import { getKKGrid, fetchWeatherData } from '../../services/weatherService';
-import { calculateBearing, addMinutesToTime, calculateSunrise } from '../utils/coordUtils';
+import { fetchWeatherData } from '../../services/weatherService';
+import { calculateBearing, addMinutesToTime, calculateSunrise, wgs84ToHikingShorthand4 } from '../utils/coordUtils';
 import { WaypointMarker, RouteSegment } from '../types';
 
 /**
  * 呼叫政府 API 把 WGS84 轉成 UTM 4位數簡寫
+ * 失敗時 fallback 到本地計算
  */
 async function getOfficialGrid(lat: number, lng: number): Promise<string> {
   try {
     const zone = lng < 114.0 ? 49 : 50;
     const resp = await fetch(
-      `https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=utmgrid&zone=${zone}&lat=${lat}&lon=${lng}`
+      `https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=utmgrid&zone=${zone}&lat=${lat}&lon=${lng}`,
+      { signal: AbortSignal.timeout(3000) } // 3 秒超時
     );
+    
     if (!resp.ok) throw new Error('API 失敗');
+    
     const data = await resp.json();
     
     if (data.utmE && data.utmN) {
       const E = parseFloat(data.utmE);
       const N = parseFloat(data.utmN);
       
-      // 直接取 100000 模轉成 4 位數
       const eOff = Math.floor(((E % 100000) + 100000) % 100000 / 10);
       const nOff = Math.floor(((N % 100000) + 100000) % 100000 / 10);
       
@@ -27,9 +30,12 @@ async function getOfficialGrid(lat: number, lng: number): Promise<string> {
       return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
     }
   } catch (e) {
-    console.error('政府 API 轉格網失敗', e);
+    // API 失敗 → fallback 到本地計算
+    console.warn('政府 API 失敗，使用本地計算 fallback');
   }
-  return '?? ?? ???? ????';
+  
+  // Fallback: 使用本地計算（已驗證正確）
+  return wgs84ToHikingShorthand4(lat, lng);
 }
 
 export const useItineraryData = (
@@ -56,7 +62,7 @@ export const useItineraryData = (
     fetchWeatherOnly();
   }, [selectedDate, waypoints]);
 
-  // 行程表（已改成走政府 API）
+  // 行程表（API 優先 + 本地 fallback）
   useEffect(() => {
     const processRouteData = async () => {
       if (!waypoints || waypoints.length === 0) {
@@ -94,7 +100,7 @@ export const useItineraryData = (
           bearing = calculateBearing(wp.latlng.lat, wp.latlng.lng, nextLoc.lat, nextLoc.lng);
         }
 
-        // ✅ 已改成走政府 API
+        // ✅ API 優先 + 本地 fallback
         const gridStr = await getOfficialGrid(wp.latlng.lat, wp.latlng.lng);
 
         result.push({
