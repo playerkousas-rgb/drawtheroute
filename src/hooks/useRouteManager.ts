@@ -249,17 +249,42 @@ export function useRouteManager() {
     try {
       const doc = new DOMParser().parseFromString(text, 'application/xml');
       if (doc.querySelector('parsererror')) throw new Error('GPX 格式錯誤');
-      const trkpts = doc.querySelectorAll('trkpt');
+
+      // 跨 namespace 查詢元素：相容外部 GPX 的「預設/前綴 namespace」
+      // （getElementsByTagName 對前綴元素會讀不到，故改用 NS 版）
+      const byTag = (name: string) => {
+        try { return Array.from(doc.getElementsByTagNameNS('*', name)); }
+        catch { return Array.from(doc.getElementsByTagName(name)); }
+      };
+
+      // 讀取軌跡點：若無 <trkpt> 則退回 <rtept>(路線格式)
+      const readCoord = (node: Element) => {
+        const lat = parseFloat(node.getAttribute('lat') ?? '');
+        const lng = parseFloat(node.getAttribute('lon') ?? '');
+        if (isNaN(lat) || isNaN(lng)) return null;
+        let eleEl: Element | undefined;
+        try { eleEl = node.getElementsByTagNameNS('*', 'ele')[0]; }
+        catch { eleEl = node.getElementsByTagName('ele')[0]; }
+        const ele = eleEl ? parseFloat(eleEl.textContent ?? '') : NaN;
+        const hasEle = eleEl !== undefined && !isNaN(ele);
+        return { lat, lng, ele: isNaN(ele) ? 0 : ele, hasEle };
+      };
+
+      let trkpts = byTag('trkpt');
+      if (trkpts.length === 0) trkpts = byTag('rtept');
       if (trkpts.length < 2) throw new Error('GPX 點位不足');
 
-      const rawCoords: Array<{ lat: number; lng: number; ele: number }> = [];
+      // 讀取檢查點 <wpt>（若存在）：保留 CP 結構
+      const wptCoords: Array<{ lat: number; lng: number; ele: number }> = [];
+      byTag('wpt').forEach(w => {
+        const c = readCoord(w);
+        if (c) wptCoords.push({ lat: c.lat, lng: c.lng, ele: c.ele });
+      });
+
+      const rawCoords: Array<{ lat: number; lng: number; ele: number; hasEle: boolean }> = [];
       trkpts.forEach(pt => {
-        const lat = parseFloat(pt.getAttribute('lat') ?? '');
-        const lng = parseFloat(pt.getAttribute('lon') ?? '');
-        if (isNaN(lat) || isNaN(lng)) return;
-        const eleEl = pt.querySelector('ele');
-        const ele = eleEl ? parseFloat(eleEl.textContent ?? '') : NaN;
-        rawCoords.push({ lat, lng, ele: isNaN(ele) ? 0 : ele });
+        const c = readCoord(pt);
+        if (c) rawCoords.push(c);
       });
 
       const step = Math.max(1, Math.ceil(rawCoords.length / 500));
@@ -268,14 +293,71 @@ export function useRouteManager() {
         coords.push(rawCoords[rawCoords.length - 1]);
       }
 
-      if (coords.some(c => c.ele === 0)) {
-        const elevs = await fetchElevations(coords.map(c => ({ lat: c.lat, lng: c.lng })));
-        coords = coords.map((c, i) => ({ ...c, ele: elevs[i] ?? c.ele }));
+      // 只為「真正缺少高程」的點補取 SRTM 高程，避免覆蓋 GPX 原本的有效高程
+      // (若 API 失敗回傳 0，也只會影響原本就缺高程的點)
+      const missingIdx = coords.map((c, i) => c.hasEle ? -1 : i).filter(i => i >= 0);
+      if (missingIdx.length > 0) {
+        const elevs = await fetchElevations(missingIdx.map(i => ({ lat: coords[i].lat, lng: coords[i].lng })));
+        missingIdx.forEach((i, k) => {
+          if (elevs[k] !== undefined && elevs[k] > 0) coords[i].ele = elevs[k];
+        });
       }
 
       const pts = buildPoints(coords);
       const { ascent, descent, distance } = calcStats(pts);
 
+      // 若有 <wpt> 檢查點且 ≥2，按檢查點位置把路徑切回多個 segment
+      if (wptCoords.length >= 2) {
+        // 在路徑上為每個檢查點找最接近的點
+        // 只接受「靠近路徑」的檢查點（約 0.0008°≈90m），避免外部 GPX 的雜散
+        // waypoint(不在路徑上的地標)被誤當成檢查點而錯誤切段
+        const MAX_DIST = 0.0008;
+        const closestIdx: Array<{ idx: number; ok: boolean }> = wptCoords.map(w => {
+          let bi = 0, bd = Infinity;
+          for (let i = 0; i < pts.length; i++) {
+            const d = Math.pow(pts[i].lat - w.lat, 2) + Math.pow(pts[i].lng - w.lng, 2);
+            if (d < bd) { bd = d; bi = i; }
+          }
+          return { idx: bi, ok: bd <= MAX_DIST * MAX_DIST };
+        });
+
+        // 過濾：起點/終點一定要在路徑上；中間檢查點若遠離路徑則略過
+        const kept: number[] = [];
+        closestIdx.forEach((c, wi) => {
+          if (!c.ok && wi !== 0 && wi !== wptCoords.length - 1) return; // 略過不在路徑上的中間點
+          if (kept.length === 0 || c.idx > kept[kept.length - 1]) kept.push(c.idx);
+        });
+        const idxs = kept;
+
+        const newSegments: RouteSegment[] = [];
+        for (let i = 0; i < idxs.length - 1; i++) {
+          const startI = idxs[i];
+          const endI = idxs[i + 1];
+          if (endI - startI < 1) continue;
+          const segPts = pts.slice(startI, endI + 1);
+          const s = calcStats(segPts);
+          newSegments.push({
+            id: uid('gpx'),
+            points: segPts,
+            mode: 'auto',
+            distance: (segPts.at(-1)?.distanceFromStart ?? 0) - segPts[0].distanceFromStart,
+            ascent: s.ascent,
+            descent: s.descent,
+          });
+        }
+        if (newSegments.length > 0) {
+          setWaypoints(idxs.map((idx, i) => ({
+            id: uid('wp'),
+            latlng: { lat: pts[idx].lat, lng: pts[idx].lng },
+            elevation: pts[idx].elevation,
+            type: i === 0 ? 'start' : i === idxs.length - 1 ? 'end' : 'waypoint',
+          })));
+          setSegments(newSegments);
+          return;
+        }
+      }
+
+      // 沒有 <wpt>（或 CP 結構不完整）→ 退化成起點/終點單一路段
       setWaypoints([
         { id: uid('wp'), latlng: { lat: coords[0].lat, lng: coords[0].lng }, elevation: coords[0].ele, type: 'start' },
         { id: uid('wp'), latlng: { lat: coords[coords.length - 1].lat, lng: coords[coords.length - 1].lng }, elevation: coords[coords.length - 1].ele, type: 'end' },

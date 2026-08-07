@@ -68,6 +68,13 @@ export default React.memo(function MapCore({
   const onRouteClickRef    = useRef(onRouteClick);
   useEffect(() => { onRouteClickRef.current = onRouteClick; },    [onRouteClick]);
 
+  // Keep latest values in refs so the once-created map's handlers never go stale
+  // and the map is NOT torn down & recreated on every profile change.
+  const onCursorMoveRef  = useRef(onCursorMove);
+  const profileRef       = useRef(profile);
+  useEffect(() => { onCursorMoveRef.current = onCursorMove; }, [onCursorMove]);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
+
   useEffect(() => {
     if (!divRef.current || mapRef.current) return;
     const map = L.map(divRef.current, { center: [22.3964, 114.1095], zoom: 12, zoomControl: false, preferCanvas: true });
@@ -110,14 +117,16 @@ export default React.memo(function MapCore({
 
     cursorMarkerRef.current.on('drag', (e) => {
       const pos = e.target.getLatLng();
-      let closest = profile[0];
+      const prof = profileRef.current;
+      if (!prof.length) return;
+      let closest = prof[0];
       let minD = Infinity;
-      for (const p of profile) {
+      for (const p of prof) {
         const d = Math.pow(p.lat - pos.lat, 2) + Math.pow(p.lng - pos.lng, 2);
         if (d < minD) { minD = d; closest = p; }
       }
       e.target.setLatLng([closest.lat, closest.lng]);
-      onCursorMove(closest.distance, { lat: closest.lat, lng: closest.lng });
+      onCursorMoveRef.current(closest.distance, { lat: closest.lat, lng: closest.lng });
       hoverSync.emit(closest, 'map');
     });
 
@@ -137,10 +146,11 @@ export default React.memo(function MapCore({
         coordRef.current.innerHTML = `<div style="color:#ef4444; font-size:11px">坐標轉換錯誤</div>`;
       }
 
-      if (profile.length > 0) {
-        let closest = profile[0];
+      const prof = profileRef.current;
+      if (prof.length > 0) {
+        let closest = prof[0];
         let minD = Infinity;
-        for (const p of profile) {
+        for (const p of prof) {
           const d = Math.pow(p.lat - lat, 2) + Math.pow(p.lng - lng, 2);
           if (d < minD) { minD = d; closest = p; }
         }
@@ -160,15 +170,19 @@ export default React.memo(function MapCore({
       map.remove(); 
       mapRef.current = null; 
     };
-  }, [profile]);
+  }, []);
 
   useEffect(() => {
     if (!cursorMarkerRef.current || externalDistance === undefined) return;
     let currentDist = 0;
     let found = false;
     for (const seg of segments) {
+      if (seg.distance === 0 || seg.points.length === 0) {
+        currentDist += seg.distance;
+        continue;
+      }
       if (currentDist + seg.distance >= externalDistance) {
-        const ratio = (externalDistance - currentDist) / seg.distance;
+        const ratio = Math.max(0, Math.min(1, (externalDistance - currentDist) / seg.distance));
         const p1 = seg.points[0];
         const p2 = seg.points[seg.points.length - 1];
         const lat = p1.lat + ratio * (p2.lat - p1.lat);

@@ -122,11 +122,15 @@ export const calculateSunrise = (lat: number, lng: number, dateStr: string): str
     L = (L + 360) % 360;
     const sinDec = 0.39782 * Math.sin(L * Math.PI / 180);
     const cosDec = Math.cos(Math.asin(sinDec));
+    // 太陽赤經 (Right Ascension) —— 之前漏了這一步，導致日出時間偏離約 6 小時
+    let RA = Math.atan(0.91764 * Math.tan(L * Math.PI / 180)) * 180 / Math.PI;
+    RA = RA + (Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90); // 校正象限
+    RA = RA / 15; // 轉成小時
     const cosH = (Math.sin(-0.833 * Math.PI / 180) - (sinDec * Math.sin(lat * Math.PI / 180))) / (cosDec * Math.cos(lat * Math.PI / 180));
     if (cosH > 1 || cosH < -1) return "06:00";
     const H = 360 - (Math.acos(cosH) * 180 / Math.PI);
-    const T = H / 15;
-    const UT = T + longitudeHour - (0.06571 * t) - 6.622;
+    const T = (H / 15) + RA - (0.06571 * t) - 6.622;
+    const UT = T - longitudeHour;
     const localHour = (UT + 8 + 24) % 24;
     const hour = Math.floor(localHour);
     const minute = Math.round((localHour - hour) * 60);

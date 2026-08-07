@@ -10,8 +10,10 @@ import { WaypointMarker, RouteSegment } from '../types';
 async function getOfficialGrid(lat: number, lng: number): Promise<string> {
   try {
     const zone = lng < 114.0 ? 49 : 50;
+    // Step 1: WGS84 經緯 → UTM 格網座標（官方 API）
+    // 注意：官方 API 的經度參數是 `long`（不是 `lon`），回傳欄位是 utmGridE/utmGridN
     const resp = await fetch(
-      `https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=utmgrid&zone=${zone}&lat=${lat}&lon=${lng}`,
+      `https://www.geodetic.gov.hk/transform/v2/?inSys=wgsgeog&outSys=utmgrid&zone=${zone}&lat=${lat}&long=${lng}`,
       { signal: AbortSignal.timeout(3000) } // 3 秒超時
     );
     
@@ -19,18 +21,20 @@ async function getOfficialGrid(lat: number, lng: number): Promise<string> {
     
     const data = await resp.json();
     
-    if (data.utmE && data.utmN) {
-      const E = parseFloat(data.utmE);
-      const N = parseFloat(data.utmN);
-      
-      const eOff = Math.floor(((E % 100000) + 100000) % 100000 / 10);
-      const nOff = Math.floor(((N % 100000) + 100000) % 100000 / 10);
-      
-      const square = E >= 200000 ? 'KK' : 'JK';
-      return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
-    }
+    const E = parseFloat(data.utmGridE);
+    const N = parseFloat(data.utmGridN);
+    if (isNaN(E) || isNaN(N)) throw new Error('API 無有效 UTM 值');
+    
+    const eOff = Math.floor(((E % 100000) + 100000) % 100000 / 10);
+    const nOff = Math.floor(((N % 100000) + 100000) % 100000 / 10);
+    
+    // 方格依 zone 區分：49Q → GE/HE，50Q → JK/KK（香港童軍座標格式）
+    let square: string;
+    if (zone === 49) square = E >= 800000 ? 'HE' : 'GE';
+    else square = E >= 200000 ? 'KK' : 'JK';
+    return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
   } catch (e) {
-    // API 失敗 → fallback 到本地計算
+    // API 失敗 → fallback 到本地計算（境外 API 不適用時也走這裡）
     console.warn('政府 API 失敗，使用本地計算 fallback');
   }
   

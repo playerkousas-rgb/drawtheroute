@@ -96,11 +96,13 @@ export default function App() {
     const pts = segments.flatMap(s =>
       s.points.map(p => ({ lat: p.lat, lng: p.lng, elevation: p.elevation }))
     );
+    // 寫入 waypoints（起點 / CP / 終點）以保留檢查點結構
+    const wps = waypoints.map(w => ({ lat: w.latlng.lat, lng: w.latlng.lng, elevation: w.elevation }));
     saveAs(
-      new Blob([exportGPX(pts, 'ReliefForge 山徑路線')], { type: 'application/gpx+xml' }),
+      new Blob([exportGPX(pts, 'ReliefForge 山徑路線', wps)], { type: 'application/gpx+xml' }),
       `reliefforge-${Date.now()}.gpx`
     );
-  }, [segments]);
+  }, [segments, waypoints]);
 
   const handleGPXFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
