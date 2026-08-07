@@ -1,9 +1,8 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import proj4 from 'proj4';
 import { hoverSync } from '../../utils/hoverSync';
-import { convertWgs84ToHk80, formatToHk80Shorthand, wgs84ToHikingShorthand4 } from '../../utils/coordUtils';
+import { wgs84ToHikingShorthand4 } from '../../utils/coordUtils';
 import {
   LatLng, RouteSegment, WaypointMarker,
   MapLayer, ElevationProfilePoint,

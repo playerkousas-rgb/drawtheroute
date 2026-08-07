@@ -334,13 +334,16 @@ export function useRouteManager() {
           const startI = idxs[i];
           const endI = idxs[i + 1];
           if (endI - startI < 1) continue;
-          const segPts = pts.slice(startI, endI + 1);
+          const raw = pts.slice(startI, endI + 1);
+          // 每段 distanceFromStart 要重新歸零(從段首 0 起算)，否則 useTerrainAnalysis
+          // 再用 cumulativeKm 累加時，絕對距離會被重複累加而把總距離算錯
+          const segPts = buildPoints(raw.map(r => ({ lat: r.lat, lng: r.lng, ele: r.elevation })));
           const s = calcStats(segPts);
           newSegments.push({
             id: uid('gpx'),
             points: segPts,
             mode: 'auto',
-            distance: (segPts.at(-1)?.distanceFromStart ?? 0) - segPts[0].distanceFromStart,
+            distance: segPts.at(-1)?.distanceFromStart ?? 0,
             ascent: s.ascent,
             descent: s.descent,
           });
