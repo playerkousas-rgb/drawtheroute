@@ -1,0 +1,64 @@
+# ── Vercel 部署瘦身：僅上傳必要產物，避免儲存配額爆滿 ──
+# 以下檔案/目錄不會被上傳到 Vercel，已在 Git 但不佔用部署空間
+
+# Git 與版本控制
+.git
+.gitignore
+.github
+
+# 依賴與建置快取（Vercel 會自行 npm install / build）
+node_modules
+dist
+coverage
+.cache
+.parcel-cache
+.turbo
+.next
+.nuxt
+.output
+.vite
+*.tsbuildinfo
+.eslintcache
+
+# 環境變數（本地）
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 日誌與備份
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.bak
+*.tmp
+*.old
+*.orig
+*.swp
+*.swo
+*~
+
+# 開發輔助腳本（本地圖表/Excel 調試用，不參與線上運行）
+generate_chart.py
+update_chart.py
+patch_excel.py
+replacement.txt
+
+# 未被任何 HTML/CSS/JS 引用過的靜態大檔（死重資源）
+public/images/terrain-bg.jpg
+public/vite.svg
+src/assets/react.svg
+
+# 已廢棄的 3D 地形 / 側邊欄殘留樁（功能已下線，僅留 stub — 已從 Git 刪除，此處為防未來誤加的黑名單）
+src/components/Terrain3D/TerrainPanel.tsx
+src/components/Sidebar/Sidebar.tsx
+src/lib/stlGenerator.ts
+src/lib/terrainSTL.ts
+src/lib/gpxParser.ts
+
+# 系統暫存
+.DS_Store
+Thumbs.db
+*.map

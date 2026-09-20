@@ -11,5 +11,25 @@ export default defineConfig(async () => {
     plugins.push(m.sourceTags());
   } catch {}
   // allowedHosts: true (allow-all) is required so the live-preview host can reach the dev server
-  return { plugins, server: { host: true, allowedHosts: true as const } };
+  return {
+    plugins,
+    server: { host: true, allowedHosts: true as const },
+    build: {
+      outDir: 'dist',
+      sourcemap: false,
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks: (id: string) => {
+            if (id.includes('node_modules')) {
+              if (id.includes('leaflet')) return 'leaflet';
+              if (id.includes('recharts')) return 'recharts';
+              if (id.includes('framer-motion') || id.includes('lucide-react') || id.includes('proj4') || id.includes('file-saver') || id.includes('html2canvas') || id.includes('xlsx')) return 'vendor';
+              if (id.includes('react')) return 'vendor';
+            }
+          },
+        },
+      },
+    },
+  };
 })
