@@ -1,5 +1,4 @@
 import proj4 from 'proj4';
-import axios from 'axios';
 
 export const getKKGrid = (lat: number, lng: number): string => {
   const hk1980 = "+proj=tmerc +lat_0=22.31213333333334 +lon_0=114.1785555555556 +k=1 +x_0=836694.05 +y_0=819069.8 +ellps=intl +units=m +no_defs";
@@ -102,8 +101,9 @@ export const fetchWeatherData = async (lat: number, lng: number, dateStr: string
       url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${pastDateStr}&end_date=${pastDateStr}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m,uv_index&daily=sunrise,sunset&timezone=auto`;
     }
 
-    const response = await axios.get(url);
-    const data = response.data;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json() as any;
 
    let temp = 0, feelsLike = 0, humidity = 0, windSpeed = 0, windDeg = 0, cloudCover = 0, uvIndex = 0, precipitation = 0;
   let maxTemp = 26, minTemp = 18; // ✨ 新增這一行（給它們預設安全值）
