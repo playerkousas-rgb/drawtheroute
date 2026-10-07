@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 import MapCore from './components/Map/MapCore';
 import ElevationChart from './components/ElevationProfile/ElevationChart';
 import LeftToolbar from './components/Toolbar/LeftToolbar';
@@ -244,6 +245,7 @@ export default function App() {
       </motion.div>
 
       <input ref={fileRef} type="file" accept=".gpx" className="hidden" onChange={handleGPXFile} />
+      <Analytics />
     </div>
   );
 }
