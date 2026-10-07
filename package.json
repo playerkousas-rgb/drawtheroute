@@ -11,6 +11,7 @@
     "check": "tsc -b --verbose && vite build --mode production"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.35.0",
     "html2canvas": "^1.4.1",
