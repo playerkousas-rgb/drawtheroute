@@ -13,12 +13,23 @@ import { exportGPX } from './lib/gpxExport';
 import { saveAs } from 'file-saver';
 import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './types';
 import { convertToWgs84 } from './services/geodeticService';
+import ConfirmProvider from './components/Confirm/ConfirmProvider';
+import { useConfirm, kv } from './components/Confirm/confirmShared';
 
 
 
 const DEFAULT_NAISMITH: NaismithSettings = { baseSpeedKmh: 3.5, ascentPer20m: 7, descentPer20m: 2 };
 
 export default function App() {
+  return (
+    <ConfirmProvider>
+      <AppInner />
+    </ConfirmProvider>
+  );
+}
+
+function AppInner() {
+  const { confirm } = useConfirm();
   const [mapLayer, setMapLayer]       = useState<MapLayer>('topo');
   const [naismith, setNaismith]       = useState<NaismithSettings>(DEFAULT_NAISMITH);
   const [hoveredPt, setHoveredPt] = useState<ElevationProfilePoint | null>(null);
@@ -105,16 +116,63 @@ export default function App() {
     );
   }, [segments, waypoints]);
 
-  const handleGPXFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const hasRoute = segments.length > 0 || waypoints.length > 0;
+
+  const handleGPXFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    e.target.value = '';
+
+    // 防呆：已有路線時，匯入會覆蓋現有路線，先確認
+    if (hasRoute) {
+      const ok = await confirm({
+        title: '匯入 GPX 將覆蓋現有路線',
+        message: kv([
+          ['現有路點', `${waypoints.length} 個`],
+          ['現有路段', `${segments.length} 段`],
+          ['匯入檔案', f.name],
+        ]),
+        confirmLabel: '覆蓋並匯入',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+
     const reader = new FileReader();
     reader.onload = ev => importGPX(ev.target?.result as string);
+    reader.onerror = () => alert('檔案讀取失敗，請重試');
     reader.readAsText(f);
-    e.target.value = '';
-  }, [importGPX]);
+  }, [confirm, hasRoute, waypoints.length, segments.length, importGPX]);
 
-  const hasRoute = segments.length > 0 || waypoints.length > 0;
+  // ── 防呆：清除全部前先確認（不可逆） ──
+  const handleClear = useCallback(async () => {
+    const ok = await confirm({
+      title: '確認清除全部路線？',
+      message: kv([
+        ['將刪除路點', `${waypoints.length} 個`],
+        ['將刪除路段', `${segments.length} 段`],
+      ]),
+      confirmLabel: '清除全部',
+      danger: true,
+    });
+    if (ok) clearAll();
+  }, [confirm, waypoints.length, segments.length, clearAll]);
+
+  // ── 防呆：刪除路點前先確認（不可逆） ──
+  const handleDeleteWaypoint = useCallback(async (index: number) => {
+    const wp = waypoints[index];
+    const label = wp?.type === 'start' ? '起點' : wp?.type === 'end' ? '終點' : `CP ${index}`;
+    const ok = await confirm({
+      title: `確認刪除${label}？`,
+      message: kv([
+        ['路點', `${label}（${wp?.elevation.toFixed(0) ?? '?'} m）`],
+        ['刪除後', '相關路段會重新計算'],
+      ]),
+      confirmLabel: '刪除',
+      danger: true,
+    });
+    if (ok) deleteWaypoint(index);
+  }, [confirm, waypoints, deleteWaypoint]);
 
   return (
     <div className="w-screen h-screen relative overflow-hidden" style={{ background: '#0a0f1e' }}>
@@ -142,7 +200,7 @@ export default function App() {
         mapLayer={mapLayer}
         onMapLayer={setMapLayer}
         onUndo={undoLastSegment}
-        onClear={clearAll}
+        onClear={handleClear}
         onImportGPX={() => fileRef.current?.click()}
         onExportGPX={handleExportGPX}
         hasRoute={hasRoute}
@@ -155,7 +213,7 @@ export default function App() {
         stats={stats}
         segments={analyzedSegments}
         waypoints={waypoints}
-        onDeleteWaypoint={deleteWaypoint}
+        onDeleteWaypoint={handleDeleteWaypoint}
         naismithSettings={naismith}
         onNaismithChange={setNaismith}
         isProcessing={isProcessing}
@@ -238,7 +296,7 @@ export default function App() {
         {!isExpanded && (
           <div className="text-center pb-1 pointer-events-none">
             <p className="text-[9px] font-mono tracking-widest" style={{ color: 'rgba(100,116,139,0.4)' }}>
-              Copyright 2026 SKWSCOUT. ALL RIGHTS RESERVED.
+              Copyright 2026 SCOUT SYSTEM. ALL RIGHTS RESERVED.
             </p>
           </div>
         )}

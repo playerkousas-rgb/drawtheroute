@@ -46,6 +46,9 @@ update_chart.py
 patch_excel.py
 replacement.txt
 
+# 瘦身系統守門腳本（本地/CI 用，絕不上線）
+scripts/
+
 # 未被任何 HTML/CSS/JS 引用過的靜態大檔（死重資源）
 public/images/terrain-bg.jpg
 public/vite.svg

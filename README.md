@@ -17,6 +17,9 @@
 | **座標工具** | HK80↔WGS84、UTM 4 位簡寫（proj4）、香港格網 50Q / 49Q、方格 GE/HE/JK/KK | ✅ |
 | **匯出** | GPX（帶 CP 的 `<wpt>` + `<trkseg>`）、file-saver | ✅ |
 | **UI** | Tailwind 4、framer-motion、lucide-react、右側面板、左工具列 | ✅ |
+| **瘦身系統** | 防增肥守門 `scripts/slim-guard.mjs`（`npm run check:slim`）：部署黑名單／死重掃描／肥重圖攔截 | ✅ |
+| **防呆機制** | 破壞性操作先確認（清除全部／刪除路點／GPX 覆蓋匯入），對話框列出變更摘要 | ✅ |
+| **回報系統** | SCOUT ADMIN 統一回報 widget（問題回報／意見回饋），一行接入 | ✅ |
 
 > **本次瘦身所有功能 100% 不變**，已通過 `npm run build` + `npm run lint` + `npm run check` 驗證。
 
@@ -26,11 +29,12 @@
 
 ```bash
 npm install
-npm run dev      # 本地開發 http://localhost:5173
-npm run build    # 生產打包（tsc -b && vite build）
-npm run preview  # 預覽 dist
-npm run lint     # ESLint 檢查
-npm run check    # tsc + vite build 全量守護
+npm run dev        # 本地開發 http://localhost:5173
+npm run build      # 生產打包（tsc -b && vite build）
+npm run preview    # 預覽 dist
+npm run lint       # ESLint 檢查
+npm run check:slim # 瘦身系統 · 防增肥守門（部署黑名單／死重／肥重圖掃描）
+npm run check      # tsc + vite build + 瘦身守門 全量守護
 ```
 
 ---
@@ -194,13 +198,29 @@ du -sh public/* src/assets/* 2>/dev/null | sort -hr
 ### 5️⃣ 驗證與守護（瘦身後必跑）
 
 ```bash
-npm run lint   # ESLint（允許既有 warn，但不新增 error）
-npm run build  # tsc -b && vite build 必須 0 報錯，dist 正常生成且無 images/terrain-bg.jpg
-npm run check  # 全量守護：tsc --verbose + vite build
+npm run lint       # ESLint（允許既有 warn，但不新增 error）
+npm run build      # tsc -b && vite build 必須 0 報錯，dist 正常生成且無 images/terrain-bg.jpg
+npm run check:slim # 瘦身系統自動守門（見 5️⃣-A）
+npm run check      # 全量守護：tsc --verbose + vite build + 瘦身守門
 ```
 
 - 本地提交前跑 `npm run build`，Vercel 部署前會重跑一次。
 - 若 `npm run build` 出現 `Generated an empty chunk` 警告，檢查 `vite.config.ts` 的 `manualChunks` 是否正確。
+
+#### 5️⃣-A 瘦身系統（自動防增肥守門）🤖
+
+`scripts/slim-guard.mjs`（零依賴 Node 腳本，`npm run check:slim`）把以上守則**變成自動化守門**，違反即 exit 1：
+
+| # | 守門項 | 攔截內容 |
+|---|--------|----------|
+| 1 | `.vercelignore` 完整性 | 缺少必要黑名單模式（`node_modules`／`*.bak`／`dist`／`scripts/`…）即失敗 |
+| 2 | 備份／暫存檔掃描 | `*.bak/*.tmp/*.old/*.orig/*.swp/*.log` 一律不得在倉庫內 |
+| 3 | 死重檔案黑名單 | `Terrain3D`／`Sidebar`／`stlGenerator`／`terrainSTL`／`gpxParser`／`terrain-bg.jpg` 等 8 項不得復活 |
+| 4 | `uploads/` 禁令 | 嚴禁引入會隨使用量累積儲存空間的機制 |
+| 5 | 靜態資產尺寸 | `public/`、`src/assets/` 圖片 >64 KB、其他 >128 KB 即攔截 |
+| 6 | Git 追蹤範圍 | `node_modules/`、`dist/` 不得被追蹤；每次輸出追蹤總量（瘦身儀表板） |
+
+已納入 `npm run check` 全量守護鏈，MR 前必跑。
 
 ### 6️⃣ 本次瘦身報告（2026-09-20）
 
@@ -261,6 +281,58 @@ dist 檢查     → 無 public/images/，無 vite.svg，僅必要產物
 - [ ] 是否產生了 `*.bak/*.tmp/*.log`？請加入 `.vercelignore`
 - [ ] `npm run build` 是否無報錯且 `dist` 無冗餘？
 - [ ] `package.json` 的 `dependencies` 是否仍≤10 項核心運行依賴？
+- [ ] `npm run check:slim` 是否全綠？
+
+---
+
+## 防呆機制 🛡️
+
+> 對齊 2026 Scout System 全家標準（同 `troop-portal` 的 `ConfirmProvider` guard 模式）：
+> **所有破壞性／不可逆動作，先確認、後執行、只執行一次。**
+
+### 實現
+
+`src/components/Confirm/ConfirmProvider.tsx` — 全域確認對話框（Context + `useConfirm()` hook）：
+
+- 對話框**列出即將變更的內容摘要**（`kv()` 欄位：值 清單），讓用戶清楚知道會失去什麼
+- 按「確認執行」才真正執行；按「取消」／點背景／按 ESC 類行為＝**完全不變**
+- 危險操作用紅色「⚠️」＋danger 樣式，一般確認用綠色「✅」
+
+### 已加防呆的動作
+
+| 動作 | 觸發點 | 確認內容 |
+|------|--------|----------|
+| **清除全部** | 左工具列 🗑️ | 列出將刪除的路點／路段數量，danger 樣式 |
+| **刪除路點** | 右側面板 CP 列表 | 列出路點標籤（起點／CP／終點）與高度，並提示路段會重算 |
+| **匯入 GPX（覆蓋）** | 左工具列「匯入 GPX」 | 僅當已有路線時攔截；列出現有路點／路段＋匯入檔名，確認後才覆蓋 |
+| **座標輸入** | 座標搜尋 | 空白輸入直接擋下；無效座標顯示錯誤訊息，不執行跳轉 |
+
+**刻意不加確認**：「撤銷上一段」—— 本身就是糾錯機制，加確認反而違反防呆原則。
+
+---
+
+## SCOUT ADMIN 統一回報系統 🐛💬
+
+> 統一回報格式 v1：全個 Scout System 家族（圖書館、APP STORE、支部系統、進度追蹤、旅系統、區系統、專章系統、路線規劃…）
+> 共用同一個 widget、同一個 payload、同一個接收端、同一組 Sheet 欄位，唯一分別只有 `data-app`。
+> 說明書：`scout-admin/SCOUT_ADMIN.md` ｜ 後台：https://scout-admin-blue.vercel.app/
+
+### 接入方式（本專案已用方式 1）
+
+在 `index.html` 的 `</body>` 前貼**一行**（右下角浮動「🐛💬 回報 · 意見」按鈕）：
+
+```html
+<script src="https://scout-admin-blue.vercel.app/widget.js" data-app="路線規劃"></script>
+```
+
+- 用戶可提交**問題回報**（標題／詳情／嚴重度）或**意見回饋**（建議／投訴／稱讚）
+- 旅團號、姓名、聯絡方式全部**選填**，可匿名
+- 提交**不需要 API KEY、不需要登入**，資料直達管理員 Google Sheet ＋ Email 通知
+- APP **完全不需要後端**；`data-app="路線規劃"` 用作後台來源分流（來源膠囊）
+
+### 零改動備援
+
+獨立回報頁（分享連結／QR 即可）：`https://scout-admin-blue.vercel.app/report.html?app=路線規劃`
 
 ---
 
@@ -281,6 +353,7 @@ src/
     ElevationProfile/ # ElevationChart（Recharts + itinerary）
     Toolbar/       # LeftToolbar（圖層/路由模式/搜尋/GPX）
     RightPanel/    # 統計 + Naismith + CP + 天氣
+    Confirm/       # ConfirmProvider — 防呆確認對話框（useConfirm / kv）
   hooks/           # useRouteManager / useTerrainAnalysis / useItineraryData / useElevation / useBRouter
   lib/             # gpxExport（唯一 lib）
   services/        # geodeticService（HK80/UTM 轉換）
@@ -290,6 +363,8 @@ services/
   weatherService.ts # Open-Meteo（已改 fetch，無 axios）
 public/
   favicon.svg       # 唯一靜態資源（terrain-bg.jpg 已移除）
+scripts/
+  slim-guard.mjs    # 瘦身系統 · 防增肥守門（npm run check:slim，不上線）
 ```
 
 ## 原始 Vite 模板說明
@@ -304,4 +379,4 @@ public/
 
 ## 授權
 
-COPYRIGHT 2026 SKWSCOUT
+COPYRIGHT 2026 SCOUT SYSTEM

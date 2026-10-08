@@ -40,7 +40,7 @@ export function exportGPX(
   ).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="ReliefForge Pro - SKWSCOUT"
+<gpx version="1.1" creator="ReliefForge Pro - Scout System"
   xmlns="http://www.topografix.com/GPX/1/1">
   <metadata><name>${safeName}</name><time>${now}</time></metadata>
 ${wpts ? `${wpts}\n` : ''}  <trk><name>${safeName}</name><trkseg>

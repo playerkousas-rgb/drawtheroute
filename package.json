@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "check": "tsc -b --verbose && vite build --mode production"
+    "check:slim": "node scripts/slim-guard.mjs",
+    "check": "tsc -b --verbose && vite build --mode production && node scripts/slim-guard.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

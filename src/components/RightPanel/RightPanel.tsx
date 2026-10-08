@@ -100,7 +100,7 @@ export default function RightPanel({
             {/* Footer */}
             <div className="px-4 py-2 border-t border-slate-700/40">
               <p className="text-slate-600 text-[8px] font-mono text-center tracking-widest">
-                Copyright 2026 SKWSCOUT. ALL RIGHTS RESERVED.
+                Copyright 2026 SCOUT SYSTEM. ALL RIGHTS RESERVED.
               </p>
             </div>
           </motion.div>
