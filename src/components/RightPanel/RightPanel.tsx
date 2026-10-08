@@ -97,8 +97,10 @@ export default function RightPanel({
               />
             </div>
 
-            {/* Footer */}
-            <div className="px-4 py-2 border-t border-slate-700/40">
+            {/* Footer — 底部預留空間，避開右下角 SCOUT「🐛💬 回報 · 意見」浮動按鈕
+                （widget: #scoutw-fab, position:fixed; right:18px; bottom:18px; 高約 38px，
+                頂端約在畫面底部 56px 處，會蓋住面板底部的版權文字） */}
+            <div className="px-4 pt-2 pb-16 border-t border-slate-700/40">
               <p className="text-slate-600 text-[8px] font-mono text-center tracking-widest">
                 Copyright 2026 SCOUT SYSTEM. ALL RIGHTS RESERVED.
               </p>
