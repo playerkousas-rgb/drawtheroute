@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RouteIcon, Undo2, Trash2, Upload, Download, Map, Layers, Satellite, Footprints, ChevronRight, ChevronLeft, Search } from 'lucide-react';
+import { RouteIcon, Undo2, Trash2, Upload, Download, Map, Layers, Satellite, Footprints, ChevronRight, ChevronLeft, Search, PenLine, Move, Magnet } from 'lucide-react';
 import { MapLayer } from '../../types';
+import { MapMode } from '../Map/MapCore';
 
 interface Props {
   routingMode: 'hiking' | 'straight';
@@ -15,6 +16,13 @@ interface Props {
   hasRoute: boolean;
   isProcessing: boolean;
   onSearchCoord: (coord: string, mode: 'utm' | 'hk80' | 'latlng', utmOptions?: { zone: string; square: string }) => Promise<void>;
+  /** 手繪 / 微調模式 */
+  mode: MapMode;
+  onMode: (m: MapMode) => void;
+  magnet: boolean;
+  onMagnet: (v: boolean) => void;
+  magnetGapM: number;
+  onMagnetGap: (v: number) => void;
 }
 
 export default function LeftToolbar({
@@ -23,6 +31,7 @@ export default function LeftToolbar({
   onUndo, onClear, onImportGPX, onExportGPX,
   hasRoute, isProcessing,
   onSearchCoord,
+  mode, onMode, magnet, onMagnet, magnetGapM, onMagnetGap,
 }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -184,6 +193,50 @@ export default function LeftToolbar({
               />
             </Group>
             <Divider />
+            <Group label="手繪 / 微調">
+              <div className="flex gap-1 justify-center">
+                <Btn
+                  icon={<PenLine size={15} />}
+                  label="手繪路線（拖曳畫線，放手自動貼路）"
+                  active={mode === 'draw'}
+                  onClick={() => onMode('draw')}
+                  color="violet"
+                  small
+                />
+                <Btn
+                  icon={<Move size={15} />}
+                  label="微調路線（拖曳手柄調整已經算好的路線）"
+                  active={mode === 'edit'}
+                  onClick={() => onMode('edit')}
+                  color="sky"
+                  small
+                />
+              </div>
+              <div className="flex gap-1 justify-center items-center">
+                <Btn
+                  icon={<Magnet size={14} />}
+                  label={magnet ? '磁石：開（自動吸附山徑）' : '磁石：關（保留手繪原線）'}
+                  active={magnet}
+                  onClick={() => onMagnet(!magnet)}
+                  color="violet"
+                  small
+                  disabled={mode !== 'draw'}
+                />
+                {mode === 'draw' && magnet && (
+                  <select
+                    value={magnetGapM}
+                    onChange={e => onMagnetGap(Number(e.target.value))}
+                    className="bg-slate-800 text-slate-300 text-[9px] rounded px-0.5 py-1 outline-none border border-slate-700 w-[58px] text-center"
+                    title="磁石密度：錨點間距越細越貼近手繪線，但需要越多運算"
+                  >
+                    <option value={150}>幼 150m</option>
+                    <option value={250}>中 250m</option>
+                    <option value={400}>粗 400m</option>
+                  </select>
+                )}
+              </div>
+            </Group>
+            <Divider />
             <Group label="圖層">
               <Btn icon={<Map size={15} />}      label="街道圖 (OSM)"  active={mapLayer === 'osm'}       onClick={() => onMapLayer('osm')}       color="slate" small />
               <Btn icon={<Layers size={15} />}   label="地形圖 (Topo)" active={mapLayer === 'topo'}      onClick={() => onMapLayer('topo')}      color="slate" small />
@@ -241,12 +294,14 @@ function Divider() {
   return <div className="h-px bg-slate-700/50 mx-1 my-0.5" />;
 }
 
-type BtnColor = 'emerald' | 'amber' | 'slate' | 'rose';
+type BtnColor = 'emerald' | 'amber' | 'slate' | 'rose' | 'violet' | 'sky';
 const COLORS: Record<BtnColor, { active: string; hover: string }> = {
   emerald: { active: 'bg-emerald-500/25 border-emerald-500/50 text-emerald-300', hover: 'hover:bg-emerald-500/15 hover:text-emerald-400' },
   amber:   { active: 'bg-amber-500/25  border-amber-500/50  text-amber-300',     hover: 'hover:bg-amber-500/15  hover:text-amber-400' },
   slate:   { active: 'bg-slate-600/40  border-slate-500/40  text-slate-200',     hover: 'hover:bg-slate-700/40  hover:text-slate-300' },
   rose:    { active: 'bg-rose-500/25   border-rose-500/50   text-rose-300',      hover: 'hover:bg-rose-500/15   hover:text-rose-400' },
+  violet:  { active: 'bg-violet-500/25 border-violet-500/50 text-violet-300',    hover: 'hover:bg-violet-500/15 hover:text-violet-400' },
+  sky:     { active: 'bg-sky-500/25    border-sky-500/50    text-sky-300',       hover: 'hover:bg-sky-500/15    hover:text-sky-400' },
 };
 
 function Btn({ icon, label, active = false, onClick, color = 'slate', small = false, disabled = false }: {

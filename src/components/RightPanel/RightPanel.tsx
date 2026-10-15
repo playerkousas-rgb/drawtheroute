@@ -9,6 +9,9 @@ interface Props {
   segments: RouteSegment[];
   waypoints: WaypointMarker[];
   onDeleteWaypoint: (index: number) => void;
+  /** 滑鼠移到 CP 行 → 地圖上亮起該路點；離開清空 */
+  onHighlightWaypoint?: (index: number | null) => void;
+  highlightWaypoint?: number | null;
   naismithSettings: NaismithSettings;
   onNaismithChange: (s: NaismithSettings) => void;
   isProcessing: boolean;
@@ -17,6 +20,7 @@ interface Props {
 
 export default function RightPanel({
   stats, segments, waypoints, onDeleteWaypoint,
+  onHighlightWaypoint, highlightWaypoint = null,
   naismithSettings, onNaismithChange, isProcessing, error,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
@@ -91,6 +95,8 @@ export default function RightPanel({
                 segments={segments}
                 waypoints={waypoints}
                 onDeleteWaypoint={onDeleteWaypoint}
+                onHighlightWaypoint={onHighlightWaypoint}
+                highlightWaypoint={highlightWaypoint}
                 settings={naismithSettings}
                 onChange={onNaismithChange}
                 isProcessing={isProcessing}
@@ -113,11 +119,13 @@ export default function RightPanel({
 }
 
 // ── Route stats + Naismith ────────────────────────────────────────────────
-function RouteStatsPanel({ stats, segments, waypoints, onDeleteWaypoint, settings, onChange, isProcessing }: {
+function RouteStatsPanel({ stats, segments, waypoints, onDeleteWaypoint, onHighlightWaypoint, highlightWaypoint, settings, onChange, isProcessing }: {
   stats: RouteStatsType;
   segments: RouteSegment[];
   waypoints: WaypointMarker[];
   onDeleteWaypoint: (index: number) => void;
+  onHighlightWaypoint?: (index: number | null) => void;
+  highlightWaypoint?: number | null;
   settings: NaismithSettings;
   onChange: (s: NaismithSettings) => void;
   isProcessing: boolean;
@@ -170,6 +178,10 @@ function RouteStatsPanel({ stats, segments, waypoints, onDeleteWaypoint, setting
       {/* Waypoint list with delete buttons */}
       {waypoints.length > 0 && (
         <Section title="檢查點 (CP)" icon={<Route size={12} />}>
+          <p className="text-slate-500 text-[10px] leading-relaxed mb-2">
+            💡 改位置：<span className="text-slate-400">① 拖地圖上的 CP 手柄 · ② 拖橫切面嘅 CP 點 · ③ 改路程表座標</span>
+            <br />滑過下面任何一行，地圖上對應嘅 CP 會亮起。
+          </p>
           <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
             {waypoints.map((wp, i) => {
               const isStart = wp.type === 'start';
@@ -181,7 +193,13 @@ function RouteStatsPanel({ stats, segments, waypoints, onDeleteWaypoint, setting
               return (
                 <div
                   key={wp.id}
-                  className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-slate-800/40 border border-slate-700/20 group"
+                  onMouseEnter={() => onHighlightWaypoint?.(i)}
+                  onMouseLeave={() => onHighlightWaypoint?.(null)}
+                  className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border group transition-colors ${
+                    highlightWaypoint === i
+                      ? 'bg-blue-500/10 border-blue-500/40'
+                      : 'bg-slate-800/40 border-slate-700/20'
+                  }`}
                 >
                   {/* Colour dot */}
                   <div
@@ -192,7 +210,9 @@ function RouteStatsPanel({ stats, segments, waypoints, onDeleteWaypoint, setting
                   {/* Label + elevation */}
                   <div className="flex flex-col min-w-0">
                     <span className="text-slate-200 text-[11px] font-medium leading-tight">{label}</span>
-                    <span className="text-slate-500 text-[9px] font-mono">{wp.elevation.toFixed(0)} m</span>
+                    <span className="text-slate-500 text-[9px] font-mono">
+                      {wp.elevation.toFixed(0)} m · {wp.latlng.lat.toFixed(5)}, {wp.latlng.lng.toFixed(5)}
+                    </span>
                   </div>
 
                   {/* Segment stats (distance to next CP) */}

@@ -2,12 +2,13 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Analytics } from '@vercel/analytics/react';
-import MapCore from './components/Map/MapCore';
+import MapCore, { MapMode } from './components/Map/MapCore';
 import ElevationChart from './components/ElevationProfile/ElevationChart';
 import LeftToolbar from './components/Toolbar/LeftToolbar';
 import RightPanel from './components/RightPanel/RightPanel';
 import { useRouteManager } from './hooks/useRouteManager';
 import { useTerrainAnalysis } from './hooks/useTerrainAnalysis';
+import { useCpSlide } from './hooks/useCpSlide';
 import { useItineraryData } from './hooks/useItineraryData';
 import { exportGPX } from './lib/gpxExport';
 import { saveAs } from 'file-saver';
@@ -47,9 +48,20 @@ function AppInner() {
   const {
     segments, waypoints,
     routingMode, setRoutingMode,
-    isProcessing, lastError,
+    isProcessing, lastError, progress,
     addWaypoint, deleteWaypoint, undoLastSegment, clearAll, importGPX,
+    moveWaypoint, slideWaypointBackward, insertVia, moveVia, deleteVia, insertViaNear,
+    addDrawnStroke,
   } = useRouteManager();
+
+  // ── 手繪 / 微調模式 ─────────────────────────────────────────────────
+  const [mapMode, setMapMode] = useState<MapMode>('idle');
+  const [magnet, setMagnet] = useState(true);
+  const [magnetGapM, setMagnetGapM] = useState(250);
+
+  // ── CP 位置編輯（地圖拖曳 / 橫切面拖曳 / 路程表改座標） ─────────────────
+  const [draggingWp, setDraggingWp] = useState<number | null>(null);
+  const [highlightWp, setHighlightWp] = useState<number | null>(null);
 
   useEffect(() => {
     if (segments.length > 0 && cursorDistance === undefined) {
@@ -61,6 +73,44 @@ function AppInner() {
 
   const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismith);
   const { materials } = useItineraryData(waypoints, segments, selectedDate);
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  CP 位置編輯：把目標點「沿實際路線」平移，唔會拉直路線
+  //   • 沿出程滑動 → 直接移動 CP，出程由新位置重新貼路
+  //   • 沿入程後退 → 先插入新 CP 再刪舊 CP（保留入程原線，即原地併段）
+  //   • 離路線太遠（> 400m）→ 直接自由移動
+  // ══════════════════════════════════════════════════════════════════════
+  const cpSlide = useCpSlide(waypoints, segments, {
+    onMove: moveWaypoint,
+    onBacktrack: slideWaypointBackward,
+  });
+
+  const handleCpMoveToLatLng = useCallback((index: number, latlng: LatLng) => {
+    void cpSlide.slide(index, latlng);
+    return true;
+  }, [cpSlide]);
+
+  /** 橫切面拖曳：以里程（km）定位 → 取剖面上最近的一點做目標 */
+  const handleCpMoveToDistance = useCallback((index: number, distanceKm: number) => {
+    if (!elevationProfile.length) return;
+    let best = elevationProfile[0];
+    let bestD = Math.abs(best.distance - distanceKm);
+    for (const p of elevationProfile) {
+      const d = Math.abs(p.distance - distanceKm);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    handleCpMoveToLatLng(index, { lat: best.lat, lng: best.lng });
+  }, [elevationProfile, handleCpMoveToLatLng]);
+
+  /** 路程表直接改座標 */
+  const handleSetWaypoint = useCallback((index: number, latlng: LatLng) => {
+    handleCpMoveToLatLng(index, latlng);
+  }, [handleCpMoveToLatLng]);
+
+  /** 拖曳開始／結束：地圖手柄、橫切面手柄、右側面板共用同一個高亮狀態 */
+  const handleWaypointDragState = useCallback((index: number | null) => {
+    setDraggingWp(index);
+  }, []);
 
   const handlePointClick = useCallback((pt: ElevationProfilePoint) => {
     setSearchLocation({ lat: pt.lat, lng: pt.lng });
@@ -90,6 +140,34 @@ function AppInner() {
     if (isProcessing) return;
     addWaypoint(latlng);
   }, [isProcessing, addWaypoint]);
+
+  // ── 手繪完成 → 磁石貼路 / 保留手繪原線 ───────────────────────────────
+  const handleDrawStroke = useCallback(async (points: LatLng[]) => {
+    if (points.length < 2) return;
+    await addDrawnStroke(points, magnet, magnetGapM);
+  }, [addDrawnStroke, magnet, magnetGapM]);
+
+  // ── 微調：點擊路線即加一個彎位 ─────────────────────────────────────
+  const handleEditClick = useCallback((latlng: LatLng, toleranceM: number) => {
+    if (isProcessing) return;
+    void insertViaNear(latlng, toleranceM);
+  }, [isProcessing, insertViaNear]);
+
+  // ── 模式切換（手繪 / 微調互斥；Esc 返回一般模式） ─────────────────────
+  const toggleMode = useCallback((next: MapMode) => {
+    const entering = mapMode !== next;
+    setMapMode(entering ? next : 'idle');
+    // 手繪時收起底部資料面板，讓出多點地圖空間
+    if (entering && next === 'draw') setProfileOpen(false);
+  }, [mapMode]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMapMode('idle');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const goToLocation = useCallback(async (input: string, mode: 'utm' | 'hk80' | 'latlng', utmOptions?: { zone: string; square: string }) => {
     const cleanInput = input.trim();
@@ -191,6 +269,16 @@ function AppInner() {
         profile={elevationProfile}
         externalDistance={cursorDistance}
         onCursorMove={handleCursorMove}
+        mode={mapMode}
+        onDrawStroke={handleDrawStroke}
+        onMoveWaypoint={moveWaypoint}
+        onInsertVia={insertVia}
+        onMoveVia={moveVia}
+        onDeleteVia={deleteVia}
+        onDeleteWaypoint={handleDeleteWaypoint}
+        onEditClick={handleEditClick}
+        highlightWaypoint={draggingWp ?? highlightWp}
+        onWaypointDragState={handleWaypointDragState}
       />
 
       {/* ── Left toolbar ── */}
@@ -206,6 +294,12 @@ function AppInner() {
         hasRoute={hasRoute}
         isProcessing={isProcessing}
         onSearchCoord={goToLocation}
+        mode={mapMode}
+        onMode={toggleMode}
+        magnet={magnet}
+        onMagnet={setMagnet}
+        magnetGapM={magnetGapM}
+        onMagnetGap={setMagnetGapM}
       />
 
       {/* ── Right info panel ── */}
@@ -214,6 +308,8 @@ function AppInner() {
         segments={analyzedSegments}
         waypoints={waypoints}
         onDeleteWaypoint={handleDeleteWaypoint}
+        onHighlightWaypoint={setHighlightWp}
+        highlightWaypoint={highlightWp}
         naismithSettings={naismith}
         onNaismithChange={setNaismith}
         isProcessing={isProcessing}
@@ -226,6 +322,16 @@ function AppInner() {
         isProcessing={isProcessing}
         waypointCount={waypoints.length}
         segmentCount={segments.length}
+        mode={mapMode}
+        progress={progress}
+      />
+
+      {/* ── 手繪／微調模式提示條 ── */}
+      <ModeHint
+        mode={mapMode}
+        magnet={magnet}
+        isProcessing={isProcessing}
+        onExit={() => setMapMode('idle')}
       />
 
      {/* ── Bottom elevation profile ── */}
@@ -288,6 +394,10 @@ function AppInner() {
               onPointClick={handlePointClick}
               externalDistance={cursorDistance}
               onHoverPoint={setHoveredPt}
+              onSlideWaypoint={handleCpMoveToDistance}
+              onSetWaypoint={handleSetWaypoint}
+              draggingWaypoint={draggingWp}
+              onWaypointDragState={handleWaypointDragState}
             />
           </div>
         </div>
@@ -309,11 +419,13 @@ function AppInner() {
 }
 
 // ── Top status badge ──────────────────────────────────────────────────────
-function TopBadge({ routingMode, isProcessing, waypointCount, segmentCount }: {
+function TopBadge({ routingMode, isProcessing, waypointCount, segmentCount, mode, progress }: {
   routingMode: 'hiking' | 'straight';
   isProcessing: boolean;
   waypointCount: number;
   segmentCount: number;
+  mode: MapMode;
+  progress: string | null;
 }) {
   const isHiking = routingMode === 'hiking';
   const label    = isHiking ? '🥾 山徑路由 (BRouter hiking-mountain)' : '📏 直線模式 (SRTM 高度)';
@@ -353,10 +465,59 @@ function TopBadge({ routingMode, isProcessing, waypointCount, segmentCount }: {
                 />
               ))}
             </div>
-            <span className="text-emerald-300">計算山徑路線中…</span>
+            <span className="text-emerald-300">
+              {progress ?? (mode === 'draw' ? '手繪處理中…' : '計算山徑路線中…')}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ── 手繪 / 微調模式提示條 ──────────────────────────────────────────────────
+function ModeHint({ mode, magnet, isProcessing, onExit }: {
+  mode: MapMode;
+  magnet: boolean;
+  isProcessing: boolean;
+  onExit: () => void;
+}) {
+  if (mode === 'idle') return null;
+  const isDraw = mode === 'draw';
+  const accent = isDraw ? 'rgba(167,139,250,0.55)' : 'rgba(96,165,250,0.55)';
+  const dotCls = isDraw ? 'bg-violet-400' : 'bg-blue-400';
+  const title = isDraw ? '✏️ 手繪模式' : '🖐️ 微調模式';
+  const body = isDraw
+    ? (magnet
+        ? '按住並拖曳畫線 → 放手自動貼上實體山徑（磁石）'
+        : '按住並拖曳畫線 → 放手保留親手畫的原線（磁石關閉）')
+    : '拖曳手柄移動路點／彎位 · 拖「+」加彎位 · 點擊路線亦可加彎位 · 按 ✕ 刪除';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 px-3.5 py-2 rounded-xl text-[11px]"
+      style={{
+        background: 'rgba(8,14,28,0.94)',
+        backdropFilter: 'blur(18px)',
+        border: `1px solid ${accent}`,
+        boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+        maxWidth: 'min(92vw, 560px)',
+      }}
+    >
+      <div className={`w-1.5 h-1.5 rounded-full ${dotCls} animate-pulse flex-shrink-0`} />
+      <div className="flex flex-col leading-snug">
+        <span className="text-slate-200 font-semibold">{title}</span>
+        <span className="text-slate-400">{body}{isProcessing ? '（處理中…）' : ''}</span>
+      </div>
+      <button
+        onClick={onExit}
+        className="ml-1 text-[10px] px-2 py-0.5 rounded-md border border-slate-600/60 text-slate-300 hover:bg-slate-700/50 transition-colors flex-shrink-0"
+        title="返回一般模式（Esc）"
+      >
+        完成
+      </button>
+    </motion.div>
   );
 }
