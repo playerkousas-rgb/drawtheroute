@@ -3,7 +3,8 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot
 } from 'recharts';
-import { ElevationProfilePoint, RouteStats, WaypointMarker, RouteSegment, NaismithSettings } from '../../types';
+import { ElevationProfilePoint, RouteStats, WaypointMarker, RouteSegment, NaismithSettings, LatLng } from '../../types';
+import { parseCoordinateInput } from '../../services/geodeticService';
 import { hoverSync } from '../../utils/hoverSync';
 import { calculateBearing } from '../../utils/coordUtils';
 
@@ -20,6 +21,14 @@ interface Props {
   onPointClick: (p: ElevationProfilePoint) => void;
   externalDistance?: number;
   onHoverPoint: (p: ElevationProfilePoint | null) => void;
+  /** 橫切面拖曳 CP：沿路線滑動到指定里程（km） */
+  onSlideWaypoint: (index: number, distanceKm: number) => void;
+  /** 路程表直接改座標 */
+  onSetWaypoint: (index: number, latlng: LatLng) => void;
+  /** 現時正在被拖曳／高亮的路點索引 */
+  draggingWaypoint?: number | null;
+  /** 通知上層拖曳開始／結束 */
+  onWaypointDragState?: (index: number | null) => void;
 }
 
 const CustomTooltip = ({ active, payload }: {
@@ -44,6 +53,15 @@ const CustomTooltip = ({ active, payload }: {
     </div>
   );
 };
+
+/**
+ * 圖表繪圖區幾何 — 必須同 <AreaChart margin> 及 <YAxis width> 完全一致，
+ * 否則滑鼠位置換算里程（hover 同步、CP 拖曳命中）會有固定偏移。
+ */
+const CHART_MARGIN = { top: 20, right: 16, bottom: 4, left: 0 };
+const Y_AXIS_WIDTH = 48;
+const PLOT_LEFT = CHART_MARGIN.left + Y_AXIS_WIDTH;
+const PLOT_RIGHT_PAD = CHART_MARGIN.right;
 
 const timeToMinutes = (tStr: string) => {
   if (!tStr) return 0;
@@ -76,6 +94,116 @@ function StatBadge({ label, val, color }: { label: string; val: string; color: s
   );
 }
 
+/**
+ * CoordEdit — 路線計畫表內的「可編輯座標」儲存格
+ * 顯示原本嘅座標字串，點擊後可輸入 WGS84 或 UTM 簡寫，Enter／✓ 提交。
+ */
+function CoordEdit({ value, title, onCommit }: {
+  value: string;
+  title: string;
+  onCommit: (raw: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const start = () => {
+    setErr(null);
+    setText(value.replace(/\s+/g, ' ').trim());
+    setEditing(true);
+  };
+
+  const commit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await onCommit(text);
+      setEditing(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '座標無效');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <button
+        onClick={start}
+        title={`${title} — 點擊修改座標（可輸入 22.3193, 114.1694 或 50Q KK 0670 2346）`}
+        className="w-full text-left font-mono text-[10px] text-slate-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors px-2 py-1.5 group/coord"
+      >
+        {value}
+        <span className="opacity-0 group-hover/coord:opacity-100 ml-1 text-blue-400">✎</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1 p-1 bg-blue-950/40">
+      <input
+        autoFocus
+        value={text}
+        disabled={busy}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); void commit(); }
+          if (e.key === 'Escape') { e.preventDefault(); setEditing(false); setErr(null); }
+        }}
+        placeholder="22.3193, 114.1694"
+        className="w-full bg-slate-900 border border-blue-500/50 rounded px-1.5 py-1 text-[10px] font-mono text-white outline-none focus:border-blue-400"
+      />
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => void commit()}
+          disabled={busy}
+          className="flex-1 text-[9px] font-bold rounded bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 px-1 py-0.5 disabled:opacity-50"
+        >
+          {busy ? '轉換中…' : '✓ 套用'}
+        </button>
+        <button
+          onClick={() => { setEditing(false); setErr(null); }}
+          className="text-[9px] rounded border border-slate-600/60 text-slate-400 hover:bg-slate-700/40 px-1.5 py-0.5"
+        >
+          ✕
+        </button>
+      </div>
+      {err && <span className="text-[9px] text-rose-400 leading-tight">{err}</span>}
+    </div>
+  );
+}
+
+/**
+ * CpHandle — 橫切面上可拖曳的 CP 手柄（拖曳 = 沿路線滑動 CP）
+ */
+function CpHandle(props: {
+  cx?: number; cy?: number;
+  /** 用 tone（唔用 fill）傳色：recharts 會用自身預設 fill 覆蓋同名的 shape prop */
+  tone?: string;
+  label?: string;
+  dragging?: boolean;
+}) {
+  const { cx, cy, tone = '#fbbf24', label, dragging = false } = props;
+  if (cx == null || cy == null) return null;
+  const color = dragging ? '#f8fafc' : tone;
+
+  // 純視覺：實際拖曳由圖表容器嘅 pointer 事件處理（命中範圍 ±14px，滑鼠／手指都按得到）
+  return (
+    <g style={{ cursor: 'ew-resize', touchAction: 'none', pointerEvents: 'none' }}>
+      <title>{`拖曳沿路線移動 ${label ?? 'CP'}`}</title>
+      {/* 加大命中範圍（透明填充都算 hit area） */}
+      <rect x={cx - 14} y={cy - 26} width={28} height={54} fill="transparent" />
+      <path d={`M ${cx - 5} ${cy - 10} L ${cx + 5} ${cy - 10} L ${cx} ${cy - 18} Z`} fill={color} opacity={0.9} />
+      <circle cx={cx} cy={cy} r={dragging ? 9 : 7.5} fill="rgba(8,14,28,0.9)" stroke={color} strokeWidth={dragging ? 3 : 2} />
+      <circle cx={cx} cy={cy} r={3.5} fill={color} />
+      {dragging && (
+        <circle cx={cx} cy={cy} r={14} fill="none" stroke={color} strokeWidth={1} opacity={0.6} />
+      )}
+    </g>
+  );
+}
+
 export default function ElevationChart({
   profile,
   stats,
@@ -84,7 +212,11 @@ export default function ElevationChart({
   naismithSettings,
   onPointClick,
   externalDistance,
-  onHoverPoint
+  onHoverPoint,
+  onSlideWaypoint,
+  onSetWaypoint,
+  draggingWaypoint = null,
+  onWaypointDragState,
 }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [hoverX, setHoverX] = useState<number | null>(null);
@@ -92,6 +224,32 @@ export default function ElevationChart({
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const [coordMode, setCoordMode] = useState<'grid' | 'latlng'>('grid');
+
+  // ── 橫切面 CP 拖曳狀態 ────────────────────────────────────────────────
+  const draggingRef = useRef<number | null>(null);
+  const [localDragIdx, setLocalDragIdx] = useState<number | null>(null);
+  const lastSlideKmRef = useRef<number | null>(null);
+  /** 按下時嘅候選拖曳（要移動超過 3px 才真正開始，避免誤觸） */
+  const dragStateRef = useRef<{ idx: number; startX: number; startY: number; active: boolean } | null>(null);
+  const justDraggedRef = useRef(false);
+
+  const endCpDrag = useCallback(() => {
+    if (dragStateRef.current?.active) onWaypointDragState?.(null);
+    dragStateRef.current = null;
+    draggingRef.current = null;
+    lastSlideKmRef.current = null;
+    setLocalDragIdx(null);
+  }, [onWaypointDragState]);
+
+  useEffect(() => {
+    const finish = () => endCpDrag();
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    return () => {
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+    };
+  }, [endCpDrag]);
 
   
   // Custom Intervals for Chart
@@ -165,11 +323,48 @@ export default function ElevationChart({
       const isEP = idx === waypoints.length - 1;
       return {
         x: closest.distance,
+        y: closest.elevation,
         label: isSP ? 'SP' : (isEP ? 'EP' : `CP${idx}`),
         color: isSP ? '#10b981' : (isEP ? '#f87171' : '#fbbf24')
       };
     });
   }, [profile, waypoints]);
+
+  const markerElev = useMemo(() => markers.map(m => m.y), [markers]);
+
+  /** 繪圖區寬度（扣除 Y 軸與右側留白） */
+  const plotWidthOf = useCallback((containerWidth: number) =>
+    Math.max(1, containerWidth - PLOT_LEFT - PLOT_RIGHT_PAD), []);
+
+  /** 滑鼠 x（client 座標）→ 里程 km */
+  const kmOfClientX = useCallback((clientX: number) => {
+    const rect = chartContainerRef.current?.getBoundingClientRect();
+    if (!rect || !stats.totalDistance) return null;
+    const plotWidth = plotWidthOf(rect.width);
+    const rel = Math.max(0, Math.min(clientX - rect.left - PLOT_LEFT, plotWidth));
+    return (rel / plotWidth) * stats.totalDistance;
+  }, [plotWidthOf, stats.totalDistance]);
+
+  /** 里程 km → 繪圖區 x（相對容器左邊） */
+  const pixelOfKm = useCallback((km: number, containerWidth: number) =>
+    PLOT_LEFT + (km / Math.max(stats.totalDistance, 0.0001)) * plotWidthOf(containerWidth),
+    [plotWidthOf, stats.totalDistance]);
+
+  /** 按下時若貼近某個 CP 標記（±14px）就準備拖曳（真正移動超過 3px 才算拖曳） */
+  const handleContainerPointerDown = useCallback((e: React.PointerEvent) => {
+    if (!chartContainerRef.current || !profile.length || markers.length === 0) return;
+    const rect = chartContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    let bestIdx = -1;
+    let bestDx = Infinity;
+    markers.forEach((m, i) => {
+      const dx = Math.abs(pixelOfKm(m.x, rect.width) - x);
+      if (dx < bestDx) { bestDx = dx; bestIdx = i; }
+    });
+    if (bestDx > 14) return;
+    dragStateRef.current = { idx: bestIdx, startX: x, startY: y, active: false };
+  }, [profile.length, markers, pixelOfKm]);
 
   useEffect(() => {
     if (externalDistance !== undefined && profile.length > 0) {
@@ -222,20 +417,15 @@ export default function ElevationChart({
   }, []);
 
   // 🚀 新增：原生容器監聽，解決 Recharts hit-test 不靈敏問題，實現「黏著」感
-  const handleContainerMouseMove = useCallback((e: React.MouseEvent) => {
+  const handleContainerPointerMove = useCallback((e: React.PointerEvent) => {
     if (!chartContainerRef.current || !profile.length) return;
     
     const rect = chartContainerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    
-    // 扣除 Recharts 的 margin: { top: 20, right: 16, left: 0, bottom: 4 }
-    const leftMargin = 0; 
-    const rightMargin = 16;
-    const chartWidth = rect.width - leftMargin - rightMargin;
-    const relativeX = Math.max(0, Math.min(x - leftMargin, chartWidth));
-    const pct = relativeX / chartWidth;
-    
-    const targetDist = pct * stats.totalDistance;
+    // 扣除 Y 軸寬度與 margin：left = margin.left + YAxis.width，right = margin.right
+    const chartWidth = plotWidthOf(rect.width);
+    const relativeX = Math.max(0, Math.min(x - PLOT_LEFT, chartWidth));
+    const targetDist = (relativeX / chartWidth) * stats.totalDistance;
     
     // 在 profile 中尋找距離 targetDist 最近的點
     let closest = profile[0];
@@ -248,13 +438,39 @@ export default function ElevationChart({
       }
     }
     
+    // 候選拖曳：移動超過 3px 才正式開始（避免誤觸；單純點擊維持原本「跳游標」行為）
+    const st = dragStateRef.current;
+    if (st) {
+      const moved = Math.hypot(x - st.startX, (e.clientY - rect.top) - st.startY);
+      if (!st.active && moved > 3) {
+        st.active = true;
+        draggingRef.current = st.idx;
+        justDraggedRef.current = true;
+        setLocalDragIdx(st.idx);
+        onWaypointDragState?.(st.idx);
+      }
+    }
+
+    // 拖曳 CP 中 → 只更新 CP 位置（沿路線滑動），唔搶高程游標
+    const dragIdx = draggingRef.current;
+    if (dragIdx !== null) {
+      const last = lastSlideKmRef.current;
+      // 每 20m 才觸發一次重算，避免拖曳時發出過多請求
+      if (last === null || Math.abs(closest.distance - last) >= 0.02) {
+        lastSlideKmRef.current = closest.distance;
+        onSlideWaypoint(dragIdx, closest.distance);
+      }
+      return;
+    }
+
     setActivePoint(closest);
     setHoverX(closest.distance);
     hoverSync.emit(closest, 'chart');
-  }, [profile, stats.totalDistance]);
+  }, [profile, stats.totalDistance, plotWidthOf, onSlideWaypoint, onWaypointDragState]);
 
 
   const onClickChart = useCallback((e: any) => {
+    if (justDraggedRef.current) { justDraggedRef.current = false; return; }
     if (e?.activePayload?.[0]) {
       const pt = e.activePayload[0].payload as ElevationProfilePoint;
       onPointClick(pt);
@@ -500,14 +716,16 @@ export default function ElevationChart({
         <div 
           className="flex-1 min-h-0 relative" 
           ref={chartContainerRef} 
-          onMouseMove={handleContainerMouseMove}
+          style={{ touchAction: 'none' }}
+          onPointerDown={handleContainerPointerDown}
+          onPointerMove={handleContainerPointerMove}
           onMouseLeave={onLeave}
         >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart 
               data={profile} 
               onClick={onClickChart}
-              margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
+              margin={CHART_MARGIN}
             >
               <defs>
                 <linearGradient id="elev-grad" x1="0" y1="0" x2="0" y2="1">
@@ -525,10 +743,27 @@ export default function ElevationChart({
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
               <XAxis dataKey="distance" type="number" domain={[0, stats.totalDistance]} tickFormatter={(v) => v.toFixed(1)} stroke="#475569" tick={{ fill: '#64748b', fontSize: 11 }} tickMargin={8} {...(customXTicks.length > 0 ? { ticks: customXTicks } : {})} />
-              <YAxis domain={yDomain} stroke="#475569" tick={{ fill: '#64748b', fontSize: 11 }} tickMargin={8} tickFormatter={(v) => Math.round(v).toString()} {...(customYTicks.length > 0 ? { ticks: customYTicks } : {})} />
+              <YAxis width={Y_AXIS_WIDTH} domain={yDomain} stroke="#475569" tick={{ fill: '#64748b', fontSize: 11 }} tickMargin={8} tickFormatter={(v) => Math.round(v).toString()} {...(customYTicks.length > 0 ? { ticks: customYTicks } : {})} />
               <Tooltip content={<CustomTooltip />} />
               {markers.map((m, i) => (
                 <ReferenceLine key={i} x={m.x} stroke={m.color} strokeOpacity={0.5} strokeDasharray="3 3" label={{ position: 'top', value: m.label, fill: m.color, fontSize: 10, fontWeight: 600 }} />
+              ))}
+              {/* 🖐️ 可拖曳 CP 手柄：拖曳 = 沿路線滑動 CP 位置（起點／終點只可拖兩端） */}
+              {markers.map((m, i) => (
+                <ReferenceDot
+                  key={`cp-drag-${i}-${m.x.toFixed(3)}`}
+                  x={m.x}
+                  y={markerElev[i]}
+                  r={0}
+                  ifOverflow="extendDomain"
+                  shape={
+                    <CpHandle
+                      tone={m.color}
+                      label={m.label}
+                      dragging={(localDragIdx ?? draggingWaypoint) === i}
+                    />
+                  }
+                />
               ))}
               <Area type="monotone" dataKey="elevation" stroke="#60a5fa" strokeWidth={2} fillOpacity={1} fill="url(#elev-grad)" isAnimationActive={false} />
               
@@ -549,6 +784,13 @@ export default function ElevationChart({
         </div>
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 mb-2 px-1 text-[10px] text-blue-300/90 shrink-0">
+            <span className="px-1.5 py-0.5 rounded border border-blue-500/40 bg-blue-500/10 font-bold">✎ 改 CP 座標</span>
+            <span className="text-slate-400">
+              點擊下面「起點／終點座標」格即可輸入（支援 <span className="font-mono text-slate-300">22.3193, 114.1694</span>
+              或 <span className="font-mono text-slate-300">50Q KK 0670 2346</span>），套用後相鄰路段會自動重算。
+            </span>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 text-[11px]">
             <div className="flex items-center gap-2">
               <span className="text-red-400 whitespace-nowrap">遠足地區：</span>
@@ -660,13 +902,25 @@ export default function ElevationChart({
                         <td className="p-0 border border-slate-700 bg-white/5">
                           <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" value={wpNames[i] || ''} onChange={(e) => setWpNames(prev => ({ ...prev, [i]: e.target.value }))} />
                         </td>
-                        <td className="p-2 border border-slate-700 text-slate-400 font-mono text-[10px]">{getCoords(wp1, i)}</td>
+                        <td className="p-0 border border-slate-700 bg-white/5">
+                          <CoordEdit
+                            value={getCoords(wp1, i)}
+                            title={`${i === 0 ? '起點' : `CP${i}`} 座標`}
+                            onCommit={async (raw) => onSetWaypoint(i, await parseCoordinateInput(raw))}
+                          />
+                        </td>
                         
                         <td className="p-2 border border-slate-700 text-rose-400 font-bold">{isLastSeg ? 'EP' : `CP${i + 1}`}</td>
                         <td className="p-0 border border-slate-700 bg-white/5">
                           <input className="w-full bg-transparent p-2 outline-none text-white text-[11px]" value={wpNames[i + 1] || ''} onChange={(e) => setWpNames(prev => ({ ...prev, [i + 1]: e.target.value }))} />
                         </td>
-                        <td className="p-2 border border-slate-700 text-slate-400 font-mono text-[10px]">{getCoords(wp2, i + 1)}</td>
+                        <td className="p-0 border border-slate-700 bg-white/5">
+                          <CoordEdit
+                            value={getCoords(wp2, i + 1)}
+                            title={`${isLastSeg ? '終點' : `CP${i + 1}`} 座標`}
+                            onCommit={async (raw) => onSetWaypoint(i + 1, await parseCoordinateInput(raw))}
+                          />
+                        </td>
                         
                         <td className="p-2 border border-slate-700 text-slate-300">{Math.round((wp1 as any).elevation || 0)}</td>
                         <td className="p-2 border border-slate-700 text-emerald-400">+{Math.round(segment.ascent)}</td>

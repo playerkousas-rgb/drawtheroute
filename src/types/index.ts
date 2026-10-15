@@ -15,6 +15,12 @@ export interface RouteSegment {
   distance: number;
   ascent: number;
   descent: number;
+  /**
+   * 手動微調／手繪時加入的中間錨點（via points）。
+   * 幾何會依序穿過：上一個路點 → via[0] → via[1] → … → 下一個路點。
+   * 沒有微調過的電腦路段不會有此欄位。
+   */
+  via?: LatLng[];
 }
 
 export interface RouteStats {
