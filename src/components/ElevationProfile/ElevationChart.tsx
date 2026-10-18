@@ -256,6 +256,51 @@ export default function ElevationChart({
   const [xInterval, setXInterval] = useState<string>('');
   const [yInterval, setYInterval] = useState<string>('');
 
+  /**
+   * 刻度間距與座標軸範圍（domain）必須「一起動」：
+   * 一旦輸入自訂間距，domain 會向上取整成間距的整數倍，
+   * 剖面圖因此跟著重新縮放 —— 唔會出現「只得軸數字跳、剖面唔郁」
+   * 導致山頂高度讀錯（例如 400m 山頂被拉成看似 1000m）嘅情況。
+   * 無輸入時維持原本自動（data-driven）domain。
+   */
+  const { xDomain, xTicks, yDomain, yTicks } = useMemo(() => {
+    // Y：最高高度（沿用原本 100m 進位 + 頂部留白）
+    let fMax = 0;
+    if (profile.length) {
+      const elevs = profile.map(p => p.elevation);
+      const maxE = Math.max(...elevs);
+      const roundedMax = Math.ceil(maxE / 100) * 100;
+      fMax = (roundedMax - maxE < 30) ? roundedMax + 100 : roundedMax;
+    }
+    // X：總里程
+    const base = stats.totalDistance;
+
+    /** 將 domain 對齊到 step 的整數倍，並產生該範圍內嘅刻度 */
+    const buildLadder = (maxVal: number, step: number) => {
+      const steps = Math.max(1, Math.ceil(maxVal / step - 1e-9));
+      const top = +(steps * step).toFixed(6);
+      const arr: number[] = [];
+      for (let i = 0; i <= steps; i++) arr.push(+(i * step).toFixed(6));
+      return { top, arr };
+    };
+
+    // 防止極端小間距產生天文數字嘅刻度陣列（超過就當冇輸入，維持自動）
+    const xVal = parseFloat(xInterval);
+    const xCustom = (!isNaN(xVal) && xVal > 0 && base > 0 && base / xVal <= 10000)
+      ? buildLadder(base, xVal) : null;
+
+    const yVal = parseFloat(yInterval);
+    const yCustom = (!isNaN(yVal) && yVal > 0 && fMax > 0 && fMax / yVal <= 10000)
+      ? buildLadder(fMax, yVal) : null;
+
+    return {
+      xDomain: [0, xCustom ? xCustom.top : base] as [number, number],
+      xTicks: xCustom ? xCustom.arr : [],
+      yDomain: [0, yCustom ? yCustom.top : fMax] as [number, number],
+      yTicks: yCustom ? yCustom.arr : [],
+    };
+  }, [profile, stats.totalDistance, xInterval, yInterval]);
+
   // Header form states
   const [headerInfo, setHeaderInfo] = useState({
     region: '', team: '', mapGroup: '', year: '', leader: ''
@@ -336,19 +381,19 @@ export default function ElevationChart({
   const plotWidthOf = useCallback((containerWidth: number) =>
     Math.max(1, containerWidth - PLOT_LEFT - PLOT_RIGHT_PAD), []);
 
-  /** 滑鼠 x（client 座標）→ 里程 km */
+  /** 滑鼠 x（client 座標）→ 里程 km（跟隨 X 軸 domain，唔係硬扣 totalDistance） */
   const kmOfClientX = useCallback((clientX: number) => {
     const rect = chartContainerRef.current?.getBoundingClientRect();
-    if (!rect || !stats.totalDistance) return null;
+    if (!rect || !xDomain[1]) return null;
     const plotWidth = plotWidthOf(rect.width);
     const rel = Math.max(0, Math.min(clientX - rect.left - PLOT_LEFT, plotWidth));
-    return (rel / plotWidth) * stats.totalDistance;
-  }, [plotWidthOf, stats.totalDistance]);
+    return (rel / plotWidth) * xDomain[1];
+  }, [plotWidthOf, xDomain]);
 
   /** 里程 km → 繪圖區 x（相對容器左邊） */
   const pixelOfKm = useCallback((km: number, containerWidth: number) =>
-    PLOT_LEFT + (km / Math.max(stats.totalDistance, 0.0001)) * plotWidthOf(containerWidth),
-    [plotWidthOf, stats.totalDistance]);
+    PLOT_LEFT + (km / Math.max(xDomain[1], 0.0001)) * plotWidthOf(containerWidth),
+    [plotWidthOf, xDomain]);
 
   /** 按下時若貼近某個 CP 標記（±14px）就準備拖曳（真正移動超過 3px 才算拖曳） */
   const handleContainerPointerDown = useCallback((e: React.PointerEvent) => {
@@ -383,15 +428,6 @@ export default function ElevationChart({
     }
   }, [externalDistance, profile, onHoverPoint]);
 
-  const { finalMax, yDomain } = useMemo(() => {
-    if (!profile.length) return { finalMax: 0, yDomain: [0, 0] };
-    const elevs = profile.map(p => p.elevation);
-    const maxE = Math.max(...elevs);
-    const roundedMax = Math.ceil(maxE / 100) * 100;
-    const fMax = (roundedMax - maxE < 30) ? roundedMax + 100 : roundedMax;
-    return { finalMax: fMax, yDomain: [0, fMax] };
-  }, [profile]);
-
   // 🚀 監聽同步：直接更新 activePoint 狀態，讓圖表內部點亮
   useEffect(() => {
     const unsubscribe = hoverSync.subscribe((payload, source) => {
@@ -425,9 +461,9 @@ export default function ElevationChart({
     // 扣除 Y 軸寬度與 margin：left = margin.left + YAxis.width，right = margin.right
     const chartWidth = plotWidthOf(rect.width);
     const relativeX = Math.max(0, Math.min(x - PLOT_LEFT, chartWidth));
-    const targetDist = (relativeX / chartWidth) * stats.totalDistance;
+    const targetDist = (relativeX / chartWidth) * xDomain[1];
     
-    // 在 profile 中尋找距離 targetDist 最近的點
+    // 在 profile 中尋找距離 targetDist 最近的點（targetDist 已按 domain 縮放）
     let closest = profile[0];
     let minDiff = Math.abs(profile[0].distance - targetDist);
     for (let i = 1; i < profile.length; i++) {
@@ -466,7 +502,7 @@ export default function ElevationChart({
     setActivePoint(closest);
     setHoverX(closest.distance);
     hoverSync.emit(closest, 'chart');
-  }, [profile, stats.totalDistance, plotWidthOf, onSlideWaypoint, onWaypointDragState]);
+  }, [profile, xDomain, plotWidthOf, onSlideWaypoint, onWaypointDragState]);
 
 
   const onClickChart = useCallback((e: any) => {
@@ -657,18 +693,6 @@ export default function ElevationChart({
     );
   }
 
-  const customXTicks: number[] = [];
-  const xVal = parseFloat(xInterval);
-  if (!isNaN(xVal) && xVal > 0) {
-    for (let i = 0; i <= stats.totalDistance; i += xVal) customXTicks.push(i);
-  }
-
-  const customYTicks: number[] = [];
-  const yVal = parseFloat(yInterval);
-  if (!isNaN(yVal) && yVal > 0) {
-    for (let i = 0; i <= finalMax; i += yVal) customYTicks.push(i);
-  }
-
   return (
     <div className="bg-slate-900/50 rounded-xl border border-slate-800 p-4 shadow-xl backdrop-blur-sm h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
@@ -742,8 +766,8 @@ export default function ElevationChart({
                 </filter>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
-              <XAxis dataKey="distance" type="number" domain={[0, stats.totalDistance]} tickFormatter={(v) => v.toFixed(1)} stroke="#475569" tick={{ fill: '#64748b', fontSize: 11 }} tickMargin={8} {...(customXTicks.length > 0 ? { ticks: customXTicks } : {})} />
-              <YAxis width={Y_AXIS_WIDTH} domain={yDomain} stroke="#475569" tick={{ fill: '#64748b', fontSize: 11 }} tickMargin={8} tickFormatter={(v) => Math.round(v).toString()} {...(customYTicks.length > 0 ? { ticks: customYTicks } : {})} />
+              <XAxis dataKey="distance" type="number" domain={xDomain} tickFormatter={(v) => v.toFixed(1)} stroke="#475569" tick={{ fill: '#64748b', fontSize: 11 }} tickMargin={8} {...(xTicks.length > 0 ? { ticks: xTicks } : {})} />
+              <YAxis width={Y_AXIS_WIDTH} domain={yDomain} stroke="#475569" tick={{ fill: '#64748b', fontSize: 11 }} tickMargin={8} tickFormatter={(v) => Math.round(v).toString()} {...(yTicks.length > 0 ? { ticks: yTicks } : {})} />
               <Tooltip content={<CustomTooltip />} />
               {markers.map((m, i) => (
                 <ReferenceLine key={i} x={m.x} stroke={m.color} strokeOpacity={0.5} strokeDasharray="3 3" label={{ position: 'top', value: m.label, fill: m.color, fontSize: 10, fontWeight: 600 }} />
