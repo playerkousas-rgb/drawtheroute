@@ -193,7 +193,9 @@ export default React.memo(function MapCore({
     const updateScaleBadge = () => setScaleDenom(screenScaleDenominator(map));
     map.on('zoomend moveend', updateScaleBadge);
     updateScaleBadge();
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    // 版權行（OSM／Esri／LandsD attribution）必須可見——右下角俾右側面板遮住，移去左下
+    map.attributionControl?.setPosition('bottomleft');
     const cfg = TILES.topo;
     tileRef.current = L.tileLayer(cfg.url, { attribution: cfg.attr, maxZoom: cfg.maxZoom }).addTo(map);
     routeGrp.current = L.layerGroup().addTo(map);
@@ -226,7 +228,7 @@ export default React.memo(function MapCore({
       zIndexOffset: 10000
     }).addTo(map);
 
-    const unsubscribe = hoverSync.subscribe((payload, source) => {
+    const unsubscribe = hoverSync.subscribe((payload) => {
       if (payload && cursorMarkerRef.current) {
         cursorMarkerRef.current.setLatLng([payload.lat, payload.lng]);
       }
@@ -260,7 +262,7 @@ export default React.memo(function MapCore({
           <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
           <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>
         `;
-      } catch (err) {
+      } catch {
         coordRef.current.innerHTML = `<div style="color:#ef4444; font-size:11px">坐標轉換錯誤</div>`;
       }
 
@@ -461,7 +463,7 @@ export default React.memo(function MapCore({
     const grp = routeGrp.current;
     if (!grp) return;
     grp.clearLayers();
-    segments.forEach((seg, idx) => {
+    segments.forEach((seg) => {
       if (seg.points.length < 2) return;
       const ll: L.LatLngExpression[] = seg.points.map(p => [p.lat, p.lng]);
       L.polyline(ll, { color: seg.mode === 'auto' ? '#065f46' : '#78350f', weight: 9, opacity: 0.35, smoothFactor: 1.5 }).addTo(grp);
@@ -673,9 +675,9 @@ export default React.memo(function MapCore({
         className="absolute top-3 left-3 bg-black/70 text-white px-3 py-1.5 rounded text-xs font-mono z-[1000] pointer-events-none border border-white/10"
       />
 
-      {/* 右上角即時比例（約 1:N） */}
+      {/* 即時比例（約 1:N）——放左邊，右側面板預設展開會遮住右上角 */}
       {scaleDenom !== null && (
-        <div className="absolute top-3 right-3 bg-black/70 text-white px-2.5 py-1 rounded text-[10px] font-mono z-[1000] pointer-events-none border border-white/10">
+        <div className="absolute top-[52px] left-3 bg-black/70 text-white px-2.5 py-1 rounded text-[10px] font-mono z-[1000] pointer-events-none border border-white/10">
           約 1:{scaleDenom.toLocaleString('en-US')}
         </div>
       )}

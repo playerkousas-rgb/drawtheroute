@@ -85,7 +85,7 @@ export default function LeftToolbar({
                 <select 
                   value={searchMode}
                   onChange={(e) => {
-                    const mode = e.target.value as any;
+                    const mode = e.target.value as 'utm' | 'hk80' | 'latlng';
                     setSearchMode(mode);
                     if (mode === 'utm') {
                       setUtmZone('50Q');

@@ -34,8 +34,8 @@ export interface MapImageExportOptions {
   title: string;
   /** 日期／附註行 */
   subtitle: string;
-  /** 比例說明（例如「比例 1:20,000（100% 列印）」） */
-  scaleText: string;
+  /** 比例說明（唔傳就按實際 pxPerMeter 自動計算，確保圖面比例同輸出一致） */
+  scaleText?: string;
   /** 圖例警示（例如「部分路段可能未見於地形圖」） */
   noteText: string;
   /** 版權行（依底圖組裝；LandsD 必含 Map from Lands Department） */
@@ -245,7 +245,6 @@ export interface RenderedMapImage {
 
 export async function renderMapImage(opts: MapImageExportOptions): Promise<RenderedMapImage> {
   const { bounds, widthPx: W, heightPx: H, dpi, base, overlay, segments, waypoints } = opts;
-
   // ① 決定連續 zoom 同 pxPerMeter
   const p0a = proj0({ lat: bounds.getNorth(), lng: bounds.getWest() });
   const p0b = proj0({ lat: bounds.getSouth(), lng: bounds.getEast() });
@@ -477,7 +476,9 @@ export async function renderMapImage(opts: MapImageExportOptions): Promise<Rende
   ctx.textBaseline = 'top';
   ctx.fillText(opts.title, mX, ty + th * 0.14);
 
-  const rightText = opts.scaleText;
+  const rightText = opts.scaleText ?? (opts.pxPerMeter
+    ? `比例 1:${denominatorFor(pxPerMeter, dpi).toLocaleString('en-US')}（100% 列印）`
+    : `比例約 1:${denominatorFor(pxPerMeter, dpi).toLocaleString('en-US')}（自動縮放）`);
   ctx.font = `700 ${fsSub}px ${FONT}`;
   const rw = ctx.measureText(rightText).width;
   ctx.fillStyle = '#7dd3fc';
@@ -624,14 +625,20 @@ function fmtKm(m: number): string {
   return (m / 1000).toFixed(1);
 }
 
-/** 逐頁匯出（瀏覽器可能詢問「允許多個下載」） */
+/** 逐頁匯出（瀏覽器可能詢問「允許多個下載」）；shouldCancel 回 true 會喺頁與頁之間中止 */
 export async function exportRoutePages(
   base: Omit<MapImageExportOptions, 'bounds' | 'highlightRange'>,
   pages: RoutePage[],
   nameFor: (idx: number, total: number) => string,
   onStatus?: (msg: string) => void,
-): Promise<void> {
+  shouldCancel?: () => boolean,
+): Promise<number> {
+  let done = 0;
   for (let i = 0; i < pages.length; i++) {
+    if (shouldCancel?.()) {
+      onStatus?.(`已取消（完成 ${done}/${pages.length} 頁）`);
+      return done;
+    }
     onStatus?.(`匯出第 ${i + 1}/${pages.length} 頁…`);
     const res = await exportMapImage({
       ...base,
@@ -640,6 +647,8 @@ export async function exportRoutePages(
       highlightRange: { startM: pages[i].startM, endM: pages[i].endM },
     });
     downloadBlob(res.blob, nameFor(i + 1, pages.length));
+    done += 1;
     await new Promise(r => setTimeout(r, 350)); // 少少間隔，避免瀏覽器封鎖多下載
   }
+  return done;
 }

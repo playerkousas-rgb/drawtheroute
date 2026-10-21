@@ -137,5 +137,5 @@ export const calculateSunrise = (lat: number, lng: number, dateStr: string): str
     const finalHour = minute === 60 ? (hour + 1) % 24 : hour;
     const finalMinute = minute === 60 ? 0 : minute;
     return `${String(finalHour).padStart(2, '0')}:${String(finalMinute).padStart(2, '0')}`;
-  } catch (e) { return "08:30"; }
+  } catch { return "08:30"; }
 };

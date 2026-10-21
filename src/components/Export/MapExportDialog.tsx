@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, FileImage, AlertTriangle, Loader2 } from 'lucide-react';
 import L from 'leaflet';
@@ -54,8 +54,31 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
   const [err, setErr] = useState('');
+  const cancelRef = useRef(false);
+  const busyRef = useRef(false);
+  useEffect(() => { busyRef.current = busy; }, [busy]);
+
+  // ESC：忙碌中＝取消分頁匯出；空閒＝關閉（無障礙：焦點進出還原）
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      if (busyRef.current) { cancelRef.current = true; return; }
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      restoreFocusRef.current?.focus?.();
+    };
+  }, [open, onClose]);
 
   const hasRoute = segments.length > 0 && segments.some(s => s.points.length >= 2);
+  // fit／固定比例／分段要有路線；視窗模式只要有地圖實例
+  const canExport = scope === 'viewport' ? !!map : hasRoute;
 
   // 路線地面尺寸（估算警告用）
   const routeSize = useMemo(() => {
@@ -101,6 +124,10 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
       return lines;
     }
     if (scope === 'fit') {
+      if (!fitDenom) {
+        lines.push({ text: '地圖未就緒，請稍候再試', warn: true });
+        return lines;
+      }
       lines.push({ text: `自動 fit 全線 → 輸出約 1:${fmtNum(fitDenom)}（${PAPERS[paper].label} ${dpi}dpi ≈ ${widthPx}×${heightPx}px）` });
       if (fitDenom > OVERVIEW_ONLY) {
         lines.push({ text: `⚠ 約 1:${fmtNum(fitDenom)} 偏細，只可作路線總覽；行軍用圖請用「固定比例＋自動分段」`, warn: true });
@@ -129,7 +156,6 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
     return lines;
   }, [scope, hasRoute, fitDenom, viewportDenom, denom, paper, dpi, widthPx, heightPx, coverWm, coverHm, routeSize, pageCount]);
 
-  const canExport = hasRoute || scope === 'viewport';
 
   const attributionFor = (): string[] => {
     const meta = LAYER_META[mapLayer];
@@ -151,8 +177,8 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
       } : undefined,
       segments, waypoints,
       title: '路線地圖',
-      subtitle: `${meta.name}${overlayOsm ? ' ＋ OSM 山徑疊圖' : ''} · 產生日期 ${new Date().toLocaleDateString('zh-HK')}`,
-      scaleText: isScaleMode ? `比例 1:${fmtNum(denom)}（100% 列印）` : `比例約 1:${fmtNum(scope === 'fit' ? fitDenom : viewportDenom)}`,
+      subtitle: `${meta.name}${overlayOsm ? ' ＋ OSM 疊圖' : ''} · 產生日期 ${new Date().toLocaleDateString('zh-HK')}`,
+      // scaleText 唔傳——由引擎按實際輸出比例自動計算，確保圖面同檔案一致
       noteText: NOTE_TEXT,
       attribution: attributionFor(),
     };
@@ -171,6 +197,7 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
   const handleExport = async () => {
     if (busy || !canExport) return;
     setErr('');
+    cancelRef.current = false;
     setBusy(true);
     try {
       const base = buildBase();
@@ -179,11 +206,14 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
         const flat = densify(flattenRoute(segments));
         const pages = planRoutePages(flat, coverWm, coverHm);
         if (!pages.length) throw new Error('分頁失敗——路線太短或數據唔完整');
-        await exportRoutePages(
+        const done = await exportRoutePages(
           base, pages,
           (i, n) => `路線地圖_${denom}-p${i}of${n}_${date}.png`,
           setProgress,
+          () => cancelRef.current,
         );
+        setProgress(done === pages.length ? '完成 ✓' : `已取消（${done}/${pages.length} 頁）`);
+        setTimeout(() => { setProgress(''); if (done === pages.length) onClose(); }, 900);
       } else {
         setProgress('載入圖磚…');
         const res = await exportMapImage({
@@ -193,9 +223,9 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
           onProgress: (d, t) => setProgress(`載入圖磚 ${d}/${t}…`),
         });
         downloadBlob(res.blob, `路線地圖_1-${res.scaleDenominator}_${date}.png`);
+        setProgress('完成 ✓');
+        setTimeout(() => { setProgress(''); onClose(); }, 900);
       }
-      setProgress('完成 ✓');
-      setTimeout(() => { setProgress(''); onClose(); }, 900);
     } catch (e) {
       setErr(e instanceof Error ? e.message : '匯出失敗');
       setProgress('');
@@ -215,6 +245,9 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
           <motion.div
             className="w-full max-w-[520px] rounded-xl border border-slate-700 bg-slate-900 shadow-2xl"
             initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="下載路線地圖"
           >
             {/* 標題列 */}
             <div className="flex items-center justify-between border-b border-slate-700/70 px-4 py-3">
@@ -274,7 +307,7 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
               <label className="flex cursor-pointer items-center gap-2 text-slate-300">
                 <input type="checkbox" checked={overlayOsm} onChange={e => setOverlayOsm(e.target.checked)}
                   className="accent-emerald-500" />
-                疊 OSM 山徑（半透明）——HM20C 冇嘅非正式山徑都會現身
+                疊 OSM 地圖（半透明）——補 HM20C 未收嘅新路／非正式山徑
               </label>
 
               {/* 預覽／警告 */}
@@ -302,11 +335,18 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
                 )}
               </div>
               <div className="flex gap-2">
-                <button onClick={onClose} disabled={busy}
-                  className="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-40">
-                  取消
-                </button>
-                <button onClick={handleExport} disabled={busy || !canExport}
+                {busy && scope === 'pages' ? (
+                  <button onClick={() => { cancelRef.current = true; setProgress('取消中…'); }}
+                    className="rounded-md border border-amber-500/50 px-3 py-1.5 text-amber-300 hover:bg-amber-500/10">
+                    停止分頁（完成目前一頁）
+                  </button>
+                ) : (
+                  <button onClick={onClose} disabled={busy}
+                    className="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+                    取消
+                  </button>
+                )}
+                <button onClick={handleExport} disabled={busy || !canExport || (scope === 'pages' && pageCount === 0)}
                   className="flex items-center gap-1.5 rounded-md bg-emerald-500 px-3.5 py-1.5 font-bold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
                   <Download size={14} />
                   {scope === 'pages' ? `下載 ${pageCount} 頁` : '下載 PNG'}

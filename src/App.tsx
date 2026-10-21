@@ -35,7 +35,7 @@ function AppInner() {
   const { confirm } = useConfirm();
   const [mapLayer, setMapLayer]       = useState<MapLayer>('topo');
   const [naismith, setNaismith]       = useState<NaismithSettings>(DEFAULT_NAISMITH);
-  const [hoveredPt, setHoveredPt] = useState<ElevationProfilePoint | null>(null);
+  const [, setHoveredPt] = useState<ElevationProfilePoint | null>(null);
   const [cursorDistance, setCursorDistance] = useState<number | undefined>(undefined);
   const [profileOpen, setProfileOpen] = useState(true);
   /** 路線連地圖圖片匯出（紙圖化） */
@@ -44,7 +44,7 @@ function AppInner() {
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchLocation, setSearchLocation] = useState<LatLng | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+  const [selectedDate] = useState<string>(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   });
@@ -77,7 +77,7 @@ function AppInner() {
   }, [segments.length, cursorDistance]);
 
   const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismith);
-  const { materials } = useItineraryData(waypoints, segments, selectedDate);
+  useItineraryData(waypoints, segments, selectedDate);
 
   // ══════════════════════════════════════════════════════════════════════
   //  CP 位置編輯：把目標點「沿實際路線」平移，唔會拉直路線
@@ -122,7 +122,7 @@ function AppInner() {
     setCursorDistance(pt.distance);
   }, []);
 
-  const handleCursorMove = useCallback((distance: number, point: LatLng) => {
+  const handleCursorMove = useCallback((distance: number) => {
     setCursorDistance(distance);
     // Also update hovered point for the chart
     const profile = elevationProfile;
@@ -181,8 +181,9 @@ function AppInner() {
     try {
       const coords = await convertToWgs84(cleanInput, mode, utmOptions);
       setSearchLocation(coords);
-    } catch (e: any) {
-      alert(e.message || 'Invalid coordinates');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      alert(msg || 'Invalid coordinates');
     }
   }, []);
 

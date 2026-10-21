@@ -9,7 +9,7 @@ export default defineConfig(async () => {
     // @ts-expect-error - optional module that may not exist at build time
     const m = await import('./.vite-source-tags.js');
     plugins.push(m.sourceTags());
-  } catch {}
+  } catch { /* optional module that may not exist at build time */ }
   // allowedHosts: true (allow-all) is required so the live-preview host can reach the dev server
   return {
     plugins,

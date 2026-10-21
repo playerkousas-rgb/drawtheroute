@@ -219,7 +219,7 @@ export default function ElevationChart({
   onWaypointDragState,
 }: Props) {
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
-  const [hoverX, setHoverX] = useState<number | null>(null);
+  const [, setHoverX] = useState<number | null>(null);
   const [activePoint, setActivePoint] = useState<ElevationProfilePoint | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
@@ -389,6 +389,7 @@ export default function ElevationChart({
     const rel = Math.max(0, Math.min(clientX - rect.left - PLOT_LEFT, plotWidth));
     return (rel / plotWidth) * xDomain[1];
   }, [plotWidthOf, xDomain]);
+  void kmOfClientX; // 保留計算邏輯供日後「點擊圖表定位里程」使用
 
   /** 里程 km → 繪圖區 x（相對容器左邊） */
   const pixelOfKm = useCallback((km: number, containerWidth: number) =>
@@ -430,7 +431,7 @@ export default function ElevationChart({
 
   // 🚀 監聽同步：直接更新 activePoint 狀態，讓圖表內部點亮
   useEffect(() => {
-    const unsubscribe = hoverSync.subscribe((payload, source) => {
+    const unsubscribe = hoverSync.subscribe((payload) => {
       if (payload && profile.length > 0) {
         setActivePoint(payload);
         setHoverX(payload.distance);
@@ -442,15 +443,6 @@ export default function ElevationChart({
     });
     return unsubscribe;
   }, [profile, onHoverPoint]);
-
-  const onMove = useCallback((e: any) => {
-    if (e?.activePayload?.[0]) {
-      const pt = e.activePayload[0].payload as ElevationProfilePoint;
-      setActivePoint(pt);
-      setHoverX(pt.distance);
-      hoverSync.emit(pt, 'chart');
-    }
-  }, []);
 
   // 🚀 新增：原生容器監聽，解決 Recharts hit-test 不靈敏問題，實現「黏著」感
   const handleContainerPointerMove = useCallback((e: React.PointerEvent) => {

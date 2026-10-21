@@ -69,7 +69,7 @@ export function useTerrainAnalysis(segments: RouteSegment[], settings: NaismithS
     const empty = { totalDistance: 0, totalAscent: 0, totalDescent: 0, maxElevation: 0, minElevation: 0, estimatedTime: 0 };
     if (!elevationProfile.length) return empty;
 
-    let dist = elevationProfile[elevationProfile.length - 1].distance;
+    const dist = elevationProfile[elevationProfile.length - 1].distance;
     let maxE = -Infinity, minE = Infinity;
     
     // 總和直接從我們剛剛洗乾淨的 analyzedSegments 累加，確保總體與分段數據在物理上絕對對齊
