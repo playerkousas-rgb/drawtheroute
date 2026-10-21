@@ -1,7 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { hoverSync } from '../../utils/hoverSync';
+import { screenScaleDenominator } from '../../lib/mapImageExport';
 import { wgs84ToHikingShorthand4 } from '../../utils/coordUtils';
 import { legMidpoints, haversineM } from '../../utils/routeGeometry';
 import {
@@ -36,12 +37,16 @@ interface MapCoreProps {
   highlightWaypoint?: number | null;
   /** 拖曳路點開始／結束（供橫切面即時反饋） */
   onWaypointDragState?: (index: number | null) => void;
+  /** 地圖建立完成（供 App 取得 Leaflet 實例做圖片匯出） */
+  onMapReady?: (map: L.Map) => void;
 }
 
 const TILES: Record<MapLayer, { url: string; attr: string; maxZoom: number }> = {
   osm:       { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',                                                          attr: '&copy; OpenStreetMap',  maxZoom: 19 },
   topo:      { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',                                                            attr: '&copy; OpenTopoMap',    maxZoom: 17 },
   satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',               attr: '&copy; Esri',           maxZoom: 18 },
+  /** 地政總署 1:20,000 地形圖（HM20C 同源 iB20000 資料）— Map from Lands Department（LandsD Map API TNC） */
+  hm20c:     { url: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/basemap/WGS84/{z}/{x}/{y}.png',                                attr: 'Map from Lands Department', maxZoom: 20 },
 };
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -129,6 +134,7 @@ export default React.memo(function MapCore({
   onDrawStroke, onMoveWaypoint, onInsertVia, onMoveVia, onDeleteVia, onDeleteWaypoint,
   onEditClick,
   highlightWaypoint = null, onWaypointDragState,
+  onMapReady,
 }: MapCoreProps) {
   const divRef    = useRef<HTMLDivElement>(null);
   const coordRef   = useRef<HTMLDivElement>(null);
@@ -161,6 +167,10 @@ export default React.memo(function MapCore({
   useEffect(() => { isProcessingRef.current = isProcessing; }, [isProcessing]);
   const onWaypointDragStateRef = useRef(onWaypointDragState);
   useEffect(() => { onWaypointDragStateRef.current = onWaypointDragState; }, [onWaypointDragState]);
+  const onMapReadyRef = useRef(onMapReady);
+  useEffect(() => { onMapReadyRef.current = onMapReady; }, [onMapReady]);
+  /** 螢幕即時比例（約 1:N）徽章——「自動 fit 並告知比例」嘅地圖側呈現 */
+  const [scaleDenom, setScaleDenom] = useState<number | null>(null);
   /** 微調模式的路點手柄（索引 → marker），供高亮即時切換，唔需要重建圖層 */
   const wpGripsRef = useRef<Map<number, L.Marker>>(new Map());
   useEffect(() => { onCursorMoveRef.current = onCursorMove; }, [onCursorMove]);
@@ -178,7 +188,14 @@ export default React.memo(function MapCore({
     if (!divRef.current || mapRef.current) return;
     const map = L.map(divRef.current, { center: [22.3964, 114.1095], zoom: 12, zoomControl: false, preferCanvas: true });
     mapRef.current = map;
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    onMapReadyRef.current?.(map);
+    // 即時比例徽章（約 1:N @96dpi）
+    const updateScaleBadge = () => setScaleDenom(screenScaleDenominator(map));
+    map.on('zoomend moveend', updateScaleBadge);
+    updateScaleBadge();
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    // 版權行（OSM／Esri／LandsD attribution）必須可見——右下角俾右側面板遮住，移去左下
+    map.attributionControl?.setPosition('bottomleft');
     const cfg = TILES.topo;
     tileRef.current = L.tileLayer(cfg.url, { attribution: cfg.attr, maxZoom: cfg.maxZoom }).addTo(map);
     routeGrp.current = L.layerGroup().addTo(map);
@@ -211,7 +228,7 @@ export default React.memo(function MapCore({
       zIndexOffset: 10000
     }).addTo(map);
 
-    const unsubscribe = hoverSync.subscribe((payload, source) => {
+    const unsubscribe = hoverSync.subscribe((payload) => {
       if (payload && cursorMarkerRef.current) {
         cursorMarkerRef.current.setLatLng([payload.lat, payload.lng]);
       }
@@ -245,7 +262,7 @@ export default React.memo(function MapCore({
           <div style="color:#94a3b8; font-size:9px; margin-bottom:2px">WGS84: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
           <div style="color:#fff; font-size:11px; font-weight:bold; font-family:monospace">${shorthand}</div>
         `;
-      } catch (err) {
+      } catch {
         coordRef.current.innerHTML = `<div style="color:#ef4444; font-size:11px">坐標轉換錯誤</div>`;
       }
 
@@ -446,7 +463,7 @@ export default React.memo(function MapCore({
     const grp = routeGrp.current;
     if (!grp) return;
     grp.clearLayers();
-    segments.forEach((seg, idx) => {
+    segments.forEach((seg) => {
       if (seg.points.length < 2) return;
       const ll: L.LatLngExpression[] = seg.points.map(p => [p.lat, p.lng]);
       L.polyline(ll, { color: seg.mode === 'auto' ? '#065f46' : '#78350f', weight: 9, opacity: 0.35, smoothFactor: 1.5 }).addTo(grp);
@@ -657,6 +674,13 @@ export default React.memo(function MapCore({
         ref={coordRef}
         className="absolute top-3 left-3 bg-black/70 text-white px-3 py-1.5 rounded text-xs font-mono z-[1000] pointer-events-none border border-white/10"
       />
+
+      {/* 即時比例（約 1:N）——放左邊，右側面板預設展開會遮住右上角 */}
+      {scaleDenom !== null && (
+        <div className="absolute top-[52px] left-3 bg-black/70 text-white px-2.5 py-1 rounded text-[10px] font-mono z-[1000] pointer-events-none border border-white/10">
+          約 1:{scaleDenom.toLocaleString('en-US')}
+        </div>
+      )}
     </div>
   );
 });

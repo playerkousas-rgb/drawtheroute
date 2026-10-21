@@ -28,6 +28,11 @@ const TILE_LAYERS: Record<MapLayer, { url: string; attribution: string; maxZoom:
     attribution: '&copy; Esri &mdash; Source: Esri, Maxar, GeoEye',
     maxZoom: 18,
   },
+  hm20c: {
+    url: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/basemap/WGS84/{z}/{x}/{y}.png',
+    attribution: 'Map from Lands Department',
+    maxZoom: 20,
+  },
 };
 
 // Fix Leaflet default icon

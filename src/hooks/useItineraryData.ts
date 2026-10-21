@@ -33,7 +33,7 @@ async function getOfficialGrid(lat: number, lng: number): Promise<string> {
     if (zone === 49) square = E >= 800000 ? 'HE' : 'GE';
     else square = E >= 200000 ? 'KK' : 'JK';
     return `${zone}Q ${square} ${eOff.toString().padStart(4, '0')} ${nOff.toString().padStart(4, '0')}`;
-  } catch (e) {
+  } catch {
     // API 失敗 → fallback 到本地計算（境外 API 不適用時也走這裡）
     console.warn('政府 API 失敗，使用本地計算 fallback');
   }
@@ -59,7 +59,7 @@ export const useItineraryData = (
       try {
         const data = await fetchWeatherData(lat, lng, selectedDate);
         setWeather(data);
-      } catch (e) {
+      } catch {
         setWeather(null);
       }
     };

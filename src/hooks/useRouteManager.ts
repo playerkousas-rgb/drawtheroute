@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { LatLng, RouteSegment, RoutePoint, WaypointMarker } from '../types';
 import { useBRouter, GeoPoint } from './useBRouter';
 import { useElevation } from './useElevation';
@@ -98,8 +98,11 @@ export function useRouteManager() {
 
   const segmentsRef = useRef(segments);
   const waypointsRef = useRef(waypoints);
-  segmentsRef.current = segments;
-  waypointsRef.current = waypoints;
+  // 保持 callback 永遠讀到最新值（改用 effect 同步，避免 render 期間寫 ref）
+  useEffect(() => {
+    segmentsRef.current = segments;
+    waypointsRef.current = waypoints;
+  });
 
   const { getHikingRoute, getHikingRouteLegs } = useBRouter();
   const { fetchElevations } = useElevation();
@@ -685,7 +688,7 @@ export function useRouteManager() {
       });
 
       const step = Math.max(1, Math.ceil(rawCoords.length / 500));
-      let coords = rawCoords.filter((_, i) => i % step === 0);
+      const coords = rawCoords.filter((_, i) => i % step === 0);
       if (coords[coords.length - 1] !== rawCoords[rawCoords.length - 1]) {
         coords.push(rawCoords[rawCoords.length - 1]);
       }

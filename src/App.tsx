@@ -16,6 +16,8 @@ import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './typ
 import { convertToWgs84 } from './services/geodeticService';
 import ConfirmProvider from './components/Confirm/ConfirmProvider';
 import { useConfirm, kv } from './components/Confirm/confirmShared';
+import MapExportDialog from './components/Export/MapExportDialog';
+import type { Map as LeafletMap } from 'leaflet';
 
 
 
@@ -33,13 +35,16 @@ function AppInner() {
   const { confirm } = useConfirm();
   const [mapLayer, setMapLayer]       = useState<MapLayer>('topo');
   const [naismith, setNaismith]       = useState<NaismithSettings>(DEFAULT_NAISMITH);
-  const [hoveredPt, setHoveredPt] = useState<ElevationProfilePoint | null>(null);
+  const [, setHoveredPt] = useState<ElevationProfilePoint | null>(null);
   const [cursorDistance, setCursorDistance] = useState<number | undefined>(undefined);
   const [profileOpen, setProfileOpen] = useState(true);
+  /** 路線連地圖圖片匯出（紙圖化） */
+  const [exportMapOpen, setExportMapOpen] = useState(false);
+  const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchLocation, setSearchLocation] = useState<LatLng | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+  const [selectedDate] = useState<string>(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   });
@@ -72,7 +77,7 @@ function AppInner() {
   }, [segments.length, cursorDistance]);
 
   const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismith);
-  const { materials } = useItineraryData(waypoints, segments, selectedDate);
+  useItineraryData(waypoints, segments, selectedDate);
 
   // ══════════════════════════════════════════════════════════════════════
   //  CP 位置編輯：把目標點「沿實際路線」平移，唔會拉直路線
@@ -117,7 +122,7 @@ function AppInner() {
     setCursorDistance(pt.distance);
   }, []);
 
-  const handleCursorMove = useCallback((distance: number, point: LatLng) => {
+  const handleCursorMove = useCallback((distance: number) => {
     setCursorDistance(distance);
     // Also update hovered point for the chart
     const profile = elevationProfile;
@@ -176,8 +181,9 @@ function AppInner() {
     try {
       const coords = await convertToWgs84(cleanInput, mode, utmOptions);
       setSearchLocation(coords);
-    } catch (e: any) {
-      alert(e.message || 'Invalid coordinates');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      alert(msg || 'Invalid coordinates');
     }
   }, []);
 
@@ -279,6 +285,7 @@ function AppInner() {
         onEditClick={handleEditClick}
         highlightWaypoint={draggingWp ?? highlightWp}
         onWaypointDragState={handleWaypointDragState}
+        onMapReady={setMapInstance}
       />
 
       {/* ── Left toolbar ── */}
@@ -291,6 +298,7 @@ function AppInner() {
         onClear={handleClear}
         onImportGPX={() => fileRef.current?.click()}
         onExportGPX={handleExportGPX}
+        onExportMapImage={() => setExportMapOpen(true)}
         hasRoute={hasRoute}
         isProcessing={isProcessing}
         onSearchCoord={goToLocation}
@@ -413,6 +421,16 @@ function AppInner() {
       </motion.div>
 
       <input ref={fileRef} type="file" accept=".gpx" className="hidden" onChange={handleGPXFile} />
+
+      {/* 路線連地圖圖片下載（紙圖化） */}
+      <MapExportDialog
+        open={exportMapOpen}
+        onClose={() => setExportMapOpen(false)}
+        map={mapInstance}
+        segments={segments}
+        waypoints={waypoints}
+        mapLayer={mapLayer}
+      />
       <Analytics />
     </div>
   );

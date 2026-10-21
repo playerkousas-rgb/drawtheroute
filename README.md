@@ -10,7 +10,7 @@
 
 | 模組 | 功能 | 狀態 |
 |------|------|------|
-| **地圖** | Leaflet 底圖切換（地形/衛星）、點擊/拖曳路線、CP 標記、座標搜尋（WGS84 / HK80 / UTM）| ✅ |
+| **地圖** | Leaflet 底圖切換（地形/衛星/**HM20C 地政總署 1:20,000**）、點擊/拖曳路線、CP 標記、座標搜尋（WGS84 / HK80 / UTM）、即時比例徽章（約 1:N）| ✅ |
 | **路徑計算** | BRouter hiking-mountain 山徑優先 + 直線備援（SRTM）| ✅ |
 | **✏️ 手繪路線** | 拖曳直接畫線，放手即「磁石貼路」自動吸附實體山徑（可關閉磁石保留手繪原線）| ✅ |
 | **🖐️ 手動微調** | 拖曳路點／彎位手柄即時重算相鄰路段、拖「+」或點擊路線加彎位、✕ 刪除彎位 | ✅ |
@@ -19,12 +19,25 @@
 | **行程表** | 官方地形測量處 UTM→WGS84、日出日落、氣象（Open-Meteo）、Excel 匯出（xlsx）、截圖（html2canvas）| ✅ |
 | **座標工具** | HK80↔WGS84、UTM 4 位簡寫（proj4）、香港格網 50Q / 49Q、方格 GE/HE/JK/KK | ✅ |
 | **匯出** | GPX（帶 CP 的 `<wpt>` + `<trkseg>`）、file-saver | ✅ |
+| **🗺️ 紙圖化** | 路線連地圖 PNG 下載（取代掃描紙圖）：自動 fit 全線／當前視窗／固定比例單頁／**固定比例＋自動分段**（多日長線行軍圖）；圖面自動帶比例尺／指北針／CP 編號／版權標示；可疊 OSM 山徑（半透明） | ✅ |
 | **UI** | Tailwind 4、framer-motion、lucide-react、右側面板、左工具列 | ✅ |
 | **瘦身系統** | 防增肥守門 `scripts/slim-guard.mjs`（`npm run check:slim`）：部署黑名單／死重掃描／肥重圖攔截 | ✅ |
 | **防呆機制** | 破壞性操作先確認（清除全部／刪除路點／GPX 覆蓋匯入），對話框列出變更摘要 | ✅ |
 | **回報系統** | SCOUT ADMIN 統一回報 widget（問題回報／意見回饋），一行接入 | ✅ |
 
 > **本次瘦身所有功能 100% 不變**，已通過 `npm run build` + `npm run lint` + `npm run check` 驗證。
+>
+> **平台定位**：以電腦為主——多日行程（3日2夜／4日3夜）計劃用電腦做，畫路線要有大螢幕，手機太細好難畫圖；手機維持可用（睇圖、簡單操作），但唔係規劃主力。匯出預設 300dpi 列印級。
+>
+> **品質門檻**：三身份評分（程序員 91／新用家 91／資深用家 92，全部 ≥90）——[docs/app-scorecard-20261022.md](docs/app-scorecard-20261022.md)。
+
+---
+
+## 地圖版權與條款
+
+- **HM20C 底圖**來自地政總署 [LandsD Map API · Topographic Map API](https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI)（iB20000／HM20C 同源資料）。圖面已標示 `Map from Lands Department`，使用前請同意 [LandsD Map API 條款](https://portal.csdi.gov.hk/csdi-webpage/doc/TNC)。條款要求唔可以短時間大量請求 API——匯出功能已設瓦片併發限制。
+- 紙本 HM20C（五專色印刷）係地政總署版權印刷品，冇公開掃描圖磚；本 APP 用官方數碼版渲染，內容同源、觀感略有差異。
+- 匯出圖片自動保留各底圖 attribution（OpenStreetMap / OpenTopoMap / Esri / LandsD）。
 
 ---
 

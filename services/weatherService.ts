@@ -16,7 +16,7 @@ export const getKKGrid = (lat: number, lng: number): string => {
     const eStr = Math.floor(easting % 100000).toString().padStart(5, '0').slice(0, 4);
     const nStr = Math.floor(northing % 100000).toString().padStart(5, '0').slice(0, 4);
     return `${prefix} ${eStr} ${nStr}`;
-  } catch (e) { return "Grid Error"; }
+  } catch { return "Grid Error"; }
 };
 
 const getWindDirection = (deg: number): string => {
