@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RouteIcon, Undo2, Trash2, Upload, Download, Map, Layers, Satellite, Footprints, ChevronRight, ChevronLeft, Search, PenLine, Move, Magnet } from 'lucide-react';
+import { RouteIcon, Undo2, Trash2, Upload, Download, Map, Layers, Satellite, Mountain, FileImage, Footprints, ChevronRight, ChevronLeft, Search, PenLine, Move, Magnet } from 'lucide-react';
 import { MapLayer } from '../../types';
 import { MapMode } from '../Map/MapCore';
 
@@ -13,6 +13,8 @@ interface Props {
   onClear: () => void;
   onImportGPX: () => void;
   onExportGPX: () => void;
+  /** 下載路線連地圖 PNG（紙圖化） */
+  onExportMapImage: () => void;
   hasRoute: boolean;
   isProcessing: boolean;
   onSearchCoord: (coord: string, mode: 'utm' | 'hk80' | 'latlng', utmOptions?: { zone: string; square: string }) => Promise<void>;
@@ -28,7 +30,7 @@ interface Props {
 export default function LeftToolbar({
   routingMode, onRoutingMode,
   mapLayer, onMapLayer,
-  onUndo, onClear, onImportGPX, onExportGPX,
+  onUndo, onClear, onImportGPX, onExportGPX, onExportMapImage,
   hasRoute, isProcessing,
   onSearchCoord,
   mode, onMode, magnet, onMagnet, magnetGapM, onMagnetGap,
@@ -241,6 +243,7 @@ export default function LeftToolbar({
               <Btn icon={<Map size={15} />}      label="街道圖 (OSM)"  active={mapLayer === 'osm'}       onClick={() => onMapLayer('osm')}       color="slate" small />
               <Btn icon={<Layers size={15} />}   label="地形圖 (Topo)" active={mapLayer === 'topo'}      onClick={() => onMapLayer('topo')}      color="slate" small />
               <Btn icon={<Satellite size={15} />} label="衛星圖 (Esri)" active={mapLayer === 'satellite'} onClick={() => onMapLayer('satellite')} color="slate" small />
+              <Btn icon={<Mountain size={15} />} label="HM20C (地政)" active={mapLayer === 'hm20c'}     onClick={() => onMapLayer('hm20c')}     color="slate" small />
             </Group>
             <Divider />
             <Group label="操作">
@@ -249,6 +252,7 @@ export default function LeftToolbar({
               <Btn icon={<Trash2 size={15} />}   label="清除全部"    onClick={onClear}      color="rose"  small disabled={!hasRoute} />
               <Btn icon={<Upload size={15} />}   label="匯入 GPX"   onClick={onImportGPX}  color="slate" small />
               <Btn icon={<Download size={15} />} label="匯出 GPX"   onClick={onExportGPX}  color="slate" small disabled={!hasRoute} />
+              <Btn icon={<FileImage size={15} />} label="下載路線地圖" onClick={onExportMapImage} color="emerald" small disabled={!hasRoute} />
             </Group>
             {isProcessing && (
               <div className="flex justify-center pt-1">

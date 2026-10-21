@@ -38,7 +38,7 @@ export interface NaismithSettings {
   descentPer20m: number;
 }
 
-export type MapLayer = 'osm' | 'topo' | 'satellite';
+export type MapLayer = 'osm' | 'topo' | 'satellite' | 'hm20c';
 
 export interface WaypointMarker {
   id: string;

@@ -16,6 +16,8 @@ import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './typ
 import { convertToWgs84 } from './services/geodeticService';
 import ConfirmProvider from './components/Confirm/ConfirmProvider';
 import { useConfirm, kv } from './components/Confirm/confirmShared';
+import MapExportDialog from './components/Export/MapExportDialog';
+import type { Map as LeafletMap } from 'leaflet';
 
 
 
@@ -36,6 +38,9 @@ function AppInner() {
   const [hoveredPt, setHoveredPt] = useState<ElevationProfilePoint | null>(null);
   const [cursorDistance, setCursorDistance] = useState<number | undefined>(undefined);
   const [profileOpen, setProfileOpen] = useState(true);
+  /** 路線連地圖圖片匯出（紙圖化） */
+  const [exportMapOpen, setExportMapOpen] = useState(false);
+  const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchLocation, setSearchLocation] = useState<LatLng | null>(null);
@@ -279,6 +284,7 @@ function AppInner() {
         onEditClick={handleEditClick}
         highlightWaypoint={draggingWp ?? highlightWp}
         onWaypointDragState={handleWaypointDragState}
+        onMapReady={setMapInstance}
       />
 
       {/* ── Left toolbar ── */}
@@ -291,6 +297,7 @@ function AppInner() {
         onClear={handleClear}
         onImportGPX={() => fileRef.current?.click()}
         onExportGPX={handleExportGPX}
+        onExportMapImage={() => setExportMapOpen(true)}
         hasRoute={hasRoute}
         isProcessing={isProcessing}
         onSearchCoord={goToLocation}
@@ -413,6 +420,16 @@ function AppInner() {
       </motion.div>
 
       <input ref={fileRef} type="file" accept=".gpx" className="hidden" onChange={handleGPXFile} />
+
+      {/* 路線連地圖圖片下載（紙圖化） */}
+      <MapExportDialog
+        open={exportMapOpen}
+        onClose={() => setExportMapOpen(false)}
+        map={mapInstance}
+        segments={segments}
+        waypoints={waypoints}
+        mapLayer={mapLayer}
+      />
       <Analytics />
     </div>
   );
