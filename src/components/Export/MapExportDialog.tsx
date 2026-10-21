@@ -47,7 +47,8 @@ function fmtNum(n: number): string {
 export default function MapExportDialog({ open, onClose, map, segments, waypoints, mapLayer }: Props) {
   const [scope, setScope] = useState<Scope>('fit');
   const [paper, setPaper] = useState<PaperKey>('A3L');
-  const [dpi, setDpi] = useState(200);
+  // 桌面規劃工具：預設列印級 300dpi（手機非目標平台，唔為其降級）
+  const [dpi, setDpi] = useState(300);
   const [denom, setDenom] = useState(20000);
   const [overlayOsm, setOverlayOsm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -264,8 +265,8 @@ export default function MapExportDialog({ open, onClose, map, segments, waypoint
                 ))}
                 <select value={dpi} onChange={e => setDpi(Number(e.target.value))}
                   className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-slate-300 outline-none">
-                  <option value={200}>{dpi === 200 ? '200 dpi（快）' : '200 dpi'}</option>
                   <option value={300}>300 dpi（列印）</option>
+                  <option value={200}>200 dpi（快）</option>
                 </select>
               </div>
 
