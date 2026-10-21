@@ -47,7 +47,7 @@ function fmtNum(n: number): string {
 export default function MapExportDialog({ open, onClose, map, segments, waypoints, mapLayer }: Props) {
   const [scope, setScope] = useState<Scope>('fit');
   const [paper, setPaper] = useState<PaperKey>('A3L');
-  // 桌面規劃工具：預設列印級 300dpi（手機非目標平台，唔為其降級）
+  // 以電腦為主、手機可用：預設列印級 300dpi（不為手機降級預設）
   const [dpi, setDpi] = useState(300);
   const [denom, setDenom] = useState(20000);
   const [overlayOsm, setOverlayOsm] = useState(false);
