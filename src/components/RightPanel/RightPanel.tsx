@@ -60,7 +60,7 @@ export default function RightPanel({
             }}
           >
             {/* Header */}
-            <div className="px-4 py-3 border-b border-slate-700/40 flex items-center gap-2.5">
+            <div className="px-4 pr-32 py-3 border-b border-slate-700/40 flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center">
                 <Mountain size={13} className="text-white" />
               </div>

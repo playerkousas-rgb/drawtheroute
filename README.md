@@ -522,6 +522,19 @@ scripts/
 
 ---
 
+## 準入白名單與主站回跳（SG1–SG19 規範）
+
+- **白名單模式**：`mode: 'entry-gate'`（頂層跳板白名單）
+- **主要入口**：`portalIds: ['appstore']`（直開網址被攔截時，提示卡只顯示主站 APP STORE 一粒掣）
+- **靜默放行入口**：`silentPortalIds: ['library']`（SG19：通告圖書館可直接放行，但不渲染成額外按鈕）
+- **PWA 主畫面放行**：`allowStandalone: true`（已加入主畫面之圖示直接開啟放行）
+- **自動轉址秒數**：`autoRedirectSeconds: 0`（停低顯示提示卡，不自動跳轉）
+- **支持浮窗**：`supportNudge: 關`（A 組預設關閉，避免重複打擾用家）
+- **SG18 回跳主站**：頂欄常駐非阻塞 `<a id="storeSupportTop">`，動態呼叫 `ScoutStoreGate.getAppStoreUrl('drawtheroute')` 回跳 `https://scoutappstore.vercel.app/?app=drawtheroute`（slug 精確核實自 `website/migrations/20261116-app-slug-seed.sql`），未載入閘門時維持 `hidden`。
+- **發佈根目錄**：Vercel `outputDirectory: "dist"`（原始碼靜態目錄 `public/`，Vite build 自動拷貝至 `dist/store_gate_v1.0.js`）。
+
+---
+
 ## 授權
 
 COPYRIGHT 2026 SCOUT SYSTEM
