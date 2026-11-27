@@ -28,7 +28,7 @@ declare global {
 }
 
 export interface BridgeDeps {
-  planRoute: (points: LatLng[]) => Promise<{
+  planRoute: (points: Array<LatLng & { label?: string }>) => Promise<{
     segments: import('../types').RouteSegment[];
     legMeta: Array<{ snapped: boolean; snappedLegs: number; totalLegs: number }>;
   }>;
@@ -168,7 +168,7 @@ export function useEmbedBridge(deps: BridgeDeps): void {
       }, LIMITS.REQUEST_TIMEOUT_MS);
 
       try {
-        const points: LatLng[] = v.plan.points.map(p => ({ lat: p.lat, lng: p.lon }));
+        const points = v.plan.points.map(p => ({ lat: p.lat, lng: p.lon, label: p.label }));
         const { segments, legMeta } = await depsRef.current.planRoute(points);
         if (cancelled || currentRequestId !== requestId) return;   // 已取消／逾時 → 唔回舊結果
         const result = buildResult(v.plan, segments, legMeta);

@@ -144,6 +144,26 @@ test('錯誤 origin → 靜默拒絕（冇任何回應）', async () => {
   utils.unmount();
 });
 
+test('bridge 將 plan label 帶入 planRoute（唔丟地名）', async () => {
+  const sent = []; let captured = null;
+  dom.window.__DTR_EMBED__ = { parentOrigin: ORIGIN };
+  dom.window.postMessage = (m, t) => { sent.push({ msg: m, targetOrigin: t }); };
+  const deps = {
+    planRoute: async (points) => { captured = points; return mockPlanRoute(true)(points); },
+    naismith: NAISMITH, appVersion: 'test-1.0',
+  };
+  function H() { useEmbedBridge(deps); return null; }
+  const utils = render(React.createElement(H));
+  const incoming = (data, origin = ORIGIN) => { dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data, origin, source: dom.window })); };
+  await act(async () => {});
+  await act(async () => { incoming(msg('canvas:init', {}, 'i')); });
+  await act(async () => { incoming(msg('route:plan', { plan: plan() }, 'lbl')); });
+  await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+  assert.ok(captured, 'planRoute 應被呼叫');
+  assert.deepEqual(captured.map(p => p.label), ['A', 'B', 'C']);
+  utils.unmount();
+});
+
 test('fallback leg → fallbackUsed=true、criteria 不可 pass、有 warning', async () => {
   const { sent, incoming, flush, utils } = setup(false);
   await act(async () => {});

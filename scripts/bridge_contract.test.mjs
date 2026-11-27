@@ -81,10 +81,21 @@ test('validatePlan：CP 過多／id 重複 拒絕', () => {
   assert.equal(validatePlan(dup).ok, false);
 });
 
-test('validatePlan：欠 stage 定義 拒絕', () => {
+test('validatePlan：部分 stages → 缺漏 leg 用 overnight 推斷（唔再拒絕）', () => {
   const p = goodPlan(); p.stages = [{ day: 1, from: 'start', to: 'camp1' }];
   const r = validatePlan(p);
-  assert.equal(r.ok, false);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.plan.legDays, [1, 2, 3]);
+});
+
+test('validatePlan：AI 加中途點後 stages 唔齊 → 仍按 overnight 分日', () => {
+  const p = goodPlan();
+  // 喺 camp1 前插入一個中途 cp，stages 仍舊只 covering 舊嘅起訖
+  p.waypoints.splice(0, 0, { id: 'mid', label: '嶂上', lat: 22.4285, lon: 114.3098, role: 'cp' });
+  const r = validatePlan(p);
+  assert.equal(r.ok, true);
+  // start→mid→camp1(overnight)→camp2(overnight)→finish = [1,1,2,3]
+  assert.deepEqual(r.plan.legDays, [1, 1, 2, 3]);
 });
 
 test('validatePlan：冇 stages → overnight 推斷日界', () => {
