@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DrawTheRoute 遠足助手 — Gemini Canvas</title>
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  DrawTheRoute 遠足助手（Phase 3 · 成員畫面）
+  用法：將呢個檔案嘅全部內容貼入 Google Gemini Canvas。
+  成員講遠足要求 → Gemini 理解 → 內嵌真實 DrawTheRoute 計路＋畫地圖
+  → 回傳真實距離／爬升／時間。保留完整 DTR 體驗（拖 CP／GPX／高程）。
+
+  ★ 呢個係 Canvas 端 artifact，唔係 DTR 生產一部分；已排除於 Vercel deploy。
+  ★ AI 用 Canvas 免費 fetch 攔截（apiKey 留空，唔好改）。
+  ★ 座標安全：AI 建議座標一律要成員喺確認面板核實先至計路；
+    示範路線用已核實座標。唔會靜默 geocode。
+  ═══════════════════════════════════════════════════════════════════
+-->
+<style>
+  :root{
+    --bg:#f4f6f3; --card:#ffffff; --line:#e2e8e0; --ink:#1f2d24; --muted:#6b7a6f;
+    --green:#2f7d4f; --green-d:#22603c; --green-bg:#e8f3ec; --amber:#b45309; --amber-bg:#fdf3e3;
+    --red:#b91c1c; --red-bg:#fdecec; --blue:#1d4ed8; --radius:14px;
+    --shadow:0 1px 3px rgba(31,45,36,.08),0 4px 16px rgba(31,45,36,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:'Noto Sans TC',system-ui,-apple-system,sans-serif;font-size:14px;display:flex;flex-direction:column;height:100vh}
+  header{background:var(--green);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header .logo{font-size:20px}
+  header h1{font-size:16px;margin:0;font-weight:700}
+  header .sub{font-size:11.5px;opacity:.85}
+  header .spacer{flex:1}
+  .conn{font-size:11.5px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.18);display:flex;align-items:center;gap:6px}
+  .conn .dot{width:8px;height:8px;border-radius:50%;background:#fbbf24}
+  .conn.ok .dot{background:#4ade80}
+  .conn.bad .dot{background:#f87171}
+  .inputbar{background:var(--card);border-bottom:1px solid var(--line);padding:12px 18px}
+  .inputrow{display:flex;gap:8px}
+  .inputrow textarea{flex:1;resize:none;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px;min-height:46px;max-height:120px;color:var(--ink)}
+  .inputrow textarea:focus{outline:none;border-color:var(--green)}
+  .btn{border:0;border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;transition:.15s}
+  .btn.primary{background:var(--green);color:#fff}
+  .btn.primary:hover{background:var(--green-d)}
+  .btn.ghost{background:var(--green-bg);color:var(--green-d);border:1.5px solid var(--green)}
+  .btn.ghost:hover{background:#d8ebde}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-size:12px;padding:5px 11px;border-radius:999px;background:var(--green-bg);color:var(--green-d);border:1px solid #cfe4d6;cursor:pointer}
+  .chip:hover{background:#d8ebde}
+  .chip.demo{background:var(--amber-bg);color:var(--amber);border-color:#f0dcb8}
+  main{flex:1;display:flex;flex-direction:column;min-height:0;padding:12px 18px;gap:10px}
+  .mapwrap{flex:1;min-height:320px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;position:relative}
+  .mapwrap iframe{width:100%;height:100%;border:0;display:block}
+  .mapnote{position:absolute;left:10px;bottom:10px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:11.5px;color:var(--muted);pointer-events:none;max-width:70%}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+  .panel h3{margin:0 0 8px;font-size:14px;color:var(--green-d)}
+  .status{font-size:13px;padding:8px 12px;border-radius:9px;margin:0}
+  .status.ok{background:var(--green-bg);color:var(--green-d)}
+  .status.warn{background:var(--amber-bg);color:var(--amber)}
+  .status.bad{background:var(--red-bg);color:var(--red)}
+  .status.info{background:#eef2ff;color:var(--blue)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+  th,td{border:1px solid var(--line);padding:5px 8px;text-align:left}
+  th{background:var(--green-bg);color:var(--green-d);font-weight:600}
+  .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .badge.pass{background:var(--green-bg);color:var(--green-d)}
+  .badge.fail{background:var(--red-bg);color:var(--red)}
+  .badge.unknown{background:var(--amber-bg);color:var(--amber)}
+  .warnlist{margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--amber)}
+  .muted{color:var(--muted);font-size:12px}
+  .confirm{border:1.5px solid var(--amber);background:var(--amber-bg)}
+  .confirm .coords{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--muted)}
+  .confirm .actions{display:flex;gap:8px;margin-top:10px}
+  .hidden{display:none}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:6px}
+  .stat{background:var(--green-bg);border-radius:10px;padding:8px 10px;text-align:center}
+  .stat .v{font-size:18px;font-weight:700;color:var(--green-d)}
+  .stat .l{font-size:11px;color:var(--muted)}
+  footer{padding:6px 18px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);background:var(--card)}
+  @media(max-width:640px){ header h1{font-size:14px} .inputrow{flex-direction:column} }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">🥾</span>
+  <div>
+    <h1>DrawTheRoute 遠足助手</h1>
+    <div class="sub">講低你嘅要求，AI 幫你规划，真實地圖即刻畫出路線</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="conn" id="conn"><span class="dot"></span><span id="connText">連接中…</span></div>
+</header>
+
+<div class="inputbar">
+  <div class="inputrow">
+    <textarea id="req" placeholder="例如：我想行 3日2夜，全程約 40 公里，由北潭涌出發，途經猴塘溪營地、大灘營地，最後返北潭涌。我係新手，每日唔想行超過 6 小時。"></textarea>
+    <button class="btn primary" id="btnPlan">✨ AI 规划</button>
+    <button class="btn ghost" id="btnDemo">▶ 示範路線</button>
+  </div>
+  <div class="chips">
+    <span class="chip" data-ex="3日2夜，全程約 40 公里，北潭涌出發，途經猴塘溪營地、大灘營地，返北潭涌。新手，每日唔超過 6 小時。">3日2夜 · 40km · 西貢</span>
+    <span class="chip" data-ex="一日行程，由北潭涌去上窰再返北潭涌，輕鬆路線，適合新手。">一日 · 北潭涌上窰環線</span>
+    <span class="chip demo" id="chipDemo">▶ 唔使 AI，直接試示範</span>
+  </div>
+</div>
+
+<main>
+  <div class="panel hidden" id="confirmPanel">
+    <h3>📋 確認路線計劃</h3>
+    <div class="status warn" id="confirmWarn">⚠ 以下座標由 AI 建議，請核實正確先至計路。你可以喺計路後喺地圖拖曳微調。</div>
+    <div id="confirmBody"></div>
+    <div class="actions">
+      <button class="btn primary" id="btnConfirm">✓ 確認，開始計路</button>
+      <button class="btn ghost" id="btnCancelConfirm">取消</button>
+    </div>
+  </div>
+
+  <div class="panel hidden" id="resultPanel">
+    <h3>📊 真實計算結果（DrawTheRoute 引擎）</h3>
+    <div id="resultBody"></div>
+  </div>
+
+  <div class="mapwrap">
+    <iframe id="dtr" title="DrawTheRoute 真實地圖"></iframe>
+    <div class="mapnote">🗺 呢個係真實 DrawTheRoute：計路後你可以拖曳 CP 微調、睇高程剖面、匯出 GPX／地圖。</div>
+  </div>
+
+  <p class="status info" id="status">初始化…</p>
+</main>
+
+<footer id="footer">DrawTheRoute × Gemini Canvas · 結果只供參考，出發前請由領隊核實 · <span id="dtrUrlLabel"></span></footer>
+
+<script>
+'use strict';
+/* ═══════════════ 設定 ═══════════════ */
+const CHANNEL='scout.drawtheroute', VERSION=1;
+const PROD_URL='https://drawtheroute-yd8p.vercel.app/';
+const PREVIEW_URL='https://5173-icxm5y9f21nhsc9i6t6c0.e2b.app/';
+const frame=document.getElementById('dtr');
+const PARENT_ORIGIN=location.origin;
+let DTR_ORIGIN='';
+(function(){
+  const h=location.hostname;
+  const devLike=/^(localhost|127\.0\.0\.1)$/.test(h)||/\.e2b\.app$/.test(h);
+  // 本地／preview：同 origin；Canvas（SCF）：用有 bridge 嘅 DTR URL
+  const base=devLike?(location.origin+'/'):PREVIEW_URL;
+  DTR_ORIGIN=new URL(base).origin;
+  document.getElementById('dtrUrlLabel').textContent='DTR: '+DTR_ORIGIN;
+  frame.src=DTR_ORIGIN+'/?embed=1&parentOrigin='+encodeURIComponent(PARENT_ORIGIN);
+})();
+
+/* ═══════════════ 狀態 ═══════════════ */
+let ready=false, acked=false, pendingId=null, pendingPlan=null;
+const $=id=>document.getElementById(id);
+function setStatus(cls,msg){ const s=$('status'); s.className='status '+cls; s.textContent=msg; }
+function setConn(state,text){ const c=$('conn'); c.className='conn '+state; $('connText').textContent=text; }
+function uuid(){ return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2); }
+function send(type,payload,requestId){
+  if(!DTR_ORIGIN) return;
+  frame.contentWindow.postMessage(Object.assign({channel:CHANNEL,version:VERSION,type,requestId},payload||{}),DTR_ORIGIN);
+}
+
+/* ═══════════════ Bridge 握手 ═══════════════ */
+window.addEventListener('message',e=>{
+  if(!DTR_ORIGIN||e.origin!==DTR_ORIGIN) return;
+  if(e.source!==frame.contentWindow) return;
+  const d=e.data; if(!d||d.channel!==CHANNEL) return;
+  if(d.type==='drawtheroute:ready'){
+    ready=true; setConn('','已連接，握手中…');
+    send('canvas:init',{protocolVersion:VERSION,parentOrigin:PARENT_ORIGIN},uuid());
+  } else if(d.type==='canvas:init-ack'){
+    acked=true; setConn('ok','✓ DrawTheRoute 已就緒');
+    setStatus('ok','已連接 DrawTheRoute。打你嘅要求，或者撳「示範路線」。');
+  } else if(d.type==='route:result'){
+    if(d.requestId!==pendingId) return;
+    pendingId=null; renderResult(d.result);
+    setStatus('ok','✓ 路線已畫喺地圖。你可以喺地圖微調、匯出 GPX。');
+    setConn('ok','✓ DrawTheRoute 已就緒');
+  } else if(d.type==='route:error'){
+    if(pendingId&&d.requestId!==pendingId) return;
+    pendingId=null;
+    setStatus('bad','計路錯誤：'+(d.code||'')+' '+(d.message||''));
+    setConn('ok','✓ DrawTheRoute 已就緒');
+  }
+});
+frame.addEventListener('load',()=>{ setTimeout(()=>{ if(!acked) send('canvas:init',{protocolVersion:VERSION,parentOrigin:PARENT_ORIGIN},uuid()); },500); });
+setTimeout(()=>{ if(!acked){ setConn('bad','未連接'); setStatus('warn','仲未連到 DrawTheRoute。請確認 DTR URL 有 bridge（見 footer）。'); } },20000);
+
+/* ═══════════════ 示範路線（已核實座標） ═══════════════ */
+const DEMO_PLAN={
+  days:1,nights:0,targetTotalKm:5,
+  start:{label:'北潭涌',lat:22.4046,lon:114.3147},
+  waypoints:[
+    {id:'cp1',label:'上窰',lat:22.4090,lon:114.3220,role:'cp'},
+    {id:'finish',label:'北潭涌',lat:22.4046,lon:114.3147,role:'finish'}
+  ],
+  stages:[{day:1,from:'start',to:'cp1'},{day:1,from:'cp1',to:'finish'}],
+  constraints:{targetDistanceToleranceKm:2}
+};
+function runDemo(){
+  if(!acked){ setStatus('warn','仲未連接 DrawTheRoute，稍候再試。'); return; }
+  pendingPlan=DEMO_PLAN;
+  $('confirmPanel').classList.add('hidden');
+  startRoute(DEMO_PLAN);
+}
+
+/* ═══════════════ AI 规划（Canvas 免費 fetch 攔截） ═══════════════ */
+const apiKey=""; // 【唔好改】Canvas 會攔截呢個 fetch，用成員自己嘅 Gemini session
+const SYS_PROMPT=`你係遠足路線規劃助手。將使用者嘅遠足要求轉成一個 JSON 路線計劃。
+只輸出 JSON，唔好有其他文字。格式：
+{"days":整數,"nights":整數,"targetTotalKm":數字,
+ "start":{"label":"地名","lat":緯度,"lon":經度},
+ "waypoints":[{"id":"cp1","label":"地名","lat":緯度,"lon":經度,"role":"cp 或 overnight 或 finish"}],
+ "stages":[{"day":1,"from":"start","to":"cp1"}],
+ "constraints":{"maxMovingMinutesPerDay":數字或null,"maxAscentMPerDay":數字或null,"targetDistanceToleranceKm":數字或null}}
+規則：
+- 座標必須係真實 WGS84（香港範圍約 lat 22.1-22.6, lon 113.8-114.5）。
+- 最後一個 waypoint 嘅 role 必須係 "finish"，通常返到起點。
+- 用 "overnight" role 標記過夜營地，stages 用嚟分日。
+- 如果你唔確定某個地點嘅精確座標，用你最接近嘅估計，但唔好輸出 0,0。
+- 唔好虛構安全標準；約束只係用使用者明確講嘅數字。`;
+async function runAI(){
+  const text=$('req').value.trim();
+  if(!text){ setStatus('warn','請先打你嘅遠足要求。'); return; }
+  if(!acked){ setStatus('warn','仲未連接 DrawTheRoute，稍候再試。'); return; }
+  setStatus('info','AI 理解緊你嘅要求…');
+  $('btnPlan').disabled=true;
+  try{
+    const resp=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:SYS_PROMPT+'\n\n使用者要求：'+text}]}]})
+    });
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    const raw=(data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts||[]).map(p=>p.text||'').join('');
+    const plan=extractJSON(raw);
+    if(!plan||!plan.start||!Array.isArray(plan.waypoints)) throw new Error('AI 輸出格式唔正確');
+    pendingPlan=plan;
+    showConfirm(plan);
+    setStatus('info','AI 已生成計劃，請確認座標。');
+  }catch(err){
+    setStatus('warn','AI 规划暫時用唔到（'+err.message+'）。喺 Gemini Canvas 入面先有免費 AI；你可以先撳「示範路線」體驗完整流程。');
+  }finally{ $('btnPlan').disabled=false; }
+}
+function extractJSON(raw){
+  const s=raw.indexOf('{'), e=raw.lastIndexOf('}');
+  if(s<0||e<0) return null;
+  try{ return JSON.parse(raw.slice(s,e+1)); }catch(_){ return null; }
+}
+
+/* ═══════════════ 確認面板 ═══════════════ */
+function showConfirm(plan){
+  const pts=[plan.start,...(plan.waypoints||[])];
+  let html='<table><tr><th>#</th><th>地點</th><th>角色</th><th>座標 (WGS84)</th></tr>';
+  pts.forEach((p,i)=>{
+    html+='<tr><td>'+(i+1)+'</td><td>'+(p.label||'—')+'</td><td>'+(p.role||'cp')+'</td><td class="coords">'+Number(p.lat).toFixed(4)+', '+Number(p.lon).toFixed(4)+'</td></tr>';
+  });
+  html+='</table>';
+  html+='<div class="muted" style="margin-top:6px">日數：'+(plan.days||'?')+' · 目標總距離：'+(plan.targetTotalKm||'?')+' km</div>';
+  $('confirmBody').innerHTML=html;
+  $('confirmPanel').classList.remove('hidden');
+}
+$('btnConfirm').addEventListener('click',()=>{
+  if(!pendingPlan) return;
+  $('confirmPanel').classList.add('hidden');
+  startRoute(pendingPlan);
+});
+$('btnCancelConfirm').addEventListener('click',()=>{ $('confirmPanel').classList.add('hidden'); pendingPlan=null; setStatus('info','已取消。'); });
+
+/* ═══════════════ 計路 ═══════════════ */
+function startRoute(plan){
+  if(pendingId){ setStatus('warn','已有計路進行中。'); return; }
+  pendingId=uuid();
+  $('resultPanel').classList.remove('hidden');
+  $('resultBody').innerHTML='<div class="muted">⏳ DrawTheRoute 用真實 BRouter 山徑引擎計路中…（可能要十幾秒）</div>';
+  setStatus('info','計路中…');
+  setConn('','計路中…');
+  send('route:plan',{plan},pendingId);
+}
+
+/* ═══════════════ 結果 ═══════════════ */
+function renderResult(r){
+  if(!r){ $('resultBody').innerHTML='<div class="muted">冇結果</div>'; return; }
+  let h='<div class="grid2">'
+    +'<div class="stat"><div class="v">'+(r.total.distanceM/1000).toFixed(2)+'</div><div class="l">總距離 km</div></div>'
+    +'<div class="stat"><div class="v">'+r.total.ascentM+'</div><div class="l">爬升 m</div></div>'
+    +'<div class="stat"><div class="v">'+r.total.descentM+'</div><div class="l">下降 m</div></div>'
+    +'<div class="stat"><div class="v">'+fmtMin(r.total.estimatedMovingMinutes)+'</div><div class="l">估算行進時間</div></div>'
+    +'</div>';
+  if(r.days&&r.days.length){
+    h+='<table><tr><th>日</th><th>距離</th><th>爬升</th><th>時間</th></tr>';
+    r.days.forEach(d=>{ h+='<tr><td>第 '+d.day+' 日</td><td>'+(d.distanceM/1000).toFixed(2)+' km</td><td>'+d.ascentM+' m</td><td>'+fmtMin(d.estimatedMovingMinutes)+'</td></tr>'; });
+    h+='</table>';
+  }
+  if(r.criteria&&r.criteria.length){
+    h+='<div style="margin-top:8px">';
+    r.criteria.forEach(c=>{ h+='<span class="badge '+c.status+'">'+c.status+'</span> <span class="muted">'+c.label+'</span><br>'; });
+    h+='</div>';
+  }
+  if(r.warnings&&r.warnings.length){
+    h+='<ul class="warnlist">';
+    r.warnings.forEach(w=>{ h+='<li>'+w.message+'</li>'; });
+    h+='</ul>';
+  }
+  h+='<div class="muted" style="margin-top:8px">⚠ 結果只供參考，出發前請由領隊核實。source: '+r.source+' · engine '+r.engineVersion+'</div>';
+  $('resultBody').innerHTML=h;
+}
+function fmtMin(m){ if(m==null) return '—'; const h=Math.floor(m/60), mm=Math.round(m%60); return h>0?(h+' 小時 '+mm+' 分'):(mm+' 分'); }
+
+/* ═══════════════ 事件 ═══════════════ */
+$('btnPlan').addEventListener('click',runAI);
+$('btnDemo').addEventListener('click',runDemo);
+$('chipDemo').addEventListener('click',runDemo);
+document.querySelectorAll('.chip[data-ex]').forEach(ch=>{
+  ch.addEventListener('click',()=>{ $('req').value=ch.getAttribute('data-ex'); });
+});
+</script>
+</body>
+</html>
