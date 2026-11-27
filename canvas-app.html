@@ -562,6 +562,7 @@ const PLACE_RULES='【過夜營地】必須從以下 AFCD 官方營地揀名（r
 +'- 最後一個 waypoint role 必須係 finish。總點數（起點＋所有 waypoints）唔超過 24。\n'
 +'- 系統按 overnight 自動分日，stages 可省略（唔好寫唔齊全嘅 stages）。\n'
 +'- 用戶要求「少啲上落／唔行樓梯」時：畫路 CP 優先揀沿海低地中途點（海下、大灘海邊、黃石、灣仔、西灣、鹹田灣、浪茄灣海邊），避開要翻山嘅高地坳位。引擎沿真實山徑貼路，唔保證完全冇樓梯，唔好虛報。\n'
++'- 畫路 CP 要同起點／營地／終點喺同一連接嘅山徑網絡，引擎先貼到路；唔好揀要跨海／跨水塘先至到嘅點（對面島、水塘對岸、孤立海岬）。沿山徑揀點（標距柱／路口／山坳）最易貼路。\n'
 +'- 唔好虛構安全標準；約束只用用戶明確講嘅數字。';
 /* 調整用：第一輪已由表格生成，只加減畫路 CP（唔係營地） */
 const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶表格生成，你只負責按真實距離加減「畫路中途點 CP」。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 每次最多新增 2 個畫路 CP（role="cp"，用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可；唔好用營地），要揀地理上順路嘅；太長就移除畫路 CP。';
@@ -643,7 +644,10 @@ function applyAdjust(np){
 function resultSummary(result){
   const distKm=result.total.distanceM/1000;
   const dayLines=(result.days||[]).map(d=>'第'+d.day+'日 '+(d.distanceM/1000).toFixed(1)+'km／爬升'+d.ascentM+'m').join('；');
-  return 'DrawTheRoute 真實計算結果：總距離 '+distKm.toFixed(2)+' km；'+dayLines+'。';
+  let s='DrawTheRoute 真實計算結果：總距離 '+distKm.toFixed(2)+' km；'+dayLines+'。';
+  const bad=(result.legs||[]).filter(l=>!l.snapped);
+  if(bad.length) s+=' 但有 '+bad.length+' 段貼唔到山徑（直線備援，距離被低估、不可靠）：'+bad.map(l=>((l.from&&l.from.label)||'')+'→'+((l.to&&l.to.label)||'')).join('、')+'。';
+  return s;
 }
 function maybeRefine(result){
   const plan=pendingPlan;
@@ -655,33 +659,40 @@ function maybeRefine(result){
   const distKm=result.total.distanceM/1000;
   const ascCrit=(result.criteria||[]).find(c=>c.id==='max_ascent_per_day');
   const ascFail=!!(ascCrit&&ascCrit.status==='fail');
+  const badLegs=(result.legs||[]).filter(l=>!l.snapped);
+  const snapFail=badLegs.length>0||!!result.fallbackUsed;
+  const legTxt=badLegs.map(l=>((l.from&&l.from.label)||'')+'→'+((l.to&&l.to.label)||'')).join('、');
   const distOk=!target||Math.abs(distKm-target)<=tol;
   setConn('ok','✓ DrawTheRoute 已就緒');
-  if(!auto||stopRefine||!currentNamePlan||cap<=0||(!target&&!ascFail)){
-    setStatus('ok','✓ 路線已畫喺地圖。你可以喺地圖微調、匯出 GPX。');
+  // 唔會自動調整嘅情況：都要誠實報告——貼路失敗＝不合格，唔可以當答案呈現
+  if(!auto||stopRefine||!currentNamePlan||cap<=0){
+    if(snapFail){ setStatus('bad','✗ 不合格：'+badLegs.length+' 段貼唔到山徑（'+legTxt+'），用咗直線備援——呢個結果不可用、不可導航。請喺地圖手動改 CP，或改表格再計。'); }
+    else if(!distOk||ascFail){ setStatus('warn','已畫路（全部貼路），但'+(!distOk?'距離未達目標':'')+(ascFail?'每日爬升超標':'')+'。可喺地圖手動調整。'); }
+    else{ setStatus('ok','✓ 路線已畫喺地圖（全部貼路）。你可以喺地圖微調、匯出 GPX。'); }
     $('btnStopRefine').classList.add('hidden');
     return;
   }
-  if(result.fallbackUsed){
-    setStatus('warn','有路段用咗直線備援，唔會自動繞路；請喺地圖檢查。');
-    $('btnStopRefine').classList.add('hidden');
-    return;
-  }
-  if(distOk&&!ascFail){
-    setStatus('ok','✓ 已達目標（'+distKm.toFixed(1)+' km'+(target?' / 目標 '+target+' km':'')+(maxAsc?'；每日爬升 ≤ '+maxAsc+' m':'')+'）。可喺地圖微調、匯出 GPX。');
+  if(distOk&&!ascFail&&!snapFail){
+    setStatus('ok','✓ 已達目標（'+distKm.toFixed(1)+' km'+(target?' / 目標 '+target+' km':'')+(maxAsc?'；每日爬升 ≤ '+maxAsc+' m':'')+'；全部路段貼上山徑）。可喺地圖微調、匯出 GPX。');
     $('btnStopRefine').classList.add('hidden');
     return;
   }
   if(refineRound>=cap){
-    setStatus('warn','已調整 '+refineRound+'／'+cap+' 次（到你設定嘅上限），而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升仍超標':'')+'。請喺地圖手動加減 CP，或者改表格再計。');
+    if(snapFail){ setStatus('bad','✗ 已調整 '+refineRound+'／'+cap+' 次，仍有 '+badLegs.length+' 段貼唔到山徑（'+legTxt+'）——結果不可用、不可導航。請喺地圖手動改 CP，或改表格再計。'); }
+    else{ setStatus('warn','已調整 '+refineRound+'／'+cap+' 次（到你設定嘅上限），而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升仍超標':'')+'。請喺地圖手動加減 CP，或者改表格再計。'); }
     $('btnStopRefine').classList.add('hidden');
     return;
   }
   refineRound++;
   $('btnStopRefine').classList.remove('hidden');
-  setStatus('info','第 '+refineRound+'／'+cap+' 次調整：而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升超標':'')+'，AI 加減中途點中…');
+  setStatus('info','第 '+refineRound+'／'+cap+' 次調整：'+(snapFail?'有 '+badLegs.length+' 段貼唔到山徑，AI 替換離網 CP 中…':'而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升超標':'')+'，AI 加減中途點中…'));
   let instr='';
-  if(!distOk) instr+=(distKm<target?'而家太短，請插入最多 2 個地理上順路嘅畫路 CP（role="cp"，用山峰／山坳／路口／海邊點，可網上搵真實座標；唔好用營地做 CP）绕路。':'而家太長，請移除畫路 CP（role="cp"）。');
+  if(snapFail){
+    instr+='以下路段貼唔到山徑（直線備援，不可接受）：'+legTxt+'。請修理：';
+    instr+='對每段出事路段，若果端點係可移除嘅畫路 CP（role="cp"），將佢替換做同一山徑網絡上、唔使跨海／跨水塘嘅點（沿徑標距柱／路口／山坳，可用編號如 M048 或網上真實座標）；';
+    instr+='若果兩端都係固定點（起點／營地／終點），就喺兩端之間插入最多 2 個沿徑畫路 CP 引導貼路。唔好改起點／營地／終點。';
+  }
+  if(!distOk) instr+=(distKm<target?'而家太短，請插入最多 2 個地理上順路嘅畫路 CP（role="cp"，沿徑點；唔好用營地做 CP）绕路。':'而家太長，請移除畫路 CP（role="cp"）。');
   if(ascFail) instr+='每日爬升超過上限 '+maxAsc+' m，請改揀低海拔／沿海嘅畫路 CP，避開高山坳，減少上落。';
   const n=notes();
   if(n) instr+='同時盡量配合用戶其他要求：'+n+'（揀低海拔／沿海畫路 CP；引擎沿真實山徑貼路，唔保證完全冇樓梯）。';
@@ -707,8 +718,11 @@ function manualAdjust(){
   const n=notes();
   if(!n){ setStatus('warn','請先喺「其他要求」打低你想點（例如：唔行樓梯、少啲上落）。'); return; }
   setStatus('info','AI 按你嘅其他要求調整路中…');
+  const bad=(lastResult.legs||[]).filter(l=>!l.snapped);
+  const snapInstr=bad.length?('有 '+bad.length+' 段貼唔到山徑（'+bad.map(l=>((l.from&&l.from.label)||'')+'→'+((l.to&&l.to.label)||'')).join('、')+'），必須先修理：替換離網畫路 CP 做沿徑點（標距柱／路口／山坳），或喺固定點之間插入沿徑 CP；唔好跨海／跨水塘。\n'):'';
   const prompt='上一次計劃：'+JSON.stringify(currentNamePlan)+'\n'
     +resultSummary(lastResult)+'\n'
+    +snapInstr
     +'用戶固定地點（必須原樣保留、順序不變）：'+fixedLabels.join(' → ')+'。\n'
     +'用戶其他要求：'+n+'。請盡量配合：優先揀低海拔／沿海嘅畫路 CP（山峰／山坳／路口／海邊點，可網上搵真實座標），避開高山坳，減少上落；可以加減畫路 CP（每次最多新增 2 個，role="cp"，唔好用營地）。保留用戶指定營地同起終點，並保持過夜營地 role="overnight" 同官方名。\n'
     +'注意：引擎沿真實山徑貼路，唔保證完全冇樓梯；唔好虛報話完全避開咗。\n'
@@ -724,7 +738,12 @@ $('btnNotesAdjust').addEventListener('click',manualAdjust);
 /* ═══════════════ 結果 ═══════════════ */
 function renderResult(r){
   if(!r){ $('resultBody').innerHTML='<div class="muted">冇結果</div>'; return; }
-  let h='<div class="grid2">'
+  let h='';
+  if(r.fallbackUsed){
+    const bad=(r.legs||[]).filter(l=>!l.snapped).map(l=>((l.from&&l.from.label)||'')+'→'+((l.to&&l.to.label)||'')).join('、');
+    h+='<div class="status bad" style="margin-bottom:8px">✗ 不合格：有路段貼唔到山徑（直線備援）'+(bad?'：'+bad:'')+'——呢個結果不可用、不可導航，只係候選預覽。請等自動修理完成，或手動改 CP。</div>';
+  }
+  h+='<div class="grid2">'
     +'<div class="stat"><div class="v">'+(r.total.distanceM/1000).toFixed(2)+'</div><div class="l">總距離 km</div></div>'
     +'<div class="stat"><div class="v">'+r.total.ascentM+'</div><div class="l">爬升 m</div></div>'
     +'<div class="stat"><div class="v">'+r.total.descentM+'</div><div class="l">下降 m</div></div>'
