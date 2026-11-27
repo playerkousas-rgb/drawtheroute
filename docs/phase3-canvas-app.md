@@ -123,3 +123,25 @@ AI 出路線（只用地點名）→ 用戶確認 → DTR 真實 BRouter 計路
 - AI 自由發揮都係用地點表揀名，唔會虛構座標；「唔好塞晒所有營地」喺 PLACE_RULES＋GEN_RULES 双重聲明。
 - 用戶填咗嘅點係固定點，AI 補位唔准郁；可選中途點先至俾 refine 加減。
 - 測試：`canvas_gazetteer.test.mjs` +1（留空→AI／自由發揮／骨架／固定點核對），全套 40。
+
+## Phase 3.6 — AI 網上座標自由畫路；營地守 AFCD 官方（Canvas-only）
+
+用戶指出嚴重問題：地點表 46 點有 41 個係營地，AI 唯一「畫路」動作就係塞營地做 CP，根本唔係自由畫路。用戶拍板：**俾 AI 喺網上搵有座標嘅地點畫路**（DTR bridge 接受任意合法座標），**過夜營地仍然守 AFCD 官方**（非官方過夜不安全又不合法）。**淨係改 `canvas-app.html`，冇改生產碼。**
+
+### 改動
+- **`resolveNamePlan` 重寫**：
+  - `overnight`（過夜營地）→ 必須係地點表 `kind==='campsite'` 嘅 AFCD 官方營地，用官方座標；AI 唔准俾座標。唔係官方營地即拒。
+  - `start／finish／cp`（畫路點）→ 精確官方名（`findPlaceExact`）用官方座標；否則接受 AI 網上搵到嘅真實座標（`validAiCoord` 限 HK 範圍，擋離譜 hallucination），標記 `_source:'AI 網上查找'`、`_aiFound:true`；最後先至模糊官方名。
+- **`findPlaceExact`（新）**：精確匹配，唔做模糊 substring——避免「西灣山」呢類山峰名被 `findPlace` 誤配去「西灣營地」而用錯座標。
+- **`validAiCoord`（新）**：AI 座標必須喺 HK 範圍（lat 22.0–22.65、lon 113.8–114.55）。
+- **`checkFixed` 過夜角色檢查重寫**：每個固定營地必須仍然有一個 `role="overnight"` 嘅點，唔係淨係名似——避免畫路山峰名（模糊匹配到營地）被誤判做「改咗營地角色」。
+- **AI rules 重寫**：`PLACE_RULES` 分開【過夜營地】（AFCD 官方名單 `CAMP_LIST`，唔准輸出座標）同【畫路 CP／起終點】（官方地名 `NONCAMP_LIST` 或網上真实座標，**嚴禁用營地做畫路 CP**，座標必須真实搵到、唔好虛構）。`BASE_RULES`（調整）＋`GEN_RULES`（生成）都跟呢套。
+- **確認面板**：有 AI 網上查找點時轉 amber 警告，列出嗰啲點名，提醒「喺地圖睇清楚、確認先計」；過夜營地標明 AFCD 官方。表格 AI 點行 amber 底＋「⚠ AI 網上查找」。
+- **結果 CP 清單**：加來源欄，AI 點 amber 底＋「⚠ AI 網上查找」；role 顯示「畫路 CP」。
+- **refine／manualAdjust prompt**：畫路 CP 用山峰／山坳／路口／海邊點＋網上座標，唔再塞營地。
+
+### 安全／誠實
+- 過夜營地硬守 AFCD 官方（resolveNamePlan 強制），AI 唔可以俾個隨便座標當營地。
+- 畫路 CP 係 AI 網上查找，標明來源＋amber 警告，要成員喺確認面板／地圖睇過先計；DTR 磁石貼返最近山徑，計完可拖曳微調。
+- AI 座標限 HK 範圍，擋明顯 hallucination；prompt 双重聲明「唔好虛構座標」。
+- 測試：`canvas_gazetteer.test.mjs` 改寫「營地官方／畫路 CP 網上座標」case，全套 40。

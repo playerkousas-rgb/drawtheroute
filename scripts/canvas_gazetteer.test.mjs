@@ -36,9 +36,15 @@ test('關鍵西貢營地座標必須係 AFCD 官方數值（唔係 AI 估）', (
   }
 });
 
-test('AI prompt 禁止輸出座標，必須用地點表', () => {
-  assert.ok(html.includes('唔好輸出 lat/lon'), 'prompt 要禁止 AI 輸出座標');
-  assert.ok(html.includes('必須從中選擇'), 'prompt 要限制只用地點表');
+test('過夜營地必須 AFCD 官方（唔准 AI 座標）；畫路 CP 可用網上座標但唔准用營地', () => {
+  assert.ok(html.includes('AFCD 官方營地'), '過夜營地要指明官方');
+  assert.ok(html.includes('role="overnight"'), '要有 overnight 角色');
+  assert.ok(html.includes('過夜必須係 AFCD 官方營地'), 'resolveNamePlan 要強制過夜用官方營地');
+  assert.ok(html.includes('嚴禁用營地做畫路 CP'), '唔准營地做畫路 CP 湊距離');
+  assert.ok(html.includes('AI 網上查找'), '畫路 CP 來源要標明 AI 網上查找');
+  assert.ok(html.includes('function validAiCoord('), '要有 AI 座標驗證（HK 範圍）');
+  assert.ok(html.includes('function findPlaceExact('), '要有精確匹配，避免山峰名誤配營地');
+  assert.ok(html.includes('唔好虛構'), '要禁止虛構座標');
   assert.ok(!html.includes('用你最接近嘅估計'), '唔可以再叫 AI 估座標');
 });
 
