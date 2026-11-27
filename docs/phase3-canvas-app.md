@@ -102,3 +102,24 @@ AI 出路線（只用地點名）→ 用戶確認 → DTR 真實 BRouter 計路
 ### 誠實限制
 - BRouter profile 固定 `hiking-mountain`，引擎沿真實山徑貼路，**唔保證完全避開樓梯**。「唔行樓梯」係偏好，AI 靠揀低海拔／沿海中途點盡量配合；UI hint 同 AI prompt 都明確講明唔好虛報。用戶要核對結果嘅爬升數字，出發前由領隊確認。
 - 測試：`canvas_gazetteer.test.mjs` +1（notes／爬升／手動調整／誠實限制），全套 39。
+
+## Phase 3.5 — 起終點可留空 → AI 補位／全部留空 AI 自由發揮（Canvas-only）
+
+用戶問「起點終點係咪 fix 死咗喺北潭涌」。答案：唔係锁死，只係預填咗做例子；但留空會報錯。呢次改成**真正可留空**，並加 AI 補位路徑。**淨係改 `canvas-app.html`，冇改生產碼**，重新貼 HTML 即生效。
+
+### 改動
+- **起點／終點／目標公里預設留空**（placeholder 提示「留空由 AI 揀」），唔再預填北潭涌；營地欄由兩行預填改為一行空白提示。
+- **`runPlan()` 分流**：起點＋終點都填咗 → 純表格生成（`buildPlanFromForm`，唔經 AI）；是但一個留空 → `runAiPlan()`。
+- **`runAiPlan()`**：將用戶已填嘅營地／公里／上限／其他要求砌成 spec，叫 AI 生成完整計劃；留空嘅由 AI 按已填資料揀，**全部留空 = AI 自由發揮**。生成後：
+  - 核對 AI 揀嘅名全部喺 gazetteer（`resolveNamePlan`），座標一律由系統按名填入，AI 唔准估。
+  - `checkFixed()` 核對 AI 有冇尊重用戶填咗嘅起終點／營地；唔尊重即拒。
+  - `skeletonFromPlan()` 抽出起點＋過夜營地＋終點做固定點骨架，之後 refine 只加減可選中途點。
+  - 用戶表格嘅約束（容差／每日小時／每日爬升／目標公里）覆蓋 AI 輸出，係權威。
+  - 守 24 點上限。
+- **AI rules 拆細**：`PLACE_RULES`（共用：gazetteer 查名、JSON 格式、overnight、地理常識、唔好塞晒所有營地）＋`BASE_RULES`（調整：每輪 +2）＋`GEN_RULES`（生成：尊重已填、留空補位、全空自由發揮）。`callGemini(userText, rules)` 食 rules 參數。
+- 生成嘅計劃照樣行確認面板（座標來源顯示 AFCD 官方／已核實），用戶確認先至計路。
+
+### 安全／誠實
+- AI 自由發揮都係用地點表揀名，唔會虛構座標；「唔好塞晒所有營地」喺 PLACE_RULES＋GEN_RULES 双重聲明。
+- 用戶填咗嘅點係固定點，AI 補位唔准郁；可選中途點先至俾 refine 加減。
+- 測試：`canvas_gazetteer.test.mjs` +1（留空→AI／自由發揮／骨架／固定點核對），全套 40。
