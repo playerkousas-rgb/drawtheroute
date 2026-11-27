@@ -80,6 +80,18 @@ export function useEmbedBridge(deps: BridgeDeps): void {
       const legs: LegResult[] = [];
       const dayMap = new Map<number, DayResult>();
       let fallbackUsed = false;
+      // 路段幾何取樣（[lat,lon]，最多 ~240 點）俾 Canvas 偵測回頭路／原路來回
+      const sampleGeom = (pts: Array<{ lat: number; lng: number }>): Array<[number, number]> => {
+        const n = pts.length;
+        if (!n) return [];
+        const step = Math.max(1, Math.ceil(n / 240));
+        const out: Array<[number, number]> = [];
+        for (let i = 0; i < n; i += step) out.push([+pts[i].lat.toFixed(5), +pts[i].lng.toFixed(5)]);
+        const last: [number, number] = [+pts[n - 1].lat.toFixed(5), +pts[n - 1].lng.toFixed(5)];
+        const tail = out[out.length - 1];
+        if (!tail || tail[0] !== last[0] || tail[1] !== last[1]) out.push(last);
+        return out;
+      };
 
       for (let i = 0; i < analyzedSegments.length; i++) {
         const seg = analyzedSegments[i];
@@ -103,6 +115,7 @@ export function useEmbedBridge(deps: BridgeDeps): void {
           distanceM, ascentM: seg.ascent, descentM: seg.descent,
           estimatedMovingMinutes: Math.round(minutes),
           snapped, mode: seg.mode,
+          geometry: sampleGeom(seg.points || []),
         });
         if (!dayMap.has(day)) dayMap.set(day, { day, distanceM: 0, ascentM: 0, descentM: 0, estimatedMovingMinutes: 0, legIndexes: [] });
         const d = dayMap.get(day)!;
