@@ -239,6 +239,8 @@ export interface LegResult {
   /** 係咪成功貼上山徑（BRouter）；false = 直線 fallback */
   snapped: boolean;
   mode: 'auto' | 'straight';
+  /** 路段幾何（[lat,lon] 取樣，最多 ~240 點）；俾 Canvas 偵測回頭路／原路來回。可選。 */
+  geometry?: Array<[number, number]>;
 }
 export interface DayResult {
   day: number;

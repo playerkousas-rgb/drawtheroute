@@ -91,6 +91,8 @@ test('canvas:init → init-ack；valid plan → route:result（真實 analyzeRou
   assert.equal(r.source, 'drawtheroute');
   assert.equal(r.total.distanceM, 2000);          // 2 legs × 1km
   assert.equal(r.legs.length, 2);
+  assert.ok(Array.isArray(r.legs[0].geometry) && r.legs[0].geometry.length >= 2, 'leg 要有幾何（[lat,lon]）俾 Canvas 偵測回頭路');
+  assert.ok(r.legs[0].geometry.every(p => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1])), 'geometry 點要係 [lat,lon]');
   assert.equal(r.fallbackUsed, false);
   assert.equal(r.humanReviewRequired, true);
   assert.equal(r.criteria.find(c => c.id === 'all_legs_snapped').status, 'pass');

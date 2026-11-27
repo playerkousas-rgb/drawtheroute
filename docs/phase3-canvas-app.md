@@ -208,3 +208,30 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 
 ### 已知／deferred
 - 地圖 label 重疊（多個 permanent tooltip 近距離互相蓋住）係 DTR iframe 內 Leaflet 渲染問題（src/），屬次要 cosmetic；今次聚焦路由質量，未改 src 地圖渲染。
+
+## Phase 3.9 — 確定性清理地圖（無穿海直線／無原路來回）＋回頭路偵測＋環線守則
+
+### 背景（用戶實測仍不合格）
+用戶直接用 git 最新 html（即 3.8）實測：地圖仍見穿海直線（大灘／猴塘溪 → KO LAU WAN 三角網測站 644），且「老是走回頭路、同一條路來回」。診斷：
+- 3.8 修理到上限／被 guard 拒絕時**只喺文字標不合格，地圖仍畫住含 fallback 嘅 plan** → 穿海直線留低。
+- bridge `LegResult` **冇路段幾何** → Canvas 偵測唔到回頭路；AI 揀掘頭 spur 點 → 路由器原路入出 → 同一條路行兩次。
+
+### 修復
+- **bridge 加 leg geometry**（`src/bridge/contract.ts` `LegResult.geometry?: [lat,lon][]`；`embedBridge.ts` `sampleGeom(seg.points)` 取樣 ≤240 點）。屬 bridge 範圍，src 路由引擎不變。
+- **Canvas `autoClean`（確定性，唔靠 AI）**：route:result 後先跑——
+  - fallback 路段：移除離網畫路 CP（role=cp）再計 → 保證地圖無穿海直線。
+  - 相鄰兩段幾何高度重疊（mutualOverlap>0.6）＝掘頭 spur 原路來回 → 移除共享 spur CP 再計。
+  - 上限 `MAX_CLEAN_DROPS=6`；兩端皆固定點（起點／營地／終點）唔移除（交俾 AI／手動）。
+  - 清理中唔 snapshot，等乾淨結果先截圖。
+- **`detectBacktrack`**：用 leg geometry 計任意兩段 mutual overlap；>0.6 ＝回頭路／原路來回。`maybeRefine` 加 `backFail` 觸發＋指示（改做環線、去程回程唔同山徑、移除掘頭 spur）；達標條件加 `!backFail`；到上限仍 backFail 標 warn。
+- **幾何 helper**：`segDistM`（point-to-segment 米）、`nearPolyline`、`overlapFrac`、`mutualOverlap`（NEAR_M=25、OVERLAP_FRAC=0.6）。
+- **`PLACE_RULES` 環線守則**：CP 按環線順序；去程回程行唔同山徑；唔好原路來回／掘頭 spur（死胡同海岬／觀景點），除非用戶明確要求來回。
+- **cleanDrops reset**：runPlan／runAiPlan／applyAdjust／btnConfirm 重置，每條新計劃／每輪 AI 調整有新鮮清理預算。
+
+### 測試
+- `bridge_embed.test.mjs`：加 leg geometry 斷言（[lat,lon] 陣列、≥2 點）。
+- `canvas_gazetteer.test.mjs` +2（gazetteer 14）：substring（autoClean／detectBacktrack／MAX_CLEAN_DROPS／handler wiring／環線守則）＋functional harness（spur／fallback 移除離網 CP、正常環線唔誤報、固定點唔移除、到上限停止）。全套 46（gate 9＋contract 11＋embed 12＋gazetteer 14）。
+
+### 保證
+- 最終地圖**確定性**無穿海直線（fallback 離網 CP 會被移除再計），唔再靠 AI 合作先至乾淨。
+- 回頭路／原路來回會被偵測＋確定性移除 spur CP；剩餘（非相鄰重疊／固定點）交 AI 改環線或手動。

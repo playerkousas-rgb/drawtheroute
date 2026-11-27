@@ -227,3 +227,51 @@ test('Phase 3.8 maybeRefine 決策：fallback 触发修理／auto-off 標不合�
   const sum = api.resultSummary(badResult);
   assert.ok(sum.includes('貼唔到山徑') && sum.includes('北潭涌→萬宜水庫西壩') && sum.includes('低估'), 'resultSummary 要帶 fallback 警告＋路段');
 });
+
+test('Phase 3.9：確定性清理（autoClean）＋回頭路偵測（detectBacktrack）＋環線守則；bridge 帶 leg geometry', () => {
+  assert.ok(html.includes('function autoClean('), '要有確定性清理 autoClean');
+  assert.ok(html.includes('function detectBacktrack('), '要有回頭路偵測');
+  assert.ok(html.includes('MAX_CLEAN_DROPS'), '清理要有次数上限');
+  assert.ok(html.includes('if(autoClean(d.result)) return;'), 'route:result 要先做確定性清理');
+  assert.ok(html.includes('backFail'), 'maybeRefine 要把回頭路纳入觸發');
+  assert.ok(html.includes('去程同回程行唔同山徑'), 'prompt 要有環線／唔同山徑守則');
+  assert.ok(html.includes('原路來回'), 'prompt 要禁止原路來回');
+  assert.ok(html.includes('.geometry'), 'Canvas 要用 leg geometry 偵測');
+});
+
+test('Phase 3.9 autoClean／detectBacktrack 行為：spur／fallback 移除離網 CP、固定點唔移除、到上限停止', () => {
+  const slice = html.slice(html.indexOf('const NEAR_M=25'), html.indexOf('function maybeRefine(result){'));
+  const factory = new Function('deps',
+    'const MAX_CLEAN_DROPS=6; let pendingPlan=deps.pendingPlan, currentNamePlan=deps.currentNamePlan; const {startRoute,setStatus}=deps; let cleanDrops=deps.cleanDrops||0;'
+    + slice + ';return {autoClean,detectBacktrack,getDrops:()=>cleanDrops,getPlan:()=>pendingPlan};');
+  const gOut = [[22.40, 114.30], [22.41, 114.31], [22.42, 114.32]];
+  const gBack = [...gOut].reverse();
+  const gPerp1 = [[22.40, 114.30], [22.41, 114.30]];
+  const gPerp2 = [[22.41, 114.30], [22.41, 114.31]];
+  const spurRes = { legs: [{ snapped: true, from: { id: 'start', label: 'A' }, to: { id: 'cpB', label: 'B' }, geometry: gOut }, { snapped: true, from: { id: 'cpB', label: 'B' }, to: { id: 'finish', label: 'C' }, geometry: gBack }] };
+  const cleanRes = { legs: [{ snapped: true, from: { id: 'start' }, to: { id: 'cpB' }, geometry: gPerp1 }, { snapped: true, from: { id: 'cpB' }, to: { id: 'finish' }, geometry: gPerp2 }] };
+  function mk(over) {
+    const routed = [];
+    const deps = Object.assign({
+      pendingPlan: { start: { id: 'start' }, waypoints: [{ id: 'cpB', role: 'cp', label: 'B' }, { id: 'finish', role: 'finish', label: 'C' }] },
+      currentNamePlan: { waypoints: [{ id: 'cpB', role: 'cp' }, { id: 'finish', role: 'finish' }] },
+      startRoute: p => routed.push(p), setStatus: () => {}, cleanDrops: 0
+    }, over);
+    return { api: factory(deps), routed };
+  }
+  const t1 = mk();
+  assert.equal(t1.api.detectBacktrack(spurRes).length, 1, 'spur 原路來回要偵測到 1 對重疊');
+  assert.equal(t1.api.detectBacktrack(cleanRes).length, 0, '正常環線唔好誤報');
+  assert.equal(t1.api.autoClean(spurRes), true, 'spur 要触发清理');
+  assert.deepEqual(t1.routed[0].waypoints.map(w => w.id), ['finish'], '要移除掘頭 spur CP');
+  assert.equal(t1.api.getDrops(), 1);
+  const t2 = mk({ pendingPlan: { start: { id: 'start' }, waypoints: [{ id: 'cpX', role: 'cp', label: 'X' }, { id: 'finish', role: 'finish', label: 'C' }] }, currentNamePlan: { waypoints: [{ id: 'cpX', role: 'cp' }, { id: 'finish', role: 'finish' }] } });
+  const fbRes = { legs: [{ snapped: false, from: { id: 'start', label: 'A' }, to: { id: 'cpX', label: 'X' }, geometry: [] }, { snapped: true, from: { id: 'cpX' }, to: { id: 'finish' }, geometry: gPerp2 }] };
+  assert.equal(t2.api.autoClean(fbRes), true, 'fallback 要触发清理');
+  assert.deepEqual(t2.routed[0].waypoints.map(w => w.id), ['finish'], '要移除離網 CP，保證地圖無穿海直線');
+  const t3 = mk({ pendingPlan: { start: { id: 'start' }, waypoints: [{ id: 'finish', role: 'finish' }] }, currentNamePlan: { waypoints: [{ id: 'finish', role: 'finish' }] } });
+  const fixedRes = { legs: [{ snapped: false, from: { id: 'start' }, to: { id: 'finish' }, geometry: [] }] };
+  assert.equal(t3.api.autoClean(fixedRes), false, '兩端皆固定點唔可以確定性移除');
+  const t4 = mk({ cleanDrops: 6 });
+  assert.equal(t4.api.autoClean(spurRes), false, '到清理上限要停止');
+});
