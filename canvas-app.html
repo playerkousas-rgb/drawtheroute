@@ -103,7 +103,7 @@
   <span class="logo">🥾</span>
   <div>
     <h1>DrawTheRoute 遠足助手</h1>
-    <div class="sub">填表格揀營地，真實地圖即刻畫出路線；AI 只會幫你加減中途點湊距離</div>
+    <div class="sub">填表格（可留空由 AI 補位／自由發揮），真實地圖即刻畫出路線</div>
   </div>
   <div class="spacer"></div>
   <div class="conn" id="conn"><span class="dot"></span><span id="connText">連接中…</span></div>
@@ -111,10 +111,10 @@
 
 <div class="inputbar">
   <div class="formgrid">
-    <label class="field">目標總距離（km）<input type="number" id="fTarget" value="40" min="1" max="200" step="1"></label>
+    <label class="field">目標總距離（km，可留空）<input type="number" id="fTarget" min="1" max="200" step="1" placeholder="例如：40（留空由 AI 建議）"></label>
     <label class="field">距離容差 ±（km）<input type="number" id="fTol" value="2" min="0.5" max="10" step="0.5"></label>
-    <label class="field">起點<input id="fStart" list="places" value="北潭涌" autocomplete="off"></label>
-    <label class="field">終點<input id="fFinish" list="places" value="北潭涌" autocomplete="off"></label>
+    <label class="field">起點（可留空）<input id="fStart" list="places" autocomplete="off" placeholder="例如：北潭涌（留空由 AI 揀）"></label>
+    <label class="field">終點（可留空）<input id="fFinish" list="places" autocomplete="off" placeholder="例如：北潭涌（留空由 AI 揀）"></label>
     <label class="field">每日最多行走（小時，可留空）<input type="number" id="fMaxH" min="1" max="16" step="0.5" placeholder="冇限制"></label>
     <label class="field">每日最多爬升（m，可留空）<input type="number" id="fMaxAscent" min="50" max="3000" step="50" placeholder="冇限制"></label>
     <label class="field">最多自動調整次數（0–5）<input type="number" id="fRefineCap" value="3" min="0" max="5" step="1"></label>
@@ -133,7 +133,7 @@
     <button class="btn ghost hidden" id="btnStopRefine" style="padding:5px 10px;font-size:12px">停止自動調整</button>
     <button class="btn ghost hidden" id="btnNotesAdjust" style="padding:5px 10px;font-size:12px">✨ AI 按其他要求調整</button>
   </div>
-  <div class="formhint">營地／起終點必須喺地點表入面（打名會有建議）；第一輪只會行你揀嘅地點。調整次數 0 = 唔自動繞路；達標會即刻停。<br>「其他要求」（例如唔行樓梯、少啲上落）會喺 AI 調整時盡量配合：優先揀低海拔／沿海中途點。但引擎沿真實山徑貼路，<b>唔保證完全冇樓梯</b>；請核對結果嘅爬升數字，出发前由領隊確認。</div>
+  <div class="formhint">填咗嘅地點必須喺地點表入面（打名會有建議）。<b>起點／終點留空 → AI 按你填咗嘅其他資料去揀；全部留空 → AI 自由發揮</b>（都係用地點表，唔會塞晒所有營地）。起終點都填咗就先至用純表格生成。調整次數 0 = 唔自動繞路；達標會即刻停。<br>「其他要求」（例如唔行樓梯、少啲上落）會喺 AI 調整時盡量配合：優先揀低海拔／沿海中途點。但引擎沿真實山徑貼路，<b>唔保證完全冇樓梯</b>；請核對結果嘅爬升數字，出发前由領隊確認。</div>
 </div>
 
 <main>
@@ -298,11 +298,10 @@ function runDemo(){
   startRoute(DEMO_PLAN);
 }
 
-/* ═══════════════ 表格（第一輪計劃由表格直接生成，唔經 AI，唔會塞晒所有營地） ═══════════════ */
+/* ═══════════════ 表格（起終點填咗 → 純表格生成；留空 → runAiPlan 由 AI 補位／自由發揮） ═══════════════ */
 function initForm(){
   $('places').innerHTML=GAZETTEER.map(p=>'<option value="'+p.name+'">').join('');
-  addDayRow('猴塘溪營地');
-  addDayRow('大灘營地');
+  addDayRow('');   // 一行空營地欄做提示；留空 → AI 揀，全部留空 → AI 自由發揮
 }
 function dayRowCount(){ return document.querySelectorAll('#dayRows .dayrow').length; }
 function renumberDays(){
@@ -315,7 +314,7 @@ function addDayRow(value){
   if(dayRowCount()>=MAX_DAY_ROWS){ setStatus('warn','最多 '+MAX_DAY_ROWS+' 個營地（14 日）。'); return; }
   const row=document.createElement('div');
   row.className='dayrow';
-  row.innerHTML='<span class="dlabel"></span><input list="places" class="dayCamp" autocomplete="off" placeholder="打營地名，例如：嶂上營地"><button class="rm" title="刪除呢一日" type="button">✕</button>';
+  row.innerHTML='<span class="dlabel"></span><input list="places" class="dayCamp" autocomplete="off" placeholder="打營地名，或留空由 AI 揀"><button class="rm" title="刪除呢一日" type="button">✕</button>';
   row.querySelector('input').value=value||'';
   $('dayRows').appendChild(row);
   renumberDays();
@@ -361,9 +360,9 @@ function toNamePlan(plan){
 }
 function describeForm(){
   const camps=[...document.querySelectorAll('#dayRows .dayCamp')].map(i=>i.value.trim()).filter(Boolean);
-  let s='用戶表格：目標總距離 '+($('fTarget').value||'未設')+' km，起點 '+$('fStart').value+'，';
-  s+=camps.map((c,i)=>'第'+(i+1)+'日營地 '+c).join('，');
-  s+='，終點 '+($('fFinish').value||$('fStart').value)+'。';
+  let s='用戶表格：目標總距離 '+($('fTarget').value||'未設')+' km，起點 '+($('fStart').value.trim()||'（AI 揀）')+'，';
+  s+=camps.length?camps.map((c,i)=>'第'+(i+1)+'日營地 '+c).join('，'):'營地（AI 揀）';
+  s+='，終點 '+($('fFinish').value.trim()||'（AI 揀）')+'。';
   if($('fMaxH').value) s+='每日最多行走 '+$('fMaxH').value+' 小時。';
   if($('fMaxAscent').value) s+='每日最多爬升 '+$('fMaxAscent').value+' m。';
   const n=notes();
@@ -373,6 +372,10 @@ function describeForm(){
 function notes(){ return $('fNotes').value.trim(); }
 function runPlan(){
   if(!acked){ setStatus('warn','仲未連接 DrawTheRoute，稍候再試。'); return; }
+  const startName=$('fStart').value.trim();
+  const finishName=$('fFinish').value.trim();
+  // 起點或終點留空 → 交俾 AI 按用戶填咗嘅資料補位（全部留空 = AI 自由發揮）
+  if(!startName||!finishName){ void runAiPlan(); return; }
   const built=buildPlanFromForm();
   if(built.error){ setStatus('bad',built.error); return; }
   fixedLabels=built.fixedLabels; fixedCamps=built.campLabels;
@@ -383,6 +386,69 @@ function runPlan(){
   pendingPlan=built.plan;
   showConfirm(built.plan);
   setStatus('info','已按你嘅表格生成計劃（只包含你揀嘅地點），請確認。');
+}
+/* 由生成嘅計劃抽出骨架（起點＋過夜營地＋終點）做固定點；可選中途點先至俾 AI 加減 */
+function skeletonFromPlan(plan){
+  const wps=plan.waypoints||[];
+  const camps=wps.filter(w=>w.role==='overnight').map(w=>w.label);
+  const finWp=wps.filter(w=>w.role==='finish');
+  const fin=finWp.length?finWp[finWp.length-1].label:plan.start.label;
+  return {fixedLabels:[plan.start.label,...camps,fin], campLabels:camps};
+}
+/* 留空起終點（或全部留空）→ AI 按用戶填咗嘅資料生成完整計劃 */
+async function runAiPlan(){
+  const startName=$('fStart').value.trim();
+  const finishName=$('fFinish').value.trim();
+  const camps=[...document.querySelectorAll('#dayRows .dayCamp')].map(i=>i.value.trim()).filter(Boolean);
+  const problems=[];
+  if(startName&&!findPlace(startName)) problems.push(startName);
+  if(finishName&&!findPlace(finishName)) problems.push(finishName);
+  camps.forEach(c=>{ if(!findPlace(c)) problems.push(c); });
+  if(problems.length){ setStatus('bad','以下地點唔喺已核實地點表：'+problems.join('、')+'。請用建議嘅名，或者留空由 AI 揀。'); return; }
+  const target=parseFloat($('fTarget').value);
+  const tol=parseFloat($('fTol').value);
+  const maxH=parseFloat($('fMaxH').value);
+  const maxAsc=parseFloat($('fMaxAscent').value);
+  let spec='用戶已填資料：\n';
+  spec+='- 目標總距離：'+(Number.isFinite(target)&&target>0?target+' km':'留空（由你建議）')+'\n';
+  spec+='- 起點：'+(startName||'留空（由你揀）')+'\n';
+  spec+='- 終點：'+(finishName||'留空（由你揀）')+'\n';
+  spec+='- 每日營地：'+(camps.length?camps.map((c,i)=>'第'+(i+1)+'日 '+c).join('，'):'留空（由你揀，可一日或多日）')+'\n';
+  if(Number.isFinite(maxH)&&maxH>0) spec+='- 每日最多行走：'+maxH+' 小時\n';
+  if(Number.isFinite(maxAsc)&&maxAsc>0) spec+='- 每日最多爬升：'+maxAsc+' m\n';
+  const n=notes(); if(n) spec+='- 其他要求：'+n+'\n';
+  spec+='請生成完整 JSON 計劃。用戶已填嘅必須保留；留空嘅由你合理揀選。全部留空就自由發揮揀一條合理路線（唔好塞晒所有營地）。';
+  setStatus('info','AI 按你填咗嘅資料規劃中…');
+  $('btnPlan').disabled=true;
+  try{
+    const np=await callGemini(spec, GEN_RULES);
+    const {plan,unresolved}=resolveNamePlan(np);
+    if(unresolved.length){ setStatus('bad','AI 揀咗未收录地点：'+unresolved.join('、')+'。請再試。'); return; }
+    if(1+(plan.waypoints||[]).length>24){ setStatus('bad','AI 計劃太多點（>24），請再試。'); return; }
+    // 用用戶填咗嘅點做固定點，核對 AI 有冇尊重
+    const uf=[]; const uc=[];
+    if(startName) uf.push(findPlace(startName).name);
+    camps.forEach(c=>{ const cn=findPlace(c).name; uf.push(cn); uc.push(cn); });
+    if(finishName) uf.push(findPlace(finishName).name);
+    fixedLabels=uf; fixedCamps=uc;
+    const ferr=checkFixed(np);
+    if(ferr){ setStatus('bad',ferr+'，請再試，或者自己填返起終點。'); return; }
+    // 鎖定生成計劃嘅骨架；之後 refine 只加減可選中途點
+    const sk=skeletonFromPlan(plan); fixedLabels=sk.fixedLabels; fixedCamps=sk.campLabels;
+    // 用戶表格嘅約束係權威，覆蓋 AI 輸出
+    plan.constraints=plan.constraints||{};
+    plan.constraints.targetDistanceToleranceKm=Number.isFinite(tol)&&tol>0?tol:2;
+    if(Number.isFinite(maxH)&&maxH>0) plan.constraints.maxMovingMinutesPerDay=Math.round(maxH*60);
+    if(Number.isFinite(maxAsc)&&maxAsc>0) plan.constraints.maxAscentMPerDay=Math.round(maxAsc);
+    if(Number.isFinite(target)&&target>0) plan.targetTotalKm=target;
+    refineRound=0; stopRefine=false; lastResult=null;
+    $('btnNotesAdjust').classList.add('hidden');
+    currentNamePlan=np; originalRequest=describeForm(); pendingPlan=plan;
+    showConfirm(plan);
+    setStatus('info','AI 已生成計劃（留空嘅由 AI 補位），請確認。');
+  }catch(err){
+    setStatus('warn','AI 規劃暫時用唔到（'+err.message+'）。你可以填返起終點自己生成，或者撳「示範路線」。');
+  }finally{ $('btnPlan').disabled=false; }
 }
 /* AI 調整後核對：用戶固定點必須原樣保留（順序＋過夜角色） */
 function checkFixed(np){
@@ -397,25 +463,28 @@ function checkFixed(np){
   return null;
 }
 
-/* ═══════════════ AI（Canvas 免費 fetch 攔截；只負責距離調整，只准揀地点名） ═══════════════ */
+/* ═══════════════ AI（Canvas 免費 fetch 攔截；只准揀地点名，唔准估座標） ═══════════════ */
 const apiKey=""; // 【唔好改】Canvas 會攔截呢個 fetch，用成員自己嘅 Gemini session
-const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶表格生成，你只負責按真實距離加減「可選中途點」。只輸出 JSON，唔好有其他文字。\n'
-+'可用地点（必須從中選擇，唔好自創地点或座標）。呢個係查名用嘅地點表，唔係要去晒嘅清單——嚴禁將全部營地塞入路線：'+PLACE_LIST+'。\n'
+const PLACE_RULES='可用地点（必須從中選擇，唔好自創地点或座標）。呢個係查名用嘅地點表，唔係要去晒嘅清單——嚴禁將全部營地塞入路線：'+PLACE_LIST+'。\n'
 +'JSON 格式（唔好輸出 lat/lon，座標由系統按名填入）：\n'
 +'{"days":整數,"nights":整數,"targetTotalKm":數字,"start":{"label":"地点名"},'
 +'"waypoints":[{"id":"cp1","label":"地点名","role":"cp 或 overnight 或 finish"}],'
 +'"constraints":{"maxMovingMinutesPerDay":數字或null,"maxAscentMPerDay":數字或null,"targetDistanceToleranceKm":數字或null}}\n'
 +'規則：\n'
 +'- 用戶指定嘅起點、過夜營地、終點必須原樣保留，順序不變；過夜營地必須保持 role="overnight"。\n'
-+'- 每次最多新增 2 個可選中途點（role="cp"），要揀地理上順路嘅；太長就移除可選中途點。\n'
 +'- 最後一個 waypoint role 必須係 finish。總點數（起點＋所有 waypoints）唔超過 24。\n'
 +'- 系統按 overnight 自動分日，stages 可省略（唔好寫唔齊全嘅 stages）。\n'
 +'- 用戶要求「少啲上落／唔行樓梯」時：優先揀沿海低地中途點（大灘、黃石、海下、灣仔南／西、怡庭、曝罟灣、元五墳、西灣、鹹田灣、浪茄灣），避開要翻山嘅高地坳位（嶂上、北潭凹、鉛礦坳、昂平／昂坪）。引擎沿真實山徑貼路，唔保證完全冇樓梯，唔好虛報。\n'
 +'- 唔好虛構安全標準；約束只用用戶明確講嘅數字。';
-async function callGemini(userText){
+/* 調整用：第一輪已由表格生成，只加減可選中途點 */
+const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶表格生成，你只負責按真實距離加減「可選中途點」。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 每次最多新增 2 個可選中途點（role="cp"），要揀地理上順路嘅；太長就移除可選中途點。';
+/* 生成用：用戶留空起終點（或全部留空）→ AI 按已填資料補位／自由發揮 */
+const GEN_RULES='你係遠足路線規劃助手。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（唔好塞晒所有營地，唔好虛構座標）。';
+async function callGemini(userText, rules){
+  const r=rules||BASE_RULES;
   const resp=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({contents:[{role:'user',parts:[{text:BASE_RULES+'\n\n'+userText}]}]})
+    body:JSON.stringify({contents:[{role:'user',parts:[{text:r+'\n\n'+userText}]}]})
   });
   if(!resp.ok) throw new Error('HTTP '+resp.status);
   const data=await resp.json();

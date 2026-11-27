@@ -78,6 +78,20 @@ test('有其他要求自由欄＋每日爬升上限＋手動 AI 調整（唔行�
   assert.ok(html.includes('沿海低地中途點'), 'AI rules 要有低地／沿海揀點常識');
 });
 
+test('起終點可留空 → AI 補位；全部留空 → AI 自由發揮（唔再預填北潭涌）', () => {
+  assert.ok(!html.includes('value="北潭涌"'), '起終點唔可以再預填北潭涌');
+  assert.ok(html.includes('留空由 AI 揀'), '起終點欄要提示可留空');
+  assert.ok(html.includes('if(!startName||!finishName)'), '留空起終點要行 AI 路徑');
+  assert.ok(html.includes('async function runAiPlan()'), '要有 AI 補位規劃函數');
+  assert.ok(html.includes('GEN_RULES'), '要有生成用 AI rules');
+  assert.ok(html.includes('function skeletonFromPlan('), '要鎖定生成計劃骨架做固定點');
+  assert.ok(html.includes('自由發揮揀一條合理路線'), '全部留空要俾 AI 自由發揮');
+  assert.ok(html.includes('callGemini(spec, GEN_RULES)'), '生成路徑要用 GEN_RULES');
+  // AI 補位仍然要守住固定點同點數上限
+  assert.ok(html.includes('const ferr=checkFixed(np)'), 'AI 生成後要核對用戶填咗嘅點');
+  assert.ok(html.includes('>24'), 'AI 生成計劃要守 24 點上限');
+});
+
 test('計完路會向 DTR 攞地圖大圖（map:snapshot）並顯示＋下載', () => {
   assert.ok(html.includes("send('map:snapshot'"), '要送 map:snapshot 請求');
   assert.ok(html.includes('map:snapshot-result'), '要接截圖結果');
