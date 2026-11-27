@@ -347,6 +347,55 @@ export function useRouteManager() {
     setProgress(null);
   }, []);
 
+  // ── Embed bridge：由結構化 plan 一次過建整條路線（headless，唔使模擬 UI click）──
+  //  复用真實 buildSegment（BRouter hiking-mountain + 直線/SRTM 備援），
+  //  同時 setWaypoints/setSegments 令地圖畫出完整路線（保留 Option A 完整體驗）。
+  //  回傳 legMeta（每段貼路狀態）俾 bridge 組裝 fallback warnings。
+  const planRoute = useCallback(async (points: LatLng[]): Promise<{
+    waypoints: WaypointMarker[];
+    segments: RouteSegment[];
+    legMeta: Array<{ snapped: boolean; snappedLegs: number; totalLegs: number }>;
+  }> => {
+    if (!Array.isArray(points) || points.length < 2) {
+      throw new Error('planRoute 需要至少 2 個點');
+    }
+    setIsProcessing(true);
+    setLastError(null);
+    try {
+      const newSegments: RouteSegment[] = [];
+      const legMeta: Array<{ snapped: boolean; snappedLegs: number; totalLegs: number }> = [];
+      const elevations: number[] = [];
+
+      const [startEle] = await fetchElevations([points[0]]);
+      elevations.push(startEle ?? 0);
+
+      for (let i = 0; i < points.length - 1; i++) {
+        const { segment, snappedLegs, totalLegs } = await buildSegment(points[i], points[i + 1], 'hiking');
+        newSegments.push(segment);
+        legMeta.push({ snapped: totalLegs > 0 && snappedLegs === totalLegs, snappedLegs, totalLegs });
+        elevations.push(segment.points.at(-1)?.elevation ?? 0);
+        setProgress(`規劃中：${i + 1} / ${points.length - 1} 段`);
+      }
+
+      const newWaypoints: WaypointMarker[] = points.map((p, i) => ({
+        id: uid('wp'),
+        latlng: { lat: p.lat, lng: p.lng },
+        elevation: elevations[i] ?? 0,
+        type: i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'waypoint',
+      }));
+
+      setWaypoints(newWaypoints);
+      setSegments(newSegments);
+      return { waypoints: newWaypoints, segments: newSegments, legMeta };
+    } catch (e) {
+      setLastError(e instanceof Error ? e.message : '路線規劃失敗');
+      throw e;
+    } finally {
+      setIsProcessing(false);
+      setProgress(null);
+    }
+  }, [buildSegment, fetchElevations]);
+
   // ══════════════════════════════════════════════════════════════════
   //  手動微調（Edit）— 拖曳路點 / 拖曳中間點 / 點擊路線加彎位
   // ══════════════════════════════════════════════════════════════════
@@ -782,5 +831,7 @@ export function useRouteManager() {
     moveWaypoint, slideWaypointBackward, insertVia, moveVia, deleteVia, insertViaNear,
     // 手繪
     addDrawnStroke,
+    // embed bridge（headless 規劃；复用真實 buildSegment）
+    buildSegment, planRoute,
   };
 }

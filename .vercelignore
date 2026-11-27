@@ -49,6 +49,13 @@ replacement.txt
 # 瘦身系統守門腳本（本地/CI 用，絕不上線）
 scripts/
 
+# Embed bridge 本地測試頁（模擬 Canvas parent；只供開發，唔上生產）
+# 已搬離 public/ 到 root，Vite build 唔會抄入 dist；呢度再雙重保險
+embed-test.html
+
+# Phase 3 Canvas 成員畫面 artifact（貼入 Gemini Canvas 用，唔係 DTR 生產一部分）
+canvas-app.html
+
 # 未被任何 HTML/CSS/JS 引用過的靜態大檔（死重資源）
 public/images/terrain-bg.jpg
 public/vite.svg

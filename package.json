@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "tsx scripts/crosssection.test.mjs && node --test scripts/store_gate_verify.test.mjs",
+    "test": "tsx scripts/crosssection.test.mjs && node --test scripts/store_gate_verify.test.mjs && tsx --test scripts/bridge_contract.test.mjs && tsx --test --test-force-exit scripts/bridge_embed.test.mjs",
     "check:slim": "node scripts/slim-guard.mjs",
     "check": "tsc -b --verbose && vite build --mode production && node scripts/slim-guard.mjs"
   },
