@@ -86,3 +86,19 @@ AI 出路線（只用地點名）→ 用戶確認 → DTR 真實 BRouter 計路
 ### 部署注意
 - 改咗 DTR 生產碼（bridge／App／mapLayers／mapImageExport）⇒ 需要 merge＋Vercel deploy，Canvas 先至攞到圖。
 - Canvas 畫面改動靠用戶重新貼 `canvas-app.html`。
+
+## Phase 3.4 — 其他要求自由欄＋爬升上限＋手動 AI 調整（Canvas-only）
+
+用戶反映表格化之後冇位打「唔行樓梯／少啲上落」呢類要求。呢次**淨係改 `canvas-app.html`，冇改生產碼**（bridge 本身已支援 `maxAscentMPerDay`），唔使 Vercel deploy，重新貼 HTML 即生效。
+
+### 新增
+- **「其他要求」自由欄 `fNotes`**：打「唔行樓梯、少啲上落、想沿海行」，會帶入 `describeForm()`→`originalRequest`，每次 AI 調整 prompt 都讀到。
+- **「每日最多爬升 (m)」欄 `fMaxAscent`**：帶入 `constraints.maxAscentMPerDay`；bridge 會輸出 `max_ascent_per_day` criterion（pass/fail）。
+- **回饋循環加爬升檢查**：`maybeRefine` 而家讀 `max_ascent_per_day` criterion，`ascFail` 超標都會觸發自動調整（唔再淨係睇距離）。達標條件 = 距離 OK **且** 爬升 OK。
+- **「✨ AI 按其他要求調整」掣 `btnNotesAdjust`**：計完路先出現；就算距離／爬升達標，都可以手動叫 AI 按 notes 執一次路。唔計入自動上限，但共用同一套護欄。
+- **共用護欄 `applyAdjust()`**：自動／手動調整都行 +2 點上限、`checkFixed()` 固定點核對、地名核對，通過先至計路。
+- **AI 地理常識**：rules 加咗沿海低地營地（大灘／黃石／海下／灣仔…）vs 高地坳位（嶂上／北潭凹／鉛礦坳…）揀點指引。
+
+### 誠實限制
+- BRouter profile 固定 `hiking-mountain`，引擎沿真實山徑貼路，**唔保證完全避開樓梯**。「唔行樓梯」係偏好，AI 靠揀低海拔／沿海中途點盡量配合；UI hint 同 AI prompt 都明確講明唔好虛報。用戶要核對結果嘅爬升數字，出發前由領隊確認。
+- 測試：`canvas_gazetteer.test.mjs` +1（notes／爬升／手動調整／誠實限制），全套 39。
