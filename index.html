@@ -4,14 +4,34 @@
     <meta charset="UTF-8" />
     <script src="/store_gate_v1.0.js"></script>
     <script>
-      initStoreGate({
-        appKey: 'drawtheroute',
-        mode: 'entry-gate',
-        portalIds: ['appstore'],
-        silentPortalIds: ['library'],
-        allowStandalone: true,
-        autoRedirectSeconds: 0
-      });
+      (function () {
+        // ── Embed bootstrap（Option A／計劃 #65）─────────────────────────
+        // ?embed=1 只係「模式選擇」，唔係授權憑證。真正授權靠四層：
+        //   ① 必須身處 iframe  ② parentOrigin 必須係 Google SCF（或 dev localhost）
+        //   ③ app 內 bridge 握手驗證 event.origin === parentOrigin
+        //   ④ 生產 CSP frame-ancestors 只放行 SCF（見 vercel.json）
+        // 頂層一般入口規則維持原狀（entry-gate），唔會因任意 query 自動繞過。
+        var inIframe = false;
+        try { inIframe = window.self !== window.top; } catch (e) { inIframe = true; }
+        var params = new URLSearchParams(location.search);
+        var parentOrigin = params.get('parentOrigin') || '';
+        var isScf = /^https:\/\/[a-z0-9-]+\.scf\.usercontent\.goog$/.test(parentOrigin);
+        var sameOrigin = parentOrigin && parentOrigin === location.origin;
+        var isDevHost = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+        var devParent = isDevHost && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(parentOrigin);
+        var embedMode = inIframe && params.get('embed') === '1' && (isScf || sameOrigin || devParent);
+        window.__DTR_EMBED__ = embedMode ? { parentOrigin: parentOrigin } : null;
+        initStoreGate({
+          appKey: 'drawtheroute',
+          // embed mode 跳過頂層 entry-gate（授權由 bridge 握手＋frame-ancestors 負責）；
+          // 非 embed 一律用返原本 entry-gate。
+          mode: embedMode ? 'open' : 'entry-gate',
+          portalIds: ['appstore'],
+          silentPortalIds: ['library'],
+          allowStandalone: true,
+          autoRedirectSeconds: 0
+        });
+      })();
     </script>
     <style>
       .support-btn[hidden], .support-bar[hidden] {

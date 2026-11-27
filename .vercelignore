@@ -49,6 +49,9 @@ replacement.txt
 # 瘦身系統守門腳本（本地/CI 用，絕不上線）
 scripts/
 
+# Embed bridge 本地測試頁（模擬 Canvas parent；只供開發，唔上生產）
+public/embed-test.html
+
 # 未被任何 HTML/CSS/JS 引用過的靜態大檔（死重資源）
 public/images/terrain-bg.jpg
 public/vite.svg

@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Canvas 環境診斷 probe v1.1.1 — DrawTheRoute Phase 0</title>
+<!--
+  ══════════════════════════════════════════════════════════════════
+  DrawTheRoute × GEMINI Canvas — Phase 0 環境診斷 probe v1.1.1
+  ══════════════════════════════════════════════════════════════════
+  用途：喺真實 Gemini Canvas 入面跑，量度整合所需嘅環境能力。
+  呢頁係「診斷工具」，唔係 Phase 3 嘅 Canvas 測試頁。
+
+  v1.1 修正：v1.0 誤把「非 null origin」判為「穩定」。實測證實 Canvas origin 係
+  Google SafeContentFrame（*.scf.usercontent.goog）per-content-hash 唯一 origin，
+  唔係穩定可精確 allowlist。新增：SCF 判讀、origin 穩定性比較、外部 script 載入測試。
+
+  ★ 安全聲明：
+    · 唔呼叫 Gemini API（唔會用你任何 AI 額度）
+    · 唔計算任何行程／路線
+    · 唔上傳任何資料；報告只留喺呢頁，由你複製返俾 AGENT
+    · 唯一嘅對外請求：
+        - 載入 DrawTheRoute / example.com iframe（測 frame 能力）
+        - 一張 OSM 地圖瓦片（測 subresource 載入）
+        - DrawTheRoute 首頁 GET（測 CORS）
+        - BRouter CORS 連通測試（★ 要你手動撳掣先會發，預設唔跑）
+    · 內部 srcdoc postMessage 測試：若 origin 係 opaque/null，
+      診斷上迫住用 '*'（呢個係探測能力，唔係生產 bridge；
+      生產 bridge 嚴禁 '*'）。報告會明確標記呢一點。
+
+  點用：
+    1. 喺 Gemini Canvas 開一個新 code canvas
+    2. 切換去 code／編輯视图，全選貼入呢份 HTML
+    3. 行 preview，等佢自動跑完（約 15 秒）
+    4. 撳「複製完整報告」，貼返俾 DrawTheRoute AGENT
+    5. （選填）撳 BRouter 連通測試掣，再複製多次報告
+  ══════════════════════════════════════════════════════════════════
+-->
+<style>
+  :root{
+    --bg:#0d1320; --panel:#161e30; --line:#2a3550; --txt:#e8ecf5;
+    --muted:#8b96b0; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --acc:#60a5fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:'Noto Sans TC',system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.6}
+  header{padding:16px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{margin:0;font-size:17px}
+  header .sub{color:var(--muted);font-size:12px;margin-top:4px}
+  main{padding:16px 18px;max-width:900px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:14px;color:var(--acc)}
+  .kv{display:grid;grid-template-columns:170px 1fr;gap:4px 12px;font-size:12.5px}
+  .kv .k{color:var(--muted)}
+  .kv .v{word-break:break-all;font-family:ui-monospace,monospace}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .badge.ok{background:rgba(52,211,153,.15)} .badge.warn{background:rgba(251,191,36,.15)}
+  .badge.bad{background:rgba(248,113,113,.15)}
+  button{background:var(--acc);color:#0d1320;border:0;border-radius:8px;
+    padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+  button.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+  button:disabled{opacity:.5;cursor:default}
+  textarea{width:100%;min-height:260px;background:#0a0f1a;color:var(--txt);
+    border:1px solid var(--line);border-radius:8px;padding:10px;
+    font-family:ui-monospace,monospace;font-size:11.5px;resize:vertical}
+  .framebox{border:1px dashed var(--line);border-radius:8px;overflow:hidden;margin-top:8px;background:#fff}
+  .framebox iframe{display:block;width:100%;border:0}
+  .note{color:var(--muted);font-size:12px;margin-top:6px}
+  .verdict{font-size:13px;padding:10px 12px;border-radius:8px;margin-top:8px}
+  .verdict.ok{background:rgba(52,211,153,.1)} .verdict.warn{background:rgba(251,191,36,.1)}
+  .verdict.bad{background:rgba(248,113,113,.1)}
+  ul{margin:6px 0;padding-left:20px} li{margin:3px 0}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧭 Canvas 環境診斷 probe <span style="color:var(--muted);font-weight:400">v1.1.1 · DrawTheRoute Phase 0</span></h1>
+  <div class="sub">純診斷 · 唔呼叫 AI · 唔計行程 · 唔上傳資料 · 報告留喺本頁由你複製</div>
+</header>
+<main>
+
+  <div class="card">
+    <h2>① 環境身份</h2>
+    <div class="kv" id="envBox"><div class="k">載入中…</div><div class="v"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>② postMessage × srcdoc 子 iframe</h2>
+    <div class="kv" id="msgBox"><div class="k">測試中…</div><div class="v"></div></div>
+    <div class="note">測 artifact 自己嘅 origin 會唔會係 opaque/null，同父子 postMessage 方向。</div>
+  </div>
+
+  <div class="card">
+    <h2>③ 外站 iframe：DrawTheRoute（目視確認）</h2>
+    <div class="kv" id="dtrBox"><div class="k">測試中…</div><div class="v"></div></div>
+    <div class="framebox"><iframe id="dtrFrame" title="DrawTheRoute iframe test" style="height:300px"></iframe></div>
+    <div class="note">▲ 請目視：见到地图＝载到；见到攔截卡＝gate 擋咗；空白／錯誤＝frame policy 擋咗。Phase 0 未有 bridge，所以 postMessage 唔會有回應（正常）。</div>
+  </div>
+
+  <div class="card">
+    <h2>④ 外站 iframe 對照組：example.com</h2>
+    <div class="kv" id="exBox"><div class="k">測試中…</div><div class="v"></div></div>
+    <div class="framebox"><iframe id="exFrame" title="example.com control" style="height:140px"></iframe></div>
+    <div class="note">對照組：如果連 example.com 都載唔到，代表 Canvas 普遍禁止外站 iframe。</div>
+  </div>
+
+  <div class="card">
+    <h2>⑤ 連線／CORS（只測連通，唔係行程）</h2>
+    <div class="kv" id="netBox"><div class="k">測試中…</div><div class="v"></div></div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" id="brouterBtn">（選填）測試 BRouter CORS 連通</button>
+      <span class="note">會發一個細請求去 brouter.de，純粹測 CORS，結果唔會當行程使用。</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⑥ origin 穩定性比較（實測，關鍵）</h2>
+    <div class="note">SafeContentFrame origin 可能每次 render 都變。請：<b>重新整理 Canvas preview</b>（或開新對話）再跑一次 probe，將上一次嘅 <code>location.origin</code> 貼入嚟比較。相同＝該 artifact 穩定；不同＝每次變（精確 allowlist 不可行）。</div>
+    <div class="row" style="margin-top:8px">
+      <input id="prevOrigin" type="text" placeholder="貼上次嘅 location.origin" style="flex:1;min-width:220px;background:#0a0f1a;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:ui-monospace,monospace;font-size:12px">
+      <button class="ghost" id="cmpBtn">比較</button>
+    </div>
+    <div id="cmpResult" class="note" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>⑦ 初步判讀（AGENT 會再覆核）</h2>
+    <div id="verdictBox"></div>
+  </div>
+
+  <div class="card">
+    <h2>⑧ 完整報告</h2>
+    <div class="row" style="margin-bottom:10px">
+      <button id="copyBtn">📋 複製完整報告</button>
+      <button class="ghost" id="rerunBtn">🔄 重新跑診斷</button>
+      <span class="note" id="copyHint"></span>
+    </div>
+    <textarea id="reportText" readonly spellcheck="false"></textarea>
+  </div>
+
+</main>
+
+<script>
+'use strict';
+/* ════════════════════════════════════════════════════════════════
+   設定
+   ════════════════════════════════════════════════════════════════ */
+const PROBE_VERSION = '1.1.1';
+/* v1.1.1（2026-11-27）URL 修正：之前誤估 drawtheroute.vercel.app（唔存在 →
+   Vercel DEPLOYMENT_NOT_FOUND 404）。真實 production URL 核實自 GitHub repo
+   homepage：drawtheroute-yd8p.vercel.app。⚠ v1.0/v1.1 嘅「DTR iframe load
+   ~332ms」其實係載咗 Vercel 404 頁，唔係 DTR 本體 —— 該結論作廢，用呢版重跑。 */
+const DTR_URL    = 'https://drawtheroute-yd8p.vercel.app/';
+const DTR_ORIGIN = 'https://drawtheroute-yd8p.vercel.app';
+const EX_URL     = 'https://example.com/';
+const EX_ORIGIN  = 'https://example.com';
+const OSM_TILE   = 'https://tile.openstreetmap.org/0/0/0.png';
+/* BRouter 連通測試用嘅兩點（北潭涌附近，相距約 1km）——純 CORS 連通測試，唔係行程 */
+const BROUTER_TEST = 'https://brouter.de/brouter?lonlats=114.315000,22.405000|114.325000,22.410000&profile=hiking-mountain&alternativeidx=0&format=geojson';
+
+const REPORT = {
+  probeVersion: PROBE_VERSION,
+  startedAt: new Date().toISOString(),
+  finishedAt: null,
+  env: {},
+  tests: {},
+  verdictHints: []
+};
+
+/* ════════════════════════════════════════════════════════════════
+   工具
+   ════════════════════════════════════════════════════════════════ */
+function safe(fn, fallback){
+  try { return fn(); }
+  catch(e){ return (fallback !== undefined) ? fallback : ('ERROR ' + (e && e.name) + ': ' + (e && e.message)); }
+}
+function esc(s){
+  return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function kvRender(obj){
+  return Object.entries(obj).map(([k,v]) =>
+    '<div class="k">' + esc(k) + '</div><div class="v">' + esc(typeof v === 'object' ? JSON.stringify(v) : v) + '</div>'
+  ).join('');
+}
+function setBox(id, obj){ document.getElementById(id).innerHTML = kvRender(obj); }
+function delay(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+/* ════════════════════════════════════════════════════════════════
+   ① 環境身份
+   ════════════════════════════════════════════════════════════════ */
+function testStorage(name){
+  try {
+    const s = window[name];
+    const k = '__dtr_probe_' + Date.now();
+    s.setItem(k, '1');
+    const v = s.getItem(k);
+    s.removeItem(k);
+    return { available: true, readWriteOk: v === '1' };
+  } catch(e){
+    return { available: false, error: (e && e.name) + ': ' + (e && e.message) };
+  }
+}
+function collectEnv(){
+  const env = {};
+  env.href            = safe(() => location.href);
+  env.origin          = safe(() => location.origin);
+  env.windowOrigin    = safe(() => window.origin);
+  env.referrer        = safe(() => document.referrer);
+  env.isTop           = safe(() => window.self === window.top);
+  env.topHrefAccess   = safe(() => 'READABLE: ' + window.top.location.href, 'THROWS (cross-origin top)');
+  env.documentDomain  = safe(() => document.domain);
+  env.localStorage    = testStorage('localStorage');
+  env.sessionStorage  = testStorage('sessionStorage');
+  env.cookieEnabled   = safe(() => navigator.cookieEnabled);
+  env.randomUUID      = safe(() => typeof (window.crypto && crypto.randomUUID));
+  env.fetchToString   = safe(() => {
+    const s = Function.prototype.toString.call(window.fetch);
+    return /\[native code\]/.test(s) ? 'native' : 'PATCHED → ' + s.slice(0, 220);
+  });
+  env.xhrOpenToString = safe(() => {
+    const s = Function.prototype.toString.call(XMLHttpRequest.prototype.open);
+    return /\[native code\]/.test(s) ? 'native' : 'PATCHED → ' + s.slice(0, 220);
+  });
+  env.userAgent       = safe(() => navigator.userAgent);
+  env.platform        = safe(() => navigator.platform);
+  REPORT.env = env;
+  setBox('envBox', {
+    'location.origin': env.origin,
+    'location.href': env.href,
+    'document.referrer': env.referrer || '(empty)',
+    'window.self===top': env.isTop,
+    'top.location access': env.topHrefAccess,
+    'localStorage': env.localStorage.available ? 'available' : 'BLOCKED — ' + env.localStorage.error,
+    'sessionStorage': env.sessionStorage.available ? 'available' : 'BLOCKED — ' + env.sessionStorage.error,
+    'window.fetch': env.fetchToString,
+    'XHR.open': env.xhrOpenToString,
+    'crypto.randomUUID': env.randomUUID
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ② srcdoc 子 iframe × postMessage
+   ────────────────────────────────────────────────────────────────
+   注意：呢個係診斷測試。若 artifact origin 係 opaque/null，
+   postMessage 迫住用 '*' 先送得到 —— 報告會標記。生產 bridge 嚴禁 '*'。
+   ════════════════════════════════════════════════════════════════ */
+function testSrcdocChild(){
+  return new Promise(resolve => {
+    const result = {
+      srcdocLoaded: false,
+      childOrigin: null,
+      childHref: null,
+      parentSeenChildOrigin: null,
+      childToParentOk: false,
+      parentToChildOk: false,
+      targetOriginUsed: null,
+      notes: []
+    };
+    const myOrigin = safe(() => location.origin, 'null');
+    const target = (myOrigin && myOrigin !== 'null' && myOrigin !== '') ? myOrigin : '*';
+    result.targetOriginUsed = target;
+    if (target === '*') result.notes.push('artifact origin opaque/null → 診斷用 *（生產 bridge 不可）');
+
+    let iframe = null, done = false;
+    const cleanup = () => {
+      window.removeEventListener('message', onMsg);
+      if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    };
+    const finish = () => { if (done) return; done = true; cleanup(); resolve(result); };
+
+    function onMsg(e){
+      if (!e.data || typeof e.data !== 'object' || !e.data.__dtrProbe) return;
+      if (e.data.__dtrProbe === 'child-hello'){
+        result.childToParentOk = true;
+        result.childOrigin = e.data.info && e.data.info.origin;
+        result.childHref = e.data.info && e.data.info.href;
+        result.parentSeenChildOrigin = e.origin;
+        try {
+          iframe.contentWindow.postMessage({ __dtrProbe: 'parent-ping', nonce: 'probe-n1' }, target);
+        } catch(err){
+          result.notes.push('parent→child postMessage threw: ' + err.message);
+        }
+      }
+      if (e.data.__dtrProbe === 'child-pong'){
+        result.parentToChildOk = true;
+        result.pongEcho = e.data.echo;
+        finish();
+      }
+    }
+    window.addEventListener('message', onMsg);
+
+    try {
+      iframe = document.createElement('iframe');
+      iframe.style.cssText = 'width:1px;height:1px;border:0;position:absolute;left:-9999px;top:-9999px;';
+      iframe.setAttribute('aria-hidden', 'true');
+      const childScript =
+        '(function(){' +
+        'var info={href:location.href,origin:location.origin};' +
+        'try{parent.postMessage({__dtrProbe:"child-hello",info:info},"*");}catch(e){}' +
+        'window.addEventListener("message",function(e){' +
+        'if(e.data&&e.data.__dtrProbe==="parent-ping"){' +
+        'try{e.source.postMessage({__dtrProbe:"child-pong",echo:e.data.nonce,childOrigin:location.origin},"*");}catch(err){}' +
+        '}});' +
+        '})();';
+      iframe.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script>' + childScript + '<\/script></body></html>';
+      iframe.onload = () => { result.srcdocLoaded = true; };
+      iframe.onerror = () => { result.notes.push('srcdoc iframe onerror'); };
+      document.body.appendChild(iframe);
+    } catch(err){
+      result.notes.push('create srcdoc iframe threw: ' + err.message);
+      finish();
+      return;
+    }
+    setTimeout(finish, 5000);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ③④ 外站 iframe
+   ════════════════════════════════════════════════════════════════ */
+function testExternalIframe(frameId, url, origin, label){
+  return new Promise(resolve => {
+    const result = {
+      label, url,
+      loadEvent: null, loadTimeMs: null,
+      contentWindowLength: null,
+      postMessageSent: false, postMessageError: null,
+      bridgeResponse: false,
+      resourceEntries: [],
+      notes: []
+    };
+    const frame = document.getElementById(frameId);
+    const t0 = performance.now();
+    let done = false;
+
+    const onMsg = (e) => {
+      if (e.origin === origin && e.data && e.data.channel === 'scout.drawtheroute'){
+        result.bridgeResponse = true;
+        result.bridgeMessage = e.data;
+      }
+    };
+    window.addEventListener('message', onMsg);
+
+    const finish = () => {
+      if (done) return; done = true;
+      window.removeEventListener('message', onMsg);
+      try {
+        result.resourceEntries = performance.getEntriesByType('resource')
+          .filter(en => en.name.indexOf(new URL(url).hostname) !== -1)
+          .map(en => ({
+            initiatorType: en.initiatorType,
+            transferSize: en.transferSize,
+            responseStatus: en.responseStatus,
+            durationMs: Math.round(en.duration)
+          }));
+      } catch(err){ result.notes.push('resource timing: ' + err.message); }
+      resolve(result);
+    };
+
+    frame.onload = () => {
+      result.loadEvent = 'load';
+      result.loadTimeMs = Math.round(performance.now() - t0);
+      result.contentWindowLength = safe(() => frame.contentWindow.length, 'THROWS');
+      try {
+        frame.contentWindow.postMessage({
+          channel: 'scout.drawtheroute', version: 1,
+          type: 'probe:ping', requestId: 'probe-' + Date.now()
+        }, origin);
+        result.postMessageSent = true;
+      } catch(err){
+        result.postMessageError = err.message;
+      }
+      /* Phase 0 未有 bridge，唔預期有回應；等一陣先收 */
+      setTimeout(finish, 2500);
+    };
+    frame.onerror = () => {
+      result.loadEvent = 'error';
+      result.loadTimeMs = Math.round(performance.now() - t0);
+      setTimeout(finish, 500);
+    };
+    frame.src = url;
+    setTimeout(() => {
+      if (!result.loadEvent) result.notes.push('12s 內冇 load/error 事件');
+      finish();
+    }, 12000);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ⑤ 連線／CORS
+   ════════════════════════════════════════════════════════════════ */
+async function testFetch(url, label){
+  const t0 = performance.now();
+  try {
+    const res = await fetch(url, { method: 'GET', mode: 'cors' });
+    return { label, url, ok: res.ok, status: res.status, type: res.type,
+      ms: Math.round(performance.now() - t0), note: 'CORS 可讀' };
+  } catch(e){
+    return { label, url, ok: false, error: (e && e.name) + ': ' + (e && e.message),
+      ms: Math.round(performance.now() - t0), note: 'CORS 被擋或網絡錯誤' };
+  }
+}
+function testImage(){
+  return new Promise(resolve => {
+    const t0 = performance.now();
+    const img = new Image();
+    let done = false;
+    const fin = (ok, extra) => { if (done) return; done = true;
+      resolve(Object.assign({ ok, ms: Math.round(performance.now() - t0) }, extra || {})); };
+    img.onload = () => fin(true);
+    img.onerror = () => fin(false, { note: 'img-src 被擋或網絡錯誤' });
+    img.src = OSM_TILE;
+    setTimeout(() => fin(false, { note: '8s timeout' }), 8000);
+  });
+}
+/* 外部 script 載入（測 Canvas script-src；Option B 共享 module 可行性） */
+function testExternalScript(){
+  return new Promise(resolve => {
+    const t0 = performance.now();
+    const s = document.createElement('script');
+    let done = false;
+    const fin = (ok, extra) => { if (done) return; done = true;
+      resolve(Object.assign({ ok, ms: Math.round(performance.now() - t0) }, extra || {})); };
+    s.onload = () => fin(true, { note: 'external script 載到（script-src 容許）' });
+    s.onerror = () => fin(false, { note: 'script-src 被擋或網絡錯誤' });
+    s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+    document.head.appendChild(s);
+    setTimeout(() => fin(false, { note: '10s timeout' }), 10000);
+  });
+}
+async function testBRouter(){
+  const t0 = performance.now();
+  try {
+    const res = await fetch(BROUTER_TEST, { method: 'GET', mode: 'cors' });
+    const txt = await res.text();
+    return { ok: res.ok, status: res.status, ms: Math.round(performance.now() - t0),
+      bytes: txt.length, note: 'CORS 連通測試（唔係行程計算結果）' };
+  } catch(e){
+    return { ok: false, error: (e && e.name) + ': ' + (e && e.message),
+      ms: Math.round(performance.now() - t0), note: 'CORS 被擋或網絡錯誤' };
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ⑥ 初步判讀
+   ════════════════════════════════════════════════════════════════ */
+function buildVerdict(){
+  const hints = [];
+  const env = REPORT.env, t = REPORT.tests;
+  const origin = env.origin;
+  let host = '';
+  try { host = new URL(origin).hostname; } catch(e){}
+  const isSCF = /\.scf\.usercontent\.goog$/.test(host);
+  REPORT.env.isSafeContentFrame = isSCF;
+
+  if (origin === 'null' || origin === '' || origin == null){
+    hints.push({ level: 'bad', text: 'artifact origin 係 opaque/null → 精確 origin allowlist 做唔到（計劃 §8 No-Go 條件）。嵌套 iframe 好可能繼承 sandbox。' });
+  } else if (isSCF){
+    hints.push({ level: 'warn', text: 'artifact origin 係 Google SafeContentFrame（*.scf.usercontent.goog）。非 null，但係 per-content-hash 唯一 origin（hash＝product＋parent_origin＋salt；salt 可能係 random 或內容 hash）。→ 唔係穩定可精確 allowlist 嘅 origin；生產多用戶場景精確 allowlist 不可行（§8 No-Go 條件）。請用「origin 穩定性比較」實測。' });
+  } else {
+    hints.push({ level: 'ok', text: 'artifact origin 非 null 且非 SCF：' + origin + '（仍需實測跨 session／跨對話穩定性）。' });
+  }
+
+  if (env.localStorage && !env.localStorage.available){
+    hints.push({ level: 'bad', text: 'localStorage 被封 → sandbox 冇 allow-same-origin；DrawTheRoute 嵌套 iframe 會繼承，gate sessionStorage 通行證會失效。' });
+  } else if (env.localStorage && env.localStorage.available){
+    hints.push({ level: 'ok', text: 'localStorage 可用 → artifact 大概率唔係 opaque sandbox。' });
+  }
+
+  if (t.srcdoc){
+    if (t.srcdoc.childToParentOk && t.srcdoc.parentToChildOk){
+      hints.push({ level: 'ok', text: '父子 postMessage 雙向正常（srcdoc 子 iframe）。' });
+    } else {
+      hints.push({ level: 'warn', text: 'srcdoc postMessage 未完全正常：' + JSON.stringify(t.srcdoc.notes) });
+    }
+    if (t.srcdoc.parentSeenChildOrigin === 'null'){
+      hints.push({ level: 'bad', text: '父視窗見到子 origin 係 "null" → 生產 bridge 無法用精確 origin 驗證。' });
+    }
+  }
+
+  if (t.dtrIframe){
+    if (t.dtrIframe.loadEvent === 'load'){
+      hints.push({ level: 'warn', text: 'DrawTheRoute iframe 有 load 事件（未必代表真係載到 —— 可能係 gate 卡／錯誤頁）。請目視上方 iframe 確認。' });
+    } else if (t.dtrIframe.loadEvent === 'error'){
+      hints.push({ level: 'bad', text: 'DrawTheRoute iframe onerror → 被 frame policy 擋。' });
+    } else {
+      hints.push({ level: 'bad', text: 'DrawTheRoute iframe 12s 內冇 load 事件 → 好可能 CSP frame-src 擋咗。' });
+    }
+    if (t.dtrIframe.resourceEntries && t.dtrIframe.resourceEntries.length === 0){
+      hints.push({ level: 'bad', text: '冇 DrawTheRoute resource timing 記錄 → 請求根本冇發出（CSP frame-src 擋）。' });
+    }
+  }
+
+  if (t.exIframe && t.exIframe.loadEvent !== 'load'){
+    hints.push({ level: 'bad', text: '連 example.com 對照組都載唔到 → Canvas 普遍禁止外站 iframe（iframe 方案 No-Go）。' });
+  }
+
+  if (typeof env.fetchToString === 'string' && env.fetchToString.indexOf('PATCHED') === 0){
+    hints.push({ level: 'ok', text: 'window.fetch 已被 Canvas 攔截改寫（符合 IG 生成器所述機制）→ AI 呼叫經 Canvas 內部端點，唔使 API key。' });
+  }
+
+  REPORT.verdictHints = hints;
+  const box = document.getElementById('verdictBox');
+  box.innerHTML = hints.map(h =>
+    '<div class="verdict ' + h.level + '"><span class="badge ' + h.level + '">' +
+    (h.level === 'ok' ? '✓' : h.level === 'warn' ? '!' : '✗') + '</span> ' + esc(h.text) + '</div>'
+  ).join('');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   報告輸出
+   ════════════════════════════════════════════════════════════════ */
+function renderReport(){
+  REPORT.finishedAt = new Date().toISOString();
+  const human = [
+    '════════ DrawTheRoute × Gemini Canvas — Phase 0 環境診斷報告 ════════',
+    'probe v' + PROBE_VERSION + ' · ' + REPORT.finishedAt,
+    '',
+    '【環境】',
+    'origin: ' + REPORT.env.origin,
+    'href: ' + REPORT.env.href,
+    'referrer: ' + (REPORT.env.referrer || '(empty)'),
+    'localStorage: ' + (REPORT.env.localStorage.available ? 'OK' : 'BLOCKED'),
+    'fetch: ' + REPORT.env.fetchToString,
+    '',
+    '【初步判讀】',
+    ...REPORT.verdictHints.map(h => '[' + h.level.toUpperCase() + '] ' + h.text),
+    '',
+    '【完整 JSON】',
+    JSON.stringify(REPORT, null, 2)
+  ].join('\n');
+  document.getElementById('reportText').value = human;
+}
+
+async function copyReport(){
+  const ta = document.getElementById('reportText');
+  const hint = document.getElementById('copyHint');
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(ta.value);
+      hint.textContent = '✅ 已複製，請貼返俾 AGENT';
+      return;
+    }
+    throw new Error('no clipboard api');
+  } catch(e){
+    ta.focus(); ta.select();
+    try {
+      const ok = document.execCommand('copy');
+      hint.textContent = ok ? '✅ 已複製（fallback）' : '⚠️ 請手動全選複製';
+    } catch(e2){
+      hint.textContent = '⚠️ 請手動全選複製（sandbox 封鎖 clipboard）';
+    }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   主流程
+   ════════════════════════════════════════════════════════════════ */
+async function runAll(){
+  document.getElementById('copyHint').textContent = '';
+  collectEnv();
+
+  REPORT.tests.srcdoc = await testSrcdocChild();
+  setBox('msgBox', {
+    'srcdoc 載入': REPORT.tests.srcdoc.srcdocLoaded,
+    '子 origin': REPORT.tests.srcdoc.childOrigin,
+    '父見到子 origin': REPORT.tests.srcdoc.parentSeenChildOrigin,
+    '子→父': REPORT.tests.srcdoc.childToParentOk,
+    '父→子': REPORT.tests.srcdoc.parentToChildOk,
+    'targetOrigin 用咗': REPORT.tests.srcdoc.targetOriginUsed,
+    '備註': REPORT.tests.srcdoc.notes.join('；') || '—'
+  });
+
+  /* 兩個外站 iframe 平行跑 */
+  const [dtr, ex] = await Promise.all([
+    testExternalIframe('dtrFrame', DTR_URL, DTR_ORIGIN, 'DrawTheRoute'),
+    testExternalIframe('exFrame', EX_URL, EX_ORIGIN, 'example.com 對照組')
+  ]);
+  REPORT.tests.dtrIframe = dtr;
+  REPORT.tests.exIframe = ex;
+  setBox('dtrBox', {
+    'load 事件': dtr.loadEvent || '(冇)',
+    '耗時 ms': dtr.loadTimeMs,
+    'contentWindow.length': dtr.contentWindowLength,
+    'postMessage 送出': dtr.postMessageSent,
+    'bridge 回應': dtr.bridgeResponse ? '有（非預期）' : '冇（Phase 0 正常）',
+    'resource 記錄': dtr.resourceEntries.length ? JSON.stringify(dtr.resourceEntries) : '冇',
+    '備註': dtr.notes.join('；') || '—'
+  });
+  setBox('exBox', {
+    'load 事件': ex.loadEvent || '(冇)',
+    '耗時 ms': ex.loadTimeMs,
+    'resource 記錄': ex.resourceEntries.length ? JSON.stringify(ex.resourceEntries) : '冇',
+    '備註': ex.notes.join('；') || '—'
+  });
+
+  const [dtrFetch, img, extScript] = await Promise.all([
+    testFetch(DTR_URL, 'DrawTheRoute 首頁 GET'),
+    testImage(),
+    testExternalScript()
+  ]);
+  REPORT.tests.fetchDtr = dtrFetch;
+  REPORT.tests.osmTile = img;
+  REPORT.tests.externalScript = extScript;
+  setBox('netBox', {
+    'DrawTheRoute GET': dtrFetch.ok ? ('HTTP ' + dtrFetch.status + '（CORS 可讀）') : ('失敗 — ' + (dtrFetch.error || '')),
+    'OSM 瓦片載入': img.ok ? 'OK（subresource 載到）' : ('失敗 — ' + (img.note || '')),
+    '外部 script（jsdelivr）': extScript.ok ? 'OK（script-src 容許 → Option B 可行）' : ('失敗 — ' + (extScript.note || '')),
+    'BRouter CORS': REPORT.tests.brouter ? (REPORT.tests.brouter.ok ? 'OK' : '失敗') : '未測（撳掣先跑）'
+  });
+
+  buildVerdict();
+  renderReport();
+}
+
+document.getElementById('copyBtn').addEventListener('click', copyReport);
+document.getElementById('rerunBtn').addEventListener('click', () => location.reload());
+document.getElementById('brouterBtn').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true; btn.textContent = '測試中…';
+  REPORT.tests.brouter = await testBRouter();
+  setBox('netBox', {
+    'DrawTheRoute GET': REPORT.tests.fetchDtr.ok ? ('HTTP ' + REPORT.tests.fetchDtr.status) : '失敗',
+    'OSM 瓦片載入': REPORT.tests.osmTile.ok ? 'OK' : '失敗',
+    'BRouter CORS': REPORT.tests.brouter.ok ? ('OK（HTTP ' + REPORT.tests.brouter.status + '，' + REPORT.tests.brouter.bytes + ' bytes）') : ('失敗 — ' + (REPORT.tests.brouter.error || ''))
+  });
+  buildVerdict();
+  renderReport();
+  btn.textContent = '✅ BRouter 已測';
+});
+
+/* origin 穩定性比較 */
+document.getElementById('cmpBtn').addEventListener('click', () => {
+  const prev = document.getElementById('prevOrigin').value.trim();
+  const cur = REPORT.env.origin;
+  const el = document.getElementById('cmpResult');
+  if (!prev){ el.textContent = '請先貼上次嘅 origin'; return; }
+  const same = prev === cur;
+  REPORT.tests.originStability = { previous: prev, current: cur, same };
+  el.innerHTML = same
+    ? '<span class="ok">✅ 相同 → 呢個 artifact origin 喺兩次 render 之間穩定（caching 可能 enabled）。仍要試：開新對話／改內容後係咪一樣。</span>'
+    : '<span class="bad">✗ 不同 → origin 每次 render 變（SCF random salt／caching disabled）。精確 allowlist 不可行。</span>';
+  buildVerdict();
+  renderReport();
+});
+
+runAll();
+</script>
+</body>
+</html>

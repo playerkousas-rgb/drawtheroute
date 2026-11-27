@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>DrawTheRoute Embed Bridge — 測試（模擬 Canvas parent）</title>
+<!--
+  測試頁：模擬 GEMINI Canvas parent，驗證 Option A embed bridge。
+  ★ 已加入 .vercelignore，唔會部署上生產。
+  ★ 支援兩種環境：
+      (a) 本地／Arena preview：DTR URL = 自己 origin（同 origin）。
+      (b) 真實 Gemini Canvas：DTR URL = 有 bridge 嘅 DTR URL（cross-origin）。
+  ★ 關鍵：送訊息 targetOrigin = DTR origin；收訊息檢查 e.origin === DTR origin；
+          parentOrigin = 本頁 location.origin（Canvas 入面即 SCF origin）。
+  ★ 2026-11-27 URL 修正：之前誤估 drawtheroute.vercel.app（唔存在 → Vercel
+    DEPLOYMENT_NOT_FOUND 404，唔係白名單問題）。真實 production URL 核實自
+    GitHub repo homepage：https://drawtheroute-yd8p.vercel.app/。
+    生產版要 deploy 咗 bridge 先握手到；未 deploy 前用 Arena preview（臨時）。
+-->
+<style>
+  :root{--bg:#0d1320;--panel:#161e30;--line:#2a3550;--txt:#e8ecf5;--muted:#8b96b0;--ok:#34d399;--warn:#fbbf24;--bad:#f87171;--acc:#60a5fa}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px}
+  header{padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:15px}
+  header .sub{color:var(--muted);font-size:11px;margin-top:3px}
+  .wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 16px}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .card h2{margin:0 0 8px;font-size:13px;color:var(--acc)}
+  iframe{width:100%;height:420px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  textarea{width:100%;min-height:180px;background:#0a0f1a;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:ui-monospace,monospace;font-size:11px;resize:vertical}
+  input[type=text]{width:100%;background:#0a0f1a;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:ui-monospace,monospace;font-size:11px}
+  button{background:var(--acc);color:#0d1320;border:0;border-radius:7px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;margin-right:6px;margin-top:6px}
+  button.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+  button:disabled{opacity:.5}
+  .status{font-size:12px;padding:6px 10px;border-radius:6px;margin:6px 0}
+  .status.ok{background:rgba(52,211,153,.12);color:var(--ok)}
+  .status.warn{background:rgba(251,191,36,.12);color:var(--warn)}
+  .status.bad{background:rgba(248,113,113,.12);color:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px}
+  th,td{border:1px solid var(--line);padding:4px 6px;text-align:left}
+  th{background:#0a0f1a;color:var(--muted)}
+  .log{max-height:180px;overflow:auto;background:#0a0f1a;border:1px solid var(--line);border-radius:8px;padding:8px;font-family:ui-monospace,monospace;font-size:10.5px;white-space:pre-wrap}
+  .badge{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700}
+  .badge.pass{background:rgba(52,211,153,.15);color:var(--ok)}
+  .badge.fail{background:rgba(248,113,113,.15);color:var(--bad)}
+  .badge.unknown{background:rgba(251,191,36,.15);color:var(--warn)}
+  .note{color:var(--muted);font-size:11px;margin-top:6px}
+  ul{margin:4px 0;padding-left:18px}
+  .kv{font-size:11px;color:var(--muted);word-break:break-all;margin-top:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧪 DrawTheRoute Embed Bridge — 測試</h1>
+  <div class="sub">模擬 Canvas parent · 握手 → route:plan → route:result · 本地／真實 Canvas 都得（唔上生產）</div>
+</header>
+<div class="wrap">
+  <div>
+    <div class="card">
+      <h2>DrawTheRoute URL（iframe 目標）</h2>
+      <input type="text" id="dtrUrl" spellcheck="false">
+      <button id="btnLoad">載入／重新載入 iframe</button>
+      <div>
+        <button class="ghost" id="btnPreview">Arena preview（臨時·已有bridge）</button>
+        <button class="ghost" id="btnProd">Production（deploy後）</button>
+        <button class="ghost" id="btnLocal">本地 origin</button>
+      </div>
+      <div class="kv" id="origins"></div>
+      <div class="note">⚠ 生產版要 deploy 咗 bridge 先握手到。未 deploy 前：Canvas 測試用 Arena preview（預設）。本地／preview 開呢頁＝同 origin 自動。</div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h2>DrawTheRoute iframe（真實 app）</h2>
+      <iframe id="dtr" title="DrawTheRoute embed"></iframe>
+      <div class="note">▲ 應該見到真實 DTR 地圖。送 plan 後會畫出路線。404／空白／gate 卡＝URL 錯或未能嵌入（load 事件唔代表 app 載到）。</div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h2>狀態</h2>
+      <div id="status" class="status warn">初始化…</div>
+      <button id="btnHandshake" class="ghost">重新握手</button>
+      <button id="btnCancel" class="ghost">取消目前請求</button>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h2>route:plan（可編輯）</h2>
+      <textarea id="plan" spellcheck="false"></textarea>
+      <button id="btnSend">送出 route:plan</button>
+      <div class="note">座標係真實 WGS84。預設北潭涌→上窰→北潭涌短環線，驗 bridge＋真實 BRouter。</div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h2>結果</h2>
+      <div id="result"><div class="note">未有結果。</div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h2>訊息 log</h2>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const CHANNEL = 'scout.drawtheroute';
+const VERSION = 1;
+const frame = document.getElementById('dtr');
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+const resultEl = document.getElementById('result');
+const dtrUrlInput = document.getElementById('dtrUrl');
+const originsEl = document.getElementById('origins');
+let ready = false, acked = false, pendingId = null;
+let DTR_ORIGIN = '';                 // iframe（DTR）嘅 origin：送訊息 targetOrigin／收訊息 e.origin
+const PARENT_ORIGIN = location.origin;  // 本頁 origin：Canvas 入面即 SCF origin
+
+// ★ URL 常量（2026-11-27 核實：production = drawtheroute-yd8p，來自 GitHub repo homepage；
+//   之前誤估 drawtheroute.vercel.app → Vercel DEPLOYMENT_NOT_FOUND 404）
+const PROD_URL = 'https://drawtheroute-yd8p.vercel.app/';
+// Arena preview dev server（臨時，跟 sandbox session；已有 bridge，未 deploy 前用呢個）
+const PREVIEW_URL = 'https://5173-icxm5y9f21nhsc9i6t6c0.e2b.app/';
+(function(){
+  const h = location.hostname;
+  const isDevLike = /^(localhost|127\.0\.0\.1)$/.test(h) || /\.e2b\.app$/.test(h);
+  // 本地／preview 開呢頁 → 同 origin；Canvas 開 → 預設 Arena preview（生產未 deploy bridge）
+  dtrUrlInput.value = isDevLike ? (location.origin + '/') : PREVIEW_URL;
+})();
+
+const DEFAULT_PLAN = {
+  days: 1, nights: 0, targetTotalKm: 5,
+  start: { label: '北潭涌', lat: 22.4046, lon: 114.3147 },
+  waypoints: [
+    { id: 'cp1', label: '上窰', lat: 22.4090, lon: 114.3220, role: 'cp' },
+    { id: 'finish', label: '北潭涌', lat: 22.4046, lon: 114.3147, role: 'finish' }
+  ],
+  stages: [
+    { day: 1, from: 'start', to: 'cp1' },
+    { day: 1, from: 'cp1', to: 'finish' }
+  ],
+  constraints: { targetDistanceToleranceKm: 2 }
+};
+document.getElementById('plan').value = JSON.stringify(DEFAULT_PLAN, null, 2);
+
+function log(dir, obj){
+  const t = new Date().toISOString().slice(11,23);
+  logEl.textContent += `[${t}] ${dir} ${typeof obj==='string'?obj:JSON.stringify(obj)}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(cls, msg){ statusEl.className = 'status ' + cls; statusEl.textContent = msg; }
+function send(type, payload, requestId){
+  if (!DTR_ORIGIN){ setStatus('bad', '未載入 iframe'); return; }
+  const msg = Object.assign({ channel: CHANNEL, version: VERSION, type, requestId }, payload||{});
+  // ★ targetOrigin = DTR origin（接收方），唔係本頁 origin
+  frame.contentWindow.postMessage(msg, DTR_ORIGIN);
+  log('→', msg);
+}
+function uuid(){ return (crypto.randomUUID ? crypto.randomUUID() : 'id-'+Date.now()+'-'+Math.random().toString(36).slice(2)); }
+
+let hintTimer = null;
+function loadFrame(){
+  let url;
+  try { url = new URL(dtrUrlInput.value.trim()); }
+  catch(e){ setStatus('bad', 'DTR URL 無效：' + e.message); return; }
+  DTR_ORIGIN = url.origin;
+  ready = false; acked = false; pendingId = null;
+  originsEl.textContent = 'DTR origin: ' + DTR_ORIGIN + '  ·  parentOrigin: ' + PARENT_ORIGIN;
+  const src = DTR_ORIGIN + '/?embed=1&parentOrigin=' + encodeURIComponent(PARENT_ORIGIN);
+  log('i', '載入 iframe: ' + src);
+  setStatus('warn', '載入 iframe…');
+  if (hintTimer) clearTimeout(hintTimer);
+  // load 事件連 404 頁都會觸發；15 秒冇 ready 就提示（唔係 load 咗就等於 app 載到）
+  hintTimer = setTimeout(() => {
+    if (!ready && !acked){
+      setStatus('warn', '15 秒未收到 drawtheroute:ready —— iframe 可能係 404 頁／gate 卡／空白，或者個 URL 未 deploy bridge。目視檢查左邊 iframe。');
+      log('!', '握手逾時提示：load ≠ app 載到；檢查 iframe 內容同 URL');
+    }
+  }, 15000);
+  frame.src = src;
+}
+
+function handshake(){
+  ready = false; acked = false;
+  setStatus('warn', '送 canvas:init…');
+  send('canvas:init', { protocolVersion: VERSION, parentOrigin: PARENT_ORIGIN }, uuid());
+}
+
+window.addEventListener('message', (e) => {
+  // ★ 收訊息：來源必須係 DTR origin（唔係本頁 origin）
+  if (!DTR_ORIGIN || e.origin !== DTR_ORIGIN) return;
+  if (e.source !== frame.contentWindow) return;
+  const d = e.data;
+  if (!d || d.channel !== CHANNEL) return;
+  log('←', d);
+  if (d.type === 'drawtheroute:ready'){
+    ready = true;
+    if (hintTimer) clearTimeout(hintTimer);
+    setStatus('warn', '收到 ready，送 canvas:init…');
+    send('canvas:init', { protocolVersion: VERSION, parentOrigin: PARENT_ORIGIN }, uuid());
+  } else if (d.type === 'canvas:init-ack'){
+    acked = true;
+    if (hintTimer) clearTimeout(hintTimer);
+    setStatus('ok', '✅ 握手完成，可以送 route:plan');
+  } else if (d.type === 'route:result'){
+    if (d.requestId !== pendingId) { log('!', 'requestId 唔匹配，忽略'); return; }
+    pendingId = null;
+    renderResult(d.result);
+    setStatus('ok', '✅ 收到真實結果');
+  } else if (d.type === 'route:error'){
+    if (pendingId && d.requestId !== pendingId) return;
+    pendingId = null;
+    resultEl.innerHTML = '<div class="status bad">錯誤 ' + (d.code||'') + '：' + (d.message||'') + '（retryable: ' + d.retryable + '）</div>';
+    setStatus('bad', '錯誤：' + (d.code||''));
+  }
+});
+
+function renderResult(r){
+  if (!r){ resultEl.innerHTML = '<div class="note">冇 result</div>'; return; }
+  let html = '<div class="note">source: ' + r.source + ' · engine ' + r.engineVersion + ' · bridge ' + r.bridgeVersion + ' · ' + r.computedAt + '</div>';
+  html += '<table><tr><th>總距離</th><th>爬升</th><th>下降</th><th>估算時間</th></tr><tr><td>' +
+    (r.total.distanceM/1000).toFixed(2) + ' km</td><td>' + r.total.ascentM + ' m</td><td>' + r.total.descentM + ' m</td><td>' +
+    r.total.estimatedMovingMinutes + ' 分</td></tr></table>';
+  html += '<h2 style="font-size:12px;color:var(--acc);margin:10px 0 4px">每日</h2><table><tr><th>日</th><th>距離</th><th>爬升</th><th>時間</th><th>legs</th></tr>';
+  (r.days||[]).forEach(d => { html += '<tr><td>' + d.day + '</td><td>' + (d.distanceM/1000).toFixed(2) + ' km</td><td>' + d.ascentM + ' m</td><td>' + d.estimatedMovingMinutes + ' 分</td><td>' + d.legIndexes.join(',') + '</td></tr>'; });
+  html += '</table>';
+  html += '<h2 style="font-size:12px;color:var(--acc);margin:10px 0 4px">每段</h2><table><tr><th>#</th><th>日</th><th>起→訖</th><th>距離</th><th>貼路</th></tr>';
+  (r.legs||[]).forEach(l => { html += '<tr><td>' + l.index + '</td><td>' + l.day + '</td><td>' + l.from.label + '→' + l.to.label + '</td><td>' + (l.distanceM/1000).toFixed(2) + ' km</td><td>' + (l.snapped ? '✅' : '⚠ fallback') + '</td></tr>'; });
+  html += '</table>';
+  if (r.criteria && r.criteria.length){
+    html += '<h2 style="font-size:12px;color:var(--acc);margin:10px 0 4px">criteria</h2><ul>';
+    r.criteria.forEach(c => { html += '<li><span class="badge ' + c.status + '">' + c.status + '</span> ' + c.label + ' — ' + c.detail + '</li>'; });
+    html += '</ul>';
+  }
+  if (r.warnings && r.warnings.length){
+    html += '<h2 style="font-size:12px;color:var(--warn);margin:10px 0 4px">warnings</h2><ul>';
+    r.warnings.forEach(w => { html += '<li>[' + w.code + '] ' + w.message + '</li>'; });
+    html += '</ul>';
+  }
+  html += '<div class="note">humanReviewRequired: ' + r.humanReviewRequired + ' · fallbackUsed: ' + r.fallbackUsed + '</div>';
+  resultEl.innerHTML = html;
+}
+
+document.getElementById('btnSend').addEventListener('click', () => {
+  if (!acked){ setStatus('bad', '未完成握手'); return; }
+  if (pendingId){ setStatus('warn', '已有請求進行中'); return; }
+  let plan;
+  try { plan = JSON.parse(document.getElementById('plan').value); }
+  catch(e){ setStatus('bad', 'plan JSON 解析失敗：' + e.message); return; }
+  pendingId = uuid();
+  resultEl.innerHTML = '<div class="note">計算中…（真實 BRouter）</div>';
+  setStatus('warn', '規劃中…');
+  send('route:plan', { plan }, pendingId);
+});
+document.getElementById('btnHandshake').addEventListener('click', handshake);
+document.getElementById('btnLoad').addEventListener('click', loadFrame);
+document.getElementById('btnPreview').addEventListener('click', () => { dtrUrlInput.value = PREVIEW_URL; loadFrame(); });
+document.getElementById('btnProd').addEventListener('click', () => { dtrUrlInput.value = PROD_URL; loadFrame(); });
+document.getElementById('btnLocal').addEventListener('click', () => { dtrUrlInput.value = location.origin + '/'; loadFrame(); });
+document.getElementById('btnCancel').addEventListener('click', () => {
+  if (pendingId){ send('route:cancel', {}, pendingId); pendingId = null; setStatus('warn', '已送取消'); }
+});
+
+frame.addEventListener('load', () => { log('i', 'iframe loaded（注意：404 頁都會觸發 load）'); setTimeout(handshake, 400); });
+loadFrame();
+</script>
+</body>
+</html>

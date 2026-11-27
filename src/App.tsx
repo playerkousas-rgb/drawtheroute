@@ -10,6 +10,7 @@ import { useRouteManager } from './hooks/useRouteManager';
 import { useTerrainAnalysis } from './hooks/useTerrainAnalysis';
 import { useCpSlide } from './hooks/useCpSlide';
 import { useItineraryData } from './hooks/useItineraryData';
+import { useEmbedBridge } from './bridge/embedBridge';
 import { exportGPX } from './lib/gpxExport';
 import { saveAs } from 'file-saver';
 import { LatLng, MapLayer, NaismithSettings, ElevationProfilePoint } from './types';
@@ -56,7 +57,7 @@ function AppInner() {
     isProcessing, lastError, progress,
     addWaypoint, deleteWaypoint, undoLastSegment, clearAll, importGPX,
     moveWaypoint, slideWaypointBackward, insertVia, moveVia, deleteVia, insertViaNear,
-    addDrawnStroke,
+    addDrawnStroke, planRoute,
   } = useRouteManager();
 
   // ── 手繪 / 微調模式 ─────────────────────────────────────────────────
@@ -78,6 +79,9 @@ function AppInner() {
 
   const { stats, elevationProfile, analyzedSegments } = useTerrainAnalysis(segments, naismith);
   useItineraryData(waypoints, segments, selectedDate);
+
+  // ── Canvas embed bridge（Option A）：只喺 embed mode 啟動，頂層行為不變 ──
+  useEmbedBridge({ planRoute, naismith, appVersion: '1.0.0' });
 
   // ══════════════════════════════════════════════════════════════════════
   //  CP 位置編輯：把目標點「沿實際路線」平移，唔會拉直路線
