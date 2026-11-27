@@ -144,8 +144,8 @@ let DTR_ORIGIN='';
 (function(){
   const h=location.hostname;
   const devLike=/^(localhost|127\.0\.0\.1)$/.test(h)||/\.e2b\.app$/.test(h);
-  // 本地／preview：同 origin；Canvas（SCF）：用有 bridge 嘅 DTR URL
-  const base=devLike?(location.origin+'/'):PREVIEW_URL;
+  // 本地／preview：同 origin；Canvas（SCF）：用正式 DTR URL（merge 後有 bridge）
+  const base=devLike?(location.origin+'/'):PROD_URL;
   DTR_ORIGIN=new URL(base).origin;
   document.getElementById('dtrUrlLabel').textContent='DTR: '+DTR_ORIGIN;
   frame.src=DTR_ORIGIN+'/?embed=1&parentOrigin='+encodeURIComponent(PARENT_ORIGIN);
