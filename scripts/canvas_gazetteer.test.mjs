@@ -65,6 +65,19 @@ test('表格優先：第一輪由表格直接生成，唔經 AI、唔塞晒所�
   assert.ok(html.includes('totalPts>prevPts+2'), '要有每輪 +2 點嘅 runtime 護欄');
 });
 
+test('有其他要求自由欄＋每日爬升上限＋手動 AI 調整（唔行樓梯／少啲上落）', () => {
+  assert.ok(html.includes('id="fNotes"'), '要有「其他要求」自由欄');
+  assert.ok(html.includes('id="fMaxAscent"'), '要有每日最多爬升欄');
+  assert.ok(html.includes('maxAscentMPerDay'), '爬升上限要帶入 plan constraints');
+  assert.ok(html.includes('id="btnNotesAdjust"'), '要有手動「AI 按其他要求調整」掣');
+  assert.ok(html.includes('function manualAdjust()'), '要有手動調整函數');
+  assert.ok(html.includes("c.id==='max_ascent_per_day'"), '回饋循環要讀爬升 criterion');
+  assert.ok(html.includes('ascFail'), '爬升超標要觸發自動調整');
+  assert.ok(html.includes('function applyAdjust('), '自動／手動調整要共用護欄');
+  assert.ok(html.includes('唔保證完全冇樓梯'), '要誠實講明引擎唔保證避樓梯');
+  assert.ok(html.includes('沿海低地中途點'), 'AI rules 要有低地／沿海揀點常識');
+});
+
 test('計完路會向 DTR 攞地圖大圖（map:snapshot）並顯示＋下載', () => {
   assert.ok(html.includes("send('map:snapshot'"), '要送 map:snapshot 請求');
   assert.ok(html.includes('map:snapshot-result'), '要接截圖結果');
