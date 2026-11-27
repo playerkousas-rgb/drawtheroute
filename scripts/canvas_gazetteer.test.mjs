@@ -106,3 +106,64 @@ test('計完路會向 DTR 攞地圖大圖（map:snapshot）並顯示＋下載', 
   assert.ok(html.includes('download="DrawTheRoute-路線圖.png"'), '要有下載掣');
   assert.ok(html.includes('scheduleSnapshot()'), 'route:result 後要自動截圖');
 });
+
+test('Phase 3.7：官方準確座標（三角網測站＋標距柱）係自由選項，唔係優先；營地仍守 AFCD', () => {
+  const trigM = html.match(/const TRIG_DATA=(\[[\s\S]*?\]);/);
+  assert.ok(trigM, '要有 TRIG_DATA');
+  const trig = JSON.parse(trigM[1]);
+  assert.equal(trig.length, 231, '三角網測站要有 231 個');
+  const dpM = html.match(/const DP_DATA=(\[[\s\S]*?\]);/);
+  assert.ok(dpM, '要有 DP_DATA');
+  const dp = JSON.parse(dpM[1]);
+  assert.equal(dp.length, 940, '遠足徑標距柱要有 940 個');
+  const tms = trig.find(r => r[1] === 'TAI MO SHAN');
+  assert.ok(tms && Math.abs(tms[2] - 22.410093) < 0.001 && Math.abs(tms[3] - 114.124515) < 0.001, '大帽山座標要官方');
+  const m020 = dp.find(r => r[0] === 'M020');
+  assert.ok(m020 && Math.abs(m020[1] - 22.37011) < 0.001 && Math.abs(m020[2] - 114.37464) < 0.001, 'M020 座標要官方');
+  assert.ok(html.includes('function findDistancePost('), '要有標距柱 lookup');
+  assert.ok(html.includes('function findTrigStation('), '要有三角網測站 lookup');
+  assert.ok(html.includes('const dp=findDistancePost(label);'), 'resolvePoint 要解析標距柱');
+  assert.ok(html.includes('const tg=findTrigStation(label);'), 'resolvePoint 要解析三角網測站');
+  assert.ok(html.includes('官方準確座標・自由選用'), 'prompt 要有自由選用段落');
+  assert.ok(html.includes('冇話要優先邊種'), '要明言冇優先');
+  assert.ok(html.includes('自由選擇，唔使刻意偏好任何一種'), '要強調自由選擇');
+  assert.ok(html.includes('M001–M200') && html.includes('W001–W137') && html.includes('H001–H100') && html.includes('L001–L139'), '要畀標距柱編號範圍');
+  assert.ok(!html.includes('優先使用三角網測站'), '唔可以叫 AI 優先使用三角網測站');
+  assert.ok(!html.includes('優先揀三角網測站'), '唔可以叫 AI 優先揀三角網測站');
+  assert.ok(!html.includes('優先使用標距柱'), '唔可以叫 AI 優先使用標距柱');
+  assert.ok(html.includes('地政總署官方（三角網測站）'), '測站來源要標地政總署官方');
+  assert.ok(html.includes('AFCD官方（標距柱）'), '標距柱來源要標 AFCD 官方');
+  assert.ok(html.includes('_official'), '官方點要有 _official 旗標');
+  assert.ok(html.includes('過夜必須係 AFCD 官方營地'), '過夜仍必須 AFCD 官方營地');
+});
+
+test('Phase 3.7 lookup 行為：海拔碰撞唔誤配、營地守衛、refine 按名重解析', () => {
+  const a = html.indexOf('const GAZETTEER');
+  const cut = html.indexOf('/* ═══════════════ 狀態 ═══════════════');
+  const fn = new Function(html.slice(a, cut) + ';return {findTrigStation,findDistancePost,resolveNamePlan,findPlace};');
+  const { findTrigStation, findDistancePost, resolveNamePlan, findPlace } = fn();
+  // 海拔碰撞：「飛鵝山 605」嘅 605 係海拔，要解析去飛鵝山（137），唔係編號 605 嘅測站
+  assert.equal(findTrigStation('飛鵝山 605')._stnNo, 137);
+  assert.equal(findTrigStation('大帽山')._stnNo, 67.2);
+  assert.equal(findTrigStation('三角網測站 87')._stnNo, 87);
+  assert.equal(findTrigStation('M020'), null);
+  assert.equal(findDistancePost('麥理浩徑 M020 標距柱')._postCode, 'M020');
+  assert.equal(findDistancePost('C1101')._postCode, 'C1101');
+  assert.equal(findDistancePost('大帽山'), null);
+  // 營地守衛：測站唔可以做過夜營地
+  const r = resolveNamePlan({ days: 2, nights: 1, start: { label: '北潭涌' }, waypoints: [{ id: 'c1', label: '大帽山', role: 'overnight' }, { id: 'f', label: '北潭凹', role: 'finish' }] });
+  assert.ok(r.unresolved.some(u => u.includes('過夜必須係 AFCD 官方營地')), '測站唔可以做過夜營地');
+  // 官方點解析
+  const r2 = resolveNamePlan({ days: 1, nights: 0, start: { label: '北潭涌' }, waypoints: [{ id: 'cp1', label: 'M020', role: 'cp' }, { id: 'cp2', label: '大帽山', role: 'cp' }] });
+  const cp1 = r2.plan.waypoints.find(w => w.id === 'cp1');
+  const cp2 = r2.plan.waypoints.find(w => w.id === 'cp2');
+  assert.ok(cp1._official && cp1._source.includes('AFCD'), 'M020 要官方');
+  assert.ok(cp2._official && cp2._source.includes('地政總署'), '大帽山要官方');
+  // refine：normalize 後嘅 label 重新解析仍攞到官方座標
+  assert.equal(findDistancePost('M020（麥理浩徑）')._postCode, 'M020');
+  assert.equal(findTrigStation('TAI MO SHAN（三角網測站 67.2）')._stnNo, 67.2);
+  // 表單路徑
+  assert.equal(findPlace('M020').kind, 'dp');
+  assert.equal(findPlace('大帽山').kind, 'trig');
+  assert.equal(findPlace('猴塘溪營地').kind, 'campsite');
+});
