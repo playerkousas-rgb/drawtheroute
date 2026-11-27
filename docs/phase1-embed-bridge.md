@@ -32,8 +32,8 @@
 | `src/App.tsx` | 改 | 接入 `useEmbedBridge({ planRoute, naismith, appVersion })` |
 | `index.html` | 改 | Embed bootstrap：偵測 iframe＋embed=1＋合資格 parentOrigin → 設 `window.__DTR_EMBED__`；embed 用 gate `open`，非 embed 維持 `entry-gate` |
 | `vercel.json` | 改 | 加 CSP `frame-ancestors 'self' https://*.scf.usercontent.goog`（只喺 deploy 生效） |
-| `public/embed-test.html` | 新增 | 本地測試頁（模擬 Canvas parent）；已入 `.vercelignore`，唔上生產 |
-| `.vercelignore` | 改 | 排除 `public/embed-test.html` |
+| `embed-test.html`（root，唔入 dist） | 新增 | 本地測試頁（模擬 Canvas parent）；已入 `.vercelignore`，唔上生產 |
+| `.vercelignore` | 改 | 排除 `embed-test.html`（root，唔入 dist） |
 | `scripts/bridge_contract.test.mjs` | 新增 | Contract validator 10 項測試 |
 | `scripts/bridge_embed.test.mjs` | 新增 | Bridge hook 整合 7 項測試（jsdom＋RTL，模擬 parent） |
 | `package.json` | 改 | `npm test` 加入兩個 bridge 測試 |

@@ -7,7 +7,10 @@
 <title>DrawTheRoute Embed Bridge — 測試（模擬 Canvas parent）</title>
 <!--
   測試頁：模擬 GEMINI Canvas parent，驗證 Option A embed bridge。
-  ★ 已加入 .vercelignore，唔會部署上生產。
+  ★ 呢個係「開發用測試 harness」，唔係產品。產品＝真實 DTR app＋隱藏 bridge。
+  ★ 已搬離 public/ 到 project root：Vite build 只抄 public/，所以呢頁
+    結構上唔會入 dist／production；.vercelignore 再雙重保險。
+  ★ Dev server 仍然 serve 到 /embed-test.html（Vite dev serve root HTML）。
   ★ 支援兩種環境：
       (a) 本地／Arena preview：DTR URL = 自己 origin（同 origin）。
       (b) 真實 Gemini Canvas：DTR URL = 有 bridge 嘅 DTR URL（cross-origin）。
