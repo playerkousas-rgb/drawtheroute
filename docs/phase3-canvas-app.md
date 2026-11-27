@@ -186,3 +186,25 @@ AI 出路線（只用地點名）→ 用戶確認 → DTR 真實 BRouter 計路
 
 ### 測試
 - `canvas_gazetteer.test.mjs` 加兩個 Phase 3.7 case：數據數量（231／940）＋名山／M020 官方座標＋中性 wording（冇「優先使用三角網測站」）＋lookup 行為（海拔碰撞、營地守衛、refine 重解析、表單路徑）。全套 42（gate 9＋contract 11＋embed 12＋gazetteer 10）。
+
+## Phase 3.8 — 貼路失敗＝可修理失敗（唔再放過直線備援）＋地理連貫守則
+
+### 背景（用戶實測不合格）
+Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（萬宜水庫西壩、蛋家灣、KO LAU WAN、灣仔半島觀景點），BRouter 貼唔到路 → 引擎直線＋SRTM 備援 → `all_legs_snapped=fail`、數字 criterion 變 `unknown`。舊 `maybeRefine` 見到 `fallbackUsed` 係**直接 stop＋warn、唔修理**，將不可用嘅直線預覽當成答案呈現。用戶：「呢d 功課不能接受」。
+
+### 修復
+- **`maybeRefine` 重寫**：
+  - 由 `result.legs[].snapped` 計 `badLegs`／`snapFail`（＋`result.fallbackUsed`）。
+  - **移除 fallback bail**：貼路失敗而家係「可修理失敗」，同距離／爬升超標一樣触发自動調整循環。
+  - 修理指示：点名出事路段（from→to）；若端點係可移除畫路 CP → 替換做同一山徑網絡、唔跨海／跨水塘嘅沿徑點（標距柱／路口／山坳，可用編號）；若兩端皆固定點 → 喺之間插入 ≤2 個沿徑 CP 引導貼路。唔改起點／營地／終點。
+  - **誠實報告**：唔會自動調整（auto off／stop／cap 0）而仍有 snapFail → `status.bad`「✗ 不合格…不可用、不可導航」；到上限仍 snapFail → 同樣標不合格＋列出仍出事路段。全貼路＋達標先至 `ok`。
+- **`resultSummary`**：帶 fallback 警告（距離被低估、不可靠）＋出事路段名，咁 AI 調整時知道邊段出事。
+- **`manualAdjust`**：加 `snapInstr`——手動「按其他要求調整」都一并修理離網點。
+- **`renderResult`**：fallback 時頂部紅色橫幅「✗ 不合格…只係候選預覽」，結果面板本身明確標不可用。
+- **`PLACE_RULES` 地理連貫守則**：畫路 CP 要同起終點／營地同一連接山徑網絡；唔好揀跨海／跨水塘點（對面島、水塘對岸、孤立海岬）；沿徑揀點最易貼路。呢個係**有效性**守則，唔係座標來源優先（AI 自由度不變）。
+
+### 測試
+- `canvas_gazetteer.test.mjs` +2 case（gazetteer 12）：substring 回歸（舊 bail 移除、不合格橫幅、連貫守則）＋functional harness 模擬 `maybeRefine` 決策（fallback→触发修理／auto-off→不合格／到上限→不合格／全貼路達標→ok／resultSummary 帶警告）。全套 44（gate 9＋contract 11＋embed 12＋gazetteer 12）。
+
+### 已知／deferred
+- 地圖 label 重疊（多個 permanent tooltip 近距離互相蓋住）係 DTR iframe 內 Leaflet 渲染問題（src/），屬次要 cosmetic；今次聚焦路由質量，未改 src 地圖渲染。

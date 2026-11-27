@@ -167,3 +167,63 @@ test('Phase 3.7 lookup 行為：海拔碰撞唔誤配、營地守衛、refine �
   assert.equal(findPlace('大帽山').kind, 'trig');
   assert.equal(findPlace('猴塘溪營地').kind, 'campsite');
 });
+
+test('Phase 3.8：貼路失敗＝可修理失敗（自動替換離網 CP），唔再放過直線備援；地理連貫守則', () => {
+  // 舊嘅「fallback 就 stop＋warn」bail 必須移除
+  assert.ok(!html.includes('唔會自動繞路'), '唔可以再見到 fallback 就放過嘅 bail');
+  assert.ok(html.includes('const badLegs='), '要由 legs.snapped 計出事路段');
+  assert.ok(html.includes('snapFail'), '要有貼路失敗旗標');
+  assert.ok(html.includes('✗ 不合格'), '貼路失敗要標不合格');
+  assert.ok(html.includes('呢個結果不可用、不可導航，只係候選預覽'), '結果面板要有不合格橫幅');
+  assert.ok(html.includes('同一連接嘅山徑網絡'), 'prompt 要有地理連貫守則');
+  assert.ok(html.includes('跨海／跨水塘'), 'prompt 要禁止跨海／跨水塘揀點');
+});
+
+test('Phase 3.8 maybeRefine 決策：fallback 触发修理／auto-off 標不合格／到上限標不合格／全貼路達標', () => {
+  const src = html.slice(html.indexOf('function resultSummary'), html.indexOf('/* 手動：'));
+  const factory = new Function('deps',
+    'const {pendingPlan,stopRefine,currentNamePlan,notes,fixedLabels,originalRequest,setStatus,setConn,refineCap,callGemini,applyAdjust,$}=deps;'
+    + 'let refineRound=deps.refineRound;' + src + ';return {maybeRefine,resultSummary};');
+  const badResult = { total: { distanceM: 20000 }, days: [], fallbackUsed: true, criteria: [],
+    legs: [{ snapped: false, from: { label: '北潭涌' }, to: { label: '萬宜水庫西壩' } }, { snapped: true, from: { label: '萬宜水庫西壩' }, to: { label: '上窰' } }] };
+  const goodResult = { total: { distanceM: 40000 }, days: [], fallbackUsed: false, criteria: [],
+    legs: [{ snapped: true, from: { label: 'a' }, to: { label: 'b' } }] };
+  function run(result, over) {
+    over = over || {};
+    const calls = { status: [], prompts: [] };
+    const deps = {
+      pendingPlan: over.plan || { targetTotalKm: 40, constraints: { targetDistanceToleranceKm: 2 } },
+      stopRefine: false, currentNamePlan: { waypoints: [] }, notes: () => '', fixedLabels: ['北潭涌'], originalRequest: '',
+      refineRound: over.round || 0,
+      setStatus: (c, m) => calls.status.push([c, m]), setConn: () => {},
+      refineCap: () => (over.cap != null ? over.cap : 3),
+      callGemini: p => { calls.prompts.push(p); return Promise.resolve({ waypoints: [] }); },
+      applyAdjust: () => ({ ok: true }),
+      $: id => (id === 'autoRefine' ? { checked: over.auto !== false } : { classList: { add() {}, remove() {} } })
+    };
+    const api = factory(deps);
+    api.maybeRefine(result);
+    return { calls, api };
+  }
+  // 1) fallback + auto on → 触发修理（callGemini 被叫，prompt 含替換指示），唔係 bail
+  const c1 = run(badResult, {});
+  assert.equal(c1.calls.prompts.length, 1, 'fallback 要触发自動修理，唔可以 bail');
+  assert.ok(c1.calls.prompts[0].includes('貼唔到山徑') && c1.calls.prompts[0].includes('替換'), '修理 prompt 要点名出事路段＋叫替換');
+  assert.ok(c1.calls.status.some(s => s[0] === 'info' && s[1].includes('替換離網')), '狀態要講明替換離網 CP');
+  // 2) fallback + auto off → 誠實標不合格，唔修理
+  const c2 = run(badResult, { auto: false });
+  assert.equal(c2.calls.prompts.length, 0);
+  assert.ok(c2.calls.status[0][0] === 'bad' && c2.calls.status[0][1].includes('不合格'), 'auto-off + fallback 要標不合格');
+  // 3) fallback + 到上限 → 標不合格／不可用
+  const c3 = run(badResult, { round: 3, cap: 3 });
+  assert.equal(c3.calls.prompts.length, 0);
+  assert.ok(c3.calls.status[0][0] === 'bad' && c3.calls.status[0][1].includes('不可用'), '到上限仍 fallback 要標不可用');
+  // 4) 全貼路 + 達標 → ok，唔修理
+  const c4 = run(goodResult, {});
+  assert.equal(c4.calls.prompts.length, 0);
+  assert.ok(c4.calls.status[0][0] === 'ok' && c4.calls.status[0][1].includes('全部路段貼上山徑'), '全貼路達標要 ok');
+  // 5) resultSummary 要帶出事路段＋距離被低估警告
+  const api = factory({ pendingPlan: {}, stopRefine: false, currentNamePlan: {}, notes: () => '', fixedLabels: [], originalRequest: '', refineRound: 0, setStatus: () => {}, setConn: () => {}, refineCap: () => 3, callGemini: () => Promise.resolve({}), applyAdjust: () => ({ ok: true }), $: () => ({ checked: true, classList: { add() {}, remove() {} } }) });
+  const sum = api.resultSummary(badResult);
+  assert.ok(sum.includes('貼唔到山徑') && sum.includes('北潭涌→萬宜水庫西壩') && sum.includes('低估'), 'resultSummary 要帶 fallback 警告＋路段');
+});
