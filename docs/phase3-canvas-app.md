@@ -145,3 +145,44 @@ AI 出路線（只用地點名）→ 用戶確認 → DTR 真實 BRouter 計路
 - 畫路 CP 係 AI 網上查找，標明來源＋amber 警告，要成員喺確認面板／地圖睇過先計；DTR 磁石貼返最近山徑，計完可拖曳微調。
 - AI 座標限 HK 範圍，擋明顯 hallucination；prompt 双重聲明「唔好虛構座標」。
 - 測試：`canvas_gazetteer.test.mjs` 改寫「營地官方／畫路 CP 網上座標」case，全套 40。
+
+## Phase 3.7 — 官方準確座標做自由選項（三角網測站＋標距柱）
+
+### 目標
+畫路時除咗網上搵到嘅座標，AI／成員仲可以**自由揀用**兩套官方準確座標：
+- **地政總署三角網測站**（231 個，山峰／高地控制點，WGS84）。
+- **漁護署遠足徑標距柱**（940 個，沿徑每 500 米一支）——麥理浩徑 M001–M200、衛奕信徑 W001–W137、港島徑 H001–H100、鳳凰徑 L001–L139、各郊遊徑 C 字頭（如 C1101）。
+
+**呢啲係「加進來嘅選項」，唔係優先**：AI 可以自由揀官方點、亦可以揀網上座標，冇任何偏好引導（成員明確要求「你優先就不自由了」）。過夜營地仍然硬守 AFCD 官方。
+
+### 數據來源
+- 三角網測站：地政總署數據（Esri China HK 轉發嘅 ArcGIS FeatureServer，EPSG:4326 Point geometry，231 個）。內置 `TRIG_DATA`（`[編號,英文名,lat,lon]`）＋38 個名山中文別名 `TRIG_ZH`。
+- 標距柱：漁護署開放數據 `AFCD_Distance_Post.csv`（data.gov.hk）。內置 `DP_DATA`（`[編號,lat,lon,徑index]`）＋`DP_TRAILS`。排除咗越野單車徑（62 支），保留 940 支遠足徑標距柱。
+- 數據只係內置 lookup，**唔會塞入 AI prompt**（避免 prompt 爆炸）；AI 用編號／名引用，系統先填官方座標。
+
+### 機制
+- **`findDistancePost(label)`**：regex 抽 `[MWHL]\d{3}|C\d{4}` 編號 → `DP_BY_CODE` → 官方座標，`source:'AFCD官方（標距柱）'`、`_official:true`。
+- **`findTrigStation(label)`**：
+  - 有「測站／三角網測站／stn」標記＋編號 → 按編號查（**避免海拔數字誤配**：例如「飛鵝山 605」嘅 605 係海拔，唔會誤配去編號 605 嘅測站）。
+  - 英文名（精確 → 中文別名 `TRIG_ZH` → 最長包含）→ 官方座標。
+  - 成個 label 係純編號（如「67.2」）→ 直接查。
+  - `source:'地政總署官方（三角網測站）'`、`_official:true`。
+- **`resolvePoint`（畫路點）**：精確官方名 → **標距柱 → 三角網測站** → AI 網上座標 → 模糊官方名。AI named 官方點就填官方座標（尊重 AI 揀選，唔係優先）。
+- **`findPlace`（表單／checkFixed）**：末尾加精確標距柱／測站解析，咁成員手動填起訖點、refine 按名重解析都認得。
+- **refine 韌性**：官方點 normalize 後嘅 label（如「M020（麥理浩徑）」、「TAI MO SHAN（三角網測站 67.2）」）仍含編號／名，refine 剝走座標後重新解析都攞返官方座標。
+
+### 營地守衛（不變＋加強）
+- `resolvePoint` overnight 仍必須 `kind==='campsite'`，否則拒「過夜必須係 AFCD 官方營地」。
+- `buildPlanFromForm`／`runAiPlan` 嘅營地欄加 `kind!=='campsite'` 守衛——而家 `findPlace` 認得測站／標距柱，要防止佢哋被當營地過夜。
+
+### Prompt（中性、冇優先）
+- `PLACE_RULES` 加【官方準確座標・自由選用】段落：列兩套選項＋編號格式＋例子，明言「兩者皆可，冇話要優先邊種」「自由選擇，唔使刻意偏好任何一種」。
+- `BASE_RULES`／`GEN_RULES` 畫路 CP 描述由「網上搵座標」改為「官方測站／標距柱或網上座標皆可」。
+
+### UI
+- 確認面板／結果 CP 清單：官方測站／標距柱行 green 底＋「✓ 地政總署官方（三角網測站）」／「✓ AFCD官方（標距柱）」；AI 網上點維持 amber＋「⚠」。
+- 橫幅：全部官方時「✓ …來自官方（AFCD／地政總署）或已核實地點表」；有 AI 點時額外講明「三角網測站／標距柱亦係官方準確座標」。
+- `places` datalist 加測站（中文別名做值）＋標距柱編號建議。
+
+### 測試
+- `canvas_gazetteer.test.mjs` 加兩個 Phase 3.7 case：數據數量（231／940）＋名山／M020 官方座標＋中性 wording（冇「優先使用三角網測站」）＋lookup 行為（海拔碰撞、營地守衛、refine 重解析、表單路徑）。全套 42（gate 9＋contract 11＋embed 12＋gazetteer 10）。
