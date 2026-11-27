@@ -232,6 +232,8 @@ function wpColor(wp: WaypointMarker): string {
   return wp.type === 'start' ? COLOR.wpStart : wp.type === 'end' ? COLOR.wpEnd : COLOR.wpMid;
 }
 function wpLabel(wp: WaypointMarker, idx: number): string {
+  // 優先用 AI／bridge 帶入嘅地名，令輸出圖睇到 CP 係邊；冇 label 先退回編號
+  if (wp.label) return wp.label;
   return wp.type === 'start' ? '起點' : wp.type === 'end' ? '終點' : `CP ${idx}`;
 }
 

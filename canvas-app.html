@@ -5,10 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DrawTheRoute 遠足助手 — Gemini Canvas</title>
 <!--
-  DrawTheRoute 遠足助手（Phase 3.1 · 成員畫面）
+  DrawTheRoute 遠足助手（Phase 3.3 · 成員畫面 · 表格優先）
   ★ 貼入 Google Gemini Canvas 使用。
+  ★ 成員填表格（目標公里、每日營地、起終點、調整次數上限）；第一輪計劃由表格直接生成，
+    只用成員揀嘅地點——gazetteer 係查名用，唔係清單，唔會塞晒所有營地。
   ★ 地點座標一律來自內建已核實 gazetteer（AFCD 官方營地＋指定起訖點），AI 只准揀名，唔准估座標。
-  ★ 距離回饋循環：DTR 計完真實距離，若未達目標會自動回俾 AI 加中途點繞路，最多 3 個 round。
+  ★ 距離回饋循環：DTR 計完真實距離，若未達目標先叫 AI 加減可選中途點（每輪最多 +2 個），
+    次數上限由成員設定（預設 3，可較 0–5），達標即停，絕不無限。
+  ★ 計完路自動向 DTR 攞大張路線地圖 PNG（含 CP 地名），解決 iframe 地圖太細睇唔到 CP。
   ★ 呢個係 Canvas artifact，唔係 DTR 生產一部分；已排除於 Vercel deploy。
 -->
 <style>
@@ -73,6 +77,20 @@
   .stat{background:var(--green-bg);border-radius:10px;padding:8px 10px;text-align:center}
   .stat .v{font-size:18px;font-weight:700;color:var(--green-d)}
   .stat .l{font-size:11px;color:var(--muted)}
+  .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+  .field{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);font-weight:600}
+  .field input{border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;font-family:inherit;font-size:14px;color:var(--ink);background:#fff}
+  .field input:focus{outline:none;border-color:var(--green)}
+  .dayrows{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .dayrow{display:flex;align-items:center;gap:8px}
+  .dayrow .dlabel{font-size:12.5px;font-weight:700;color:var(--green-d);min-width:88px}
+  .dayrow input{flex:1;border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;font-family:inherit;font-size:14px;color:var(--ink)}
+  .dayrow input:focus{outline:none;border-color:var(--green)}
+  .dayrow .rm{border:0;background:var(--red-bg);color:var(--red);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:14px;flex:none}
+  .formactions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+  .formhint{font-size:11.5px;color:var(--muted);margin-top:6px}
+  #mapImageBody img{width:100%;border:1px solid var(--line);border-radius:10px;display:block}
+  .imgactions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center}
   footer{padding:6px 18px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);background:var(--card)}
   @media(max-width:640px){ header h1{font-size:14px} .inputrow{flex-direction:column} .opt{margin-left:0} }
 </style>
@@ -82,25 +100,32 @@
   <span class="logo">🥾</span>
   <div>
     <h1>DrawTheRoute 遠足助手</h1>
-    <div class="sub">講低你嘅要求，AI 幫你规划，真實地圖即刻畫出路線</div>
+    <div class="sub">填表格揀營地，真實地圖即刻畫出路線；AI 只會幫你加減中途點湊距離</div>
   </div>
   <div class="spacer"></div>
   <div class="conn" id="conn"><span class="dot"></span><span id="connText">連接中…</span></div>
 </header>
 
 <div class="inputbar">
-  <div class="inputrow">
-    <textarea id="req" placeholder="例如：我想行 3日2夜，全程約 40 公里，由北潭涌出發，途經猴塘溪營地、大灘營地，最後返北潭涌。我係新手，每日唔想行超過 6 小時。"></textarea>
-    <button class="btn primary" id="btnPlan">✨ AI 规划</button>
-    <button class="btn ghost" id="btnDemo">▶ 示範路線</button>
+  <div class="formgrid">
+    <label class="field">目標總距離（km）<input type="number" id="fTarget" value="40" min="1" max="200" step="1"></label>
+    <label class="field">距離容差 ±（km）<input type="number" id="fTol" value="2" min="0.5" max="10" step="0.5"></label>
+    <label class="field">起點<input id="fStart" list="places" value="北潭涌" autocomplete="off"></label>
+    <label class="field">終點<input id="fFinish" list="places" value="北潭涌" autocomplete="off"></label>
+    <label class="field">每日最多行走（小時，可留空）<input type="number" id="fMaxH" min="1" max="16" step="0.5" placeholder="冇限制"></label>
+    <label class="field">最多自動調整次數（0–5）<input type="number" id="fRefineCap" value="3" min="0" max="5" step="1"></label>
   </div>
-  <div class="chips">
-    <span class="chip" data-ex="3日2夜，全程約 40 公里，北潭涌出發，途經猴塘溪營地、大灘營地，返北潭涌。新手，每日唔超過 6 小時。">3日2夜 · 40km · 西貢</span>
-    <span class="chip" data-ex="一日行程，由北潭涌去上窰再返北潭涌，輕鬆路線，適合新手。">一日 · 北潭涌上窰環線</span>
+  <div class="dayrows" id="dayRows"></div>
+  <datalist id="places"></datalist>
+  <div class="formactions">
+    <button class="btn ghost" id="btnAddDay">＋ 加多一日</button>
+    <button class="btn primary" id="btnPlan">📋 生成計劃</button>
+    <button class="btn ghost" id="btnDemo">▶ 示範路線</button>
     <span class="chip demo" id="chipDemo">▶ 唔使 AI，直接試示範</span>
-    <label class="opt"><input type="checkbox" id="autoRefine" checked> 自動繞路到目標距離</label>
+    <label class="opt"><input type="checkbox" id="autoRefine" checked> 距離唔達標時自動叫 AI 繞路</label>
     <button class="btn ghost hidden" id="btnStopRefine" style="padding:5px 10px;font-size:12px">停止自動調整</button>
   </div>
+  <div class="formhint">營地／起終點必須喺地點表入面（打名會有建議）；第一輪只會行你揀嘅地點。調整次數 0 = 唔自動繞路；達標會即刻停。</div>
 </div>
 
 <main>
@@ -117,6 +142,11 @@
   <div class="panel hidden" id="resultPanel">
     <h3>📊 真實計算結果（DrawTheRoute 引擎）</h3>
     <div id="resultBody"></div>
+  </div>
+
+  <div class="panel hidden" id="mapImagePanel">
+    <h3>🗺 路線地圖大圖（CP 位置＋地名）</h3>
+    <div id="mapImageBody"></div>
   </div>
 
   <div class="mapwrap">
@@ -184,7 +214,14 @@ function resolveNamePlan(np){
 /* ═══════════════ 狀態 ═══════════════ */
 let ready=false, acked=false, pendingId=null, pendingPlan=null;
 let originalRequest='', currentNamePlan=null, refineRound=0, stopRefine=false;
-const MAX_REFINE_ROUNDS=3;
+let fixedLabels=[], fixedCamps=[];                 // 用戶表格指定嘅固定點（AI 唔准郁）
+let snapshotId=null, snapDelayTimer=null, snapWaitTimer=null;
+const MAX_REFINE_ROUNDS=3;                          // 預設上限；成員可喺表格較 0–5
+const MAX_DAY_ROWS=13;                              // 13 個營地 = 14 日（bridge MAX_DAYS=14）
+function refineCap(){
+  const v=parseInt($('fRefineCap').value,10);
+  return Number.isFinite(v)?Math.max(0,Math.min(5,v)):MAX_REFINE_ROUNDS;
+}
 const $=id=>document.getElementById(id);
 function setStatus(cls,msg){ const s=$('status'); s.className='status '+cls; s.textContent=msg; }
 function setConn(state,text){ const c=$('conn'); c.className='conn '+state; $('connText').textContent=text; }
@@ -204,17 +241,28 @@ window.addEventListener('message',e=>{
     send('canvas:init',{protocolVersion:VERSION,parentOrigin:PARENT_ORIGIN},uuid());
   } else if(d.type==='canvas:init-ack'){
     acked=true; setConn('ok','✓ DrawTheRoute 已就緒');
-    setStatus('ok','已連接 DrawTheRoute。打你嘅要求，或者撳「示範路線」。');
+    setStatus('ok','已連接 DrawTheRoute。填好表格撳「生成計劃」，或者撳「示範路線」。');
   } else if(d.type==='route:result'){
     if(d.requestId!==pendingId) return;
     pendingId=null; renderResult(d.result);
     maybeRefine(d.result);
+    scheduleSnapshot();
   } else if(d.type==='route:error'){
     if(pendingId&&d.requestId!==pendingId) return;
     pendingId=null;
     setStatus('bad','計路錯誤：'+(d.code||'')+' '+(d.message||''));
     setConn('ok','✓ DrawTheRoute 已就緒');
     $('btnStopRefine').classList.add('hidden');
+    if(snapDelayTimer){ clearTimeout(snapDelayTimer); snapDelayTimer=null; }
+  } else if(d.type==='map:snapshot-result'){
+    if(d.requestId!==snapshotId) return;
+    snapshotId=null; if(snapWaitTimer){ clearTimeout(snapWaitTimer); snapWaitTimer=null; }
+    renderMapImage(d.image);
+  } else if(d.type==='map:snapshot-error'){
+    if(d.requestId!==snapshotId) return;
+    snapshotId=null; if(snapWaitTimer){ clearTimeout(snapWaitTimer); snapWaitTimer=null; }
+    $('mapImagePanel').classList.remove('hidden');
+    $('mapImageBody').innerHTML='<div class="status warn">地圖大圖暫時整唔到：'+(d.message||'')+'。你仍可喺下面地圖睇，或者喺 DTR 用「匯出地圖」。</div>';
   }
 });
 frame.addEventListener('load',()=>{ setTimeout(()=>{ if(!acked) send('canvas:init',{protocolVersion:VERSION,parentOrigin:PARENT_ORIGIN},uuid()); },500); });
@@ -234,25 +282,117 @@ const DEMO_PLAN={
 function runDemo(){
   if(!acked){ setStatus('warn','仲未連接 DrawTheRoute，稍候再試。'); return; }
   stopRefine=true; refineRound=0; currentNamePlan=null;
+  fixedLabels=['北潭涌','上窰','北潭涌']; fixedCamps=[];
   pendingPlan=DEMO_PLAN;
   $('confirmPanel').classList.add('hidden');
   startRoute(DEMO_PLAN);
 }
 
-/* ═══════════════ AI（Canvas 免費 fetch 攔截；只准揀地点名） ═══════════════ */
+/* ═══════════════ 表格（第一輪計劃由表格直接生成，唔經 AI，唔會塞晒所有營地） ═══════════════ */
+function initForm(){
+  $('places').innerHTML=GAZETTEER.map(p=>'<option value="'+p.name+'">').join('');
+  addDayRow('猴塘溪營地');
+  addDayRow('大灘營地');
+}
+function dayRowCount(){ return document.querySelectorAll('#dayRows .dayrow').length; }
+function renumberDays(){
+  document.querySelectorAll('#dayRows .dayrow').forEach((row,i)=>{
+    row.querySelector('.dlabel').textContent='第 '+(i+1)+' 日營地';
+  });
+  $('btnAddDay').disabled = dayRowCount()>=MAX_DAY_ROWS;
+}
+function addDayRow(value){
+  if(dayRowCount()>=MAX_DAY_ROWS){ setStatus('warn','最多 '+MAX_DAY_ROWS+' 個營地（14 日）。'); return; }
+  const row=document.createElement('div');
+  row.className='dayrow';
+  row.innerHTML='<span class="dlabel"></span><input list="places" class="dayCamp" autocomplete="off" placeholder="打營地名，例如：嶂上營地"><button class="rm" title="刪除呢一日" type="button">✕</button>';
+  row.querySelector('input').value=value||'';
+  $('dayRows').appendChild(row);
+  renumberDays();
+}
+$('dayRows').addEventListener('click',e=>{
+  if(e.target.classList.contains('rm')){ e.target.closest('.dayrow').remove(); renumberDays(); }
+});
+$('btnAddDay').addEventListener('click',()=>addDayRow(''));
+
+function buildPlanFromForm(){
+  const startName=$('fStart').value.trim();
+  const finishName=$('fFinish').value.trim()||startName;
+  const camps=[...document.querySelectorAll('#dayRows .dayCamp')].map(i=>i.value.trim()).filter(Boolean);
+  const problems=[];
+  const sp=findPlace(startName); if(!sp) problems.push(startName||'（起點未填）');
+  const fp=findPlace(finishName); if(!fp) problems.push(finishName||'（終點未填）');
+  const campPlaces=camps.map(c=>{ const p=findPlace(c); if(!p) problems.push(c); return p; });
+  if(problems.length) return {error:'以下地點唔喺已核實地點表：'+problems.join('、')+'。請用下拉建議嘅名（AFCD 官方營地／已核實起訖點）。'};
+  const target=parseFloat($('fTarget').value);
+  const tol=parseFloat($('fTol').value);
+  const maxH=parseFloat($('fMaxH').value);
+  const waypoints=campPlaces.map((p,i)=>({id:'cp'+(i+1),label:p.name,lat:p.lat,lon:p.lon,role:'overnight',_source:p.source}));
+  waypoints.push({id:'finish',label:fp.name,lat:fp.lat,lon:fp.lon,role:'finish',_source:fp.source});
+  const constraints={targetDistanceToleranceKm:Number.isFinite(tol)&&tol>0?tol:2};
+  if(Number.isFinite(maxH)&&maxH>0) constraints.maxMovingMinutesPerDay=Math.round(maxH*60);
+  const plan={
+    days:camps.length+1, nights:camps.length,
+    targetTotalKm:Number.isFinite(target)&&target>0?target:null,
+    start:{label:sp.name,lat:sp.lat,lon:sp.lon,_source:sp.source},
+    waypoints, constraints
+  };
+  return {plan, fixedLabels:[sp.name,...campPlaces.map(p=>p.name),fp.name], campLabels:campPlaces.map(p=>p.name)};
+}
+function toNamePlan(plan){
+  return {
+    days:plan.days, nights:plan.nights, targetTotalKm:plan.targetTotalKm,
+    start:{label:plan.start.label},
+    waypoints:(plan.waypoints||[]).map(w=>({id:w.id,label:w.label,role:w.role})),
+    constraints:plan.constraints
+  };
+}
+function describeForm(){
+  const camps=[...document.querySelectorAll('#dayRows .dayCamp')].map(i=>i.value.trim()).filter(Boolean);
+  let s='用戶表格：目標總距離 '+($('fTarget').value||'未設')+' km，起點 '+$('fStart').value+'，';
+  s+=camps.map((c,i)=>'第'+(i+1)+'日營地 '+c).join('，');
+  s+='，終點 '+($('fFinish').value||$('fStart').value)+'。';
+  if($('fMaxH').value) s+='每日最多行走 '+$('fMaxH').value+' 小時。';
+  return s;
+}
+function runPlan(){
+  if(!acked){ setStatus('warn','仲未連接 DrawTheRoute，稍候再試。'); return; }
+  const built=buildPlanFromForm();
+  if(built.error){ setStatus('bad',built.error); return; }
+  fixedLabels=built.fixedLabels; fixedCamps=built.campLabels;
+  refineRound=0; stopRefine=false;
+  currentNamePlan=toNamePlan(built.plan);
+  originalRequest=describeForm();
+  pendingPlan=built.plan;
+  showConfirm(built.plan);
+  setStatus('info','已按你嘅表格生成計劃（只包含你揀地點），請確認。');
+}
+/* AI 調整後核對：用戶固定點必須原樣保留（順序＋過夜角色） */
+function checkFixed(np){
+  const norm=l=>{ const p=findPlace(l); return p?p.name:String(l||'').trim(); };
+  const labels=[norm(np.start&&np.start.label),...(np.waypoints||[]).map(w=>norm(w.label))];
+  let j=0;
+  for(const l of labels){ if(j<fixedLabels.length&&l===fixedLabels[j]) j++; }
+  if(j<fixedLabels.length) return 'AI 改動咗你指定嘅起點／營地／終點';
+  for(const w of (np.waypoints||[])){
+    if(fixedCamps.includes(norm(w.label))&&w.role!=='overnight') return 'AI 改咗過夜營地嘅角色';
+  }
+  return null;
+}
+
+/* ═══════════════ AI（Canvas 免費 fetch 攔截；只負責距離調整，只准揀地点名） ═══════════════ */
 const apiKey=""; // 【唔好改】Canvas 會攔截呢個 fetch，用成員自己嘅 Gemini session
-const BASE_RULES='你係遠足路線規劃助手。只輸出 JSON，唔好有其他文字。\n'
-+'可用地点（必須從中選擇，唔好自創地点或座標）：'+PLACE_LIST+'。\n'
+const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶表格生成，你只負責按真實距離加減「可選中途點」。只輸出 JSON，唔好有其他文字。\n'
++'可用地点（必須從中選擇，唔好自創地点或座標）。呢個係查名用嘅地點表，唔係要去晒嘅清單——嚴禁將全部營地塞入路線：'+PLACE_LIST+'。\n'
 +'JSON 格式（唔好輸出 lat/lon，座標由系統按名填入）：\n'
 +'{"days":整數,"nights":整數,"targetTotalKm":數字,"start":{"label":"地点名"},'
 +'"waypoints":[{"id":"cp1","label":"地点名","role":"cp 或 overnight 或 finish"}],'
-+'"stages":[{"day":1,"from":"start","to":"cp1"}],'
 +'"constraints":{"maxMovingMinutesPerDay":數字或null,"maxAscentMPerDay":數字或null,"targetDistanceToleranceKm":數字或null}}\n'
 +'規則：\n'
-+'- 最後一個 waypoint role 必須係 finish，通常返到起點。\n'
-+'- 用戶指定嘅營地必須保留並按順序；可以喺之間插入其他可用地点做中途點。\n'
-+'- 用戶指定嘅過夜營地必須保持 role="overnight"；系統按 overnight 自動分日，stages 可省略（唔好寫唔齊全嘅 stages）。\n'
-+'- 要達到目標總距離，必須揀足夠多嘅中途點绕路，唔好只係起點→營地→終點嘅最短路径。\n'
++'- 用戶指定嘅起點、過夜營地、終點必須原樣保留，順序不變；過夜營地必須保持 role="overnight"。\n'
++'- 每次最多新增 2 個可選中途點（role="cp"），要揀地理上順路嘅；太長就移除可選中途點。\n'
++'- 最後一個 waypoint role 必須係 finish。總點數（起點＋所有 waypoints）唔超過 24。\n'
++'- 系統按 overnight 自動分日，stages 可省略（唔好寫唔齊全嘅 stages）。\n'
 +'- 唔好虛構安全標準；約束只用用戶明確講嘅數字。';
 async function callGemini(userText){
   const resp=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
@@ -271,28 +411,6 @@ function extractJSON(raw){
   if(s<0||e<0) return null;
   try{ return JSON.parse(raw.slice(s,e+1)); }catch(_){ return null; }
 }
-async function runAI(){
-  const text=$('req').value.trim();
-  if(!text){ setStatus('warn','請先打你嘅遠足要求。'); return; }
-  if(!acked){ setStatus('warn','仲未連接 DrawTheRoute，稍候再試。'); return; }
-  originalRequest=text; refineRound=0; stopRefine=false;
-  setStatus('info','AI 理解緊你嘅要求…');
-  $('btnPlan').disabled=true;
-  try{
-    const np=await callGemini('使用者要求：'+text);
-    const {plan,unresolved}=resolveNamePlan(np);
-    if(unresolved.length){
-      setStatus('bad','AI 揀咗未收录嘅地点：'+unresolved.join('、')+'。請用地點表入面嘅名，或者改吓要求。');
-      return;
-    }
-    currentNamePlan=np; pendingPlan=plan;
-    showConfirm(plan);
-    setStatus('info','AI 已生成計劃，請確認。');
-  }catch(err){
-    setStatus('warn','AI 规划暫時用唔到（'+err.message+'）。喺 Gemini Canvas 入面先有免費 AI；你可以先撳「示範路線」。');
-  }finally{ $('btnPlan').disabled=false; }
-}
-
 /* ═══════════════ 確認面板 ═══════════════ */
 function showConfirm(plan){
   const pts=[plan.start,...(plan.waypoints||[])];
@@ -329,9 +447,10 @@ function maybeRefine(result){
   const target=plan&&plan.targetTotalKm;
   const tol=(plan&&plan.constraints&&plan.constraints.targetDistanceToleranceKm!=null)?plan.constraints.targetDistanceToleranceKm:2;
   const auto=$('autoRefine').checked;
+  const cap=refineCap();
   const distKm=result.total.distanceM/1000;
   setConn('ok','✓ DrawTheRoute 已就緒');
-  if(!auto||stopRefine||!target||!currentNamePlan){
+  if(!auto||stopRefine||!target||!currentNamePlan||cap<=0){
     setStatus('ok','✓ 路線已畫喺地圖。你可以喺地圖微調、匯出 GPX。');
     $('btnStopRefine').classList.add('hidden');
     return;
@@ -346,22 +465,36 @@ function maybeRefine(result){
     $('btnStopRefine').classList.add('hidden');
     return;
   }
-  if(refineRound>=MAX_REFINE_ROUNDS){
-    setStatus('warn','已調整 '+MAX_REFINE_ROUNDS+' 次，而家 '+distKm.toFixed(1)+' km，目標 '+target+' km。請喺地圖手動加減 CP，或者改要求。');
+  if(refineRound>=cap){
+    setStatus('warn','已調整 '+refineRound+'／'+cap+' 次（到你設定嘅上限），而家 '+distKm.toFixed(1)+' km，目標 '+target+' km。請喺地圖手動加減 CP，或者改表格再計。');
     $('btnStopRefine').classList.add('hidden');
     return;
   }
   refineRound++;
   $('btnStopRefine').classList.remove('hidden');
-  setStatus('info','第 '+refineRound+' 次調整：而家 '+distKm.toFixed(1)+' km，目標 '+target+' km，AI 加減中途點繞路中…');
+  setStatus('info','第 '+refineRound+'／'+cap+' 次調整：而家 '+distKm.toFixed(1)+' km，目標 '+target+' km，AI 加減中途點繞路中…');
   const dayLines=(result.days||[]).map(d=>'第'+d.day+'日 '+(d.distanceM/1000).toFixed(1)+'km').join('；');
   const prompt='上一次計劃：'+JSON.stringify(currentNamePlan)+'\n'
     +'DrawTheRoute 真實計算結果：總距離 '+distKm.toFixed(2)+' km；'+dayLines+'。\n'
     +'目標總距離 '+target+' km，容差 '+tol+' km。\n'
-    +(distKm<target?'而家太短，請插入更多可用中途點绕路（例如嶂上營地、灣仔南營地、灣仔西營地、海下、北潭凹、西灣營地、鹹田灣營地、浪茄灣營地），保留用戶指定營地同起終點，並保持過夜營地 role="overnight"。':'而家太長，請移除可選中途點，保留用戶指定營地同起終點，並保持過夜營地 role="overnight"。')
-    +'\n請輸出修改後嘅同一 JSON 格式（只用地點名，唔好輸出座標）。使用者原本要求：'+originalRequest;
+    +'用戶固定地點（必須原樣保留、順序不變）：'+fixedLabels.join(' → ')+'。\n'
+    +(distKm<target?'而家太短，請插入最多 2 個地理上順路嘅可選中途點（role="cp"）绕路，保留用戶指定營地同起終點，並保持過夜營地 role="overnight"。唔好將地點表全部營地塞入去。':'而家太長，請移除可選中途點（role="cp"），保留用戶指定營地同起終點，並保持過夜營地 role="overnight"。')
+    +'\n請輸出修改後嘅同一 JSON 格式（只用地點名，唔好輸出座標）。'+originalRequest;
   callGemini(prompt).then(np=>{
     if(stopRefine){ setStatus('info','已停止自動調整。'); $('btnStopRefine').classList.add('hidden'); return; }
+    const totalPts=1+((np.waypoints||[]).length);
+    const prevPts=1+(((currentNamePlan&&currentNamePlan.waypoints)||[]).length);
+    if(totalPts>24||totalPts>prevPts+2){
+      setStatus('warn','AI 一次過加咗太多點（'+prevPts+'→'+totalPts+'），違反每輪最多 +2 嘅規則，已停止自動調整。');
+      $('btnStopRefine').classList.add('hidden');
+      return;
+    }
+    const fixedErr=checkFixed(np);
+    if(fixedErr){
+      setStatus('warn',fixedErr+'，已停止自動調整。');
+      $('btnStopRefine').classList.add('hidden');
+      return;
+    }
     const {plan,unresolved}=resolveNamePlan(np);
     if(unresolved.length){
       setStatus('warn','AI 調整時揀咗未收录地点：'+unresolved.join('、')+'。已停止自動調整。');
@@ -393,7 +526,7 @@ function renderResult(r){
   }
   if(pendingPlan){
     const pts=[pendingPlan.start,...(pendingPlan.waypoints||[])];
-    h+='<div style="font-weight:700;color:var(--green-d);margin:10px 0 4px">📍 AI 規劃 CP 清單</div>';
+    h+='<div style="font-weight:700;color:var(--green-d);margin:10px 0 4px">📍 路線 CP 清單</div>';
     h+='<table><tr><th>#</th><th>地點</th><th>角色</th><th>座標</th></tr>';
     pts.forEach((p,i)=>{
       const role=p.role||'cp';
@@ -425,13 +558,43 @@ function renderResult(r){
 }
 function fmtMin(m){ if(m==null) return '—'; const h=Math.floor(m/60), mm=Math.round(m%60); return h>0?(h+' 小時 '+mm+' 分'):(mm+' 分'); }
 
+/* ═══════════════ 地圖大圖（向 DTR 攞 PNG，解決 iframe 太細） ═══════════════ */
+function scheduleSnapshot(){
+  if(snapDelayTimer) clearTimeout(snapDelayTimer);
+  snapDelayTimer=setTimeout(()=>{ snapDelayTimer=null; requestSnapshot(); },1500);
+}
+function requestSnapshot(){
+  if(!acked) return;
+  snapshotId=uuid();
+  $('mapImagePanel').classList.remove('hidden');
+  $('mapImageBody').innerHTML='<div class="muted">⏳ DrawTheRoute 繪製緊路線大圖（連 CP 地名）…</div>';
+  send('map:snapshot',{},snapshotId);
+  if(snapWaitTimer) clearTimeout(snapWaitTimer);
+  snapWaitTimer=setTimeout(()=>{
+    snapWaitTimer=null;
+    if(snapshotId){ snapshotId=null; $('mapImageBody').innerHTML='<div class="status warn">等咗 90 秒都未有圖。你可以喺下面 DTR 地圖用「匯出地圖」自己輸出。</div>'; }
+  },90000);
+}
+function renderMapImage(dataUrl){
+  if(typeof dataUrl!=='string'||!dataUrl.startsWith('data:image/')){
+    $('mapImageBody').innerHTML='<div class="status warn">收到嘅圖片格式唔正確。</div>';
+    return;
+  }
+  $('mapImagePanel').classList.remove('hidden');
+  $('mapImageBody').innerHTML='<img alt="DrawTheRoute 路線大圖（連 CP 地名）" src="'+dataUrl+'">'
+    +'<div class="imgactions">'
+    +'<a class="btn primary" style="text-decoration:none" download="DrawTheRoute-路線圖.png" href="'+dataUrl+'">⬇ 下載地圖大圖</a>'
+    +'<button class="btn ghost" id="btnResnap" type="button">🔄 重新截圖</button>'
+    +'<span class="muted">如果下載唔到，可以長按／右鍵圖片另存。</span>'
+    +'</div>';
+  $('btnResnap').addEventListener('click',requestSnapshot);
+}
+
 /* ═══════════════ 事件 ═══════════════ */
-$('btnPlan').addEventListener('click',runAI);
+initForm();
+$('btnPlan').addEventListener('click',runPlan);
 $('btnDemo').addEventListener('click',runDemo);
 $('chipDemo').addEventListener('click',runDemo);
-document.querySelectorAll('.chip[data-ex]').forEach(ch=>{
-  ch.addEventListener('click',()=>{ $('req').value=ch.getAttribute('data-ex'); });
-});
 </script>
 </body>
 </html>

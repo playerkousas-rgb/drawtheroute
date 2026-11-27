@@ -62,3 +62,27 @@ AI 出路線（只用地點名）→ 用戶確認 → DTR 真實 BRouter 計路
 ### 部署注意
 - 呢次改咗 DTR 生產碼（bridge／行程表），**需要 merge＋Vercel deploy** 先至令嵌入嘅 DTR 識填名。
 - Canvas 畫面改動則靠用戶重新貼 `canvas-app.html`。
+
+## Phase 3.3 — 表格優先＋可設定調整次數＋地圖大圖輸出
+
+### A. 表格優先（`canvas-app.html`）
+- 自由文本 prompt 換成 HTML 表格：目標公里、容差、起點、終點、每日最多小時、**最多自動調整次數（0–5，預設 3）**；「第 N 日營地」一行一欄，「＋加多一日」動態加欄（上限 13 個營地＝14 日，對應 bridge `MAX_DAYS`）。
+- 第一輪計劃由 `buildPlanFromForm()` **直接由表格生成，唔經 AI**：只包含成員揀嘅起點／營地／終點，gazetteer 只係查名錶。徹底解決「AI 塞晒 41 個官方營地入第一輪 → 幾百公里」嘅問題。
+- 所有地名經 `findPlace()` 對 gazetteer；唔收录嘅名即時報錯，唔會估座標。
+
+### B. 調整循環護欄
+- 上限由 `refineCap()` 讀表格（夾喺 0–5；0 = 唔自動調整），狀態列顯示「第 X／Y 次調整」。達標即停、有停止掣、fallback 唔調整——全部保留。
+- AI 只做距離調整：prompt 明言 gazetteer「唔係要去晒嘅清單」、每輪最多 +2 個順路中途點。
+- Runtime 護欄：`checkFixed()` 核對用戶固定點順序＋過夜角色冇被 AI 改動；`totalPts>prevPts+2` 或 >24 點即停。AI 違規唔會靜靜雞照計。
+
+### C. 地圖大圖（DTR 生產碼＋Canvas）
+- `src/lib/mapLayers.ts`：由 `MapExportDialog` 抽出 `LAYER_META`（含 hm20c LandsD credit），兩邊共用。
+- `mapImageExport.ts` `wpLabel()` 優先用 `WaypointMarker.label` ⇒ 輸出圖 CP pill 顯示真實地名。
+- `embedBridge.ts`：新訊息 `map:snapshot` → `map:snapshot-result`（PNG dataURL＋尺寸）／`map:snapshot-error`；要已握手、有 `captureMap` dep、單一截圖進行中（busy 即拒）。沿用精確 targetOrigin／origin＋source 核對。
+- `App.tsx` `captureMap()`：用目前 segments/waypoints/底圖，`renderMapImage` fit 全路線（+12% margin）1600×1200，回 dataURL。
+- Canvas：`route:result` 後 1.5 秒自動 `scheduleSnapshot()`，新面板顯示大圖＋「⬇下載」＋「🔄重新截圖」；90 秒超時有提示。iframe 地圖太細嘅問題由大圖解決。
+- 測試：`bridge_embed.test.mjs` +4（成功／冇 dep／未握手／失敗＋busy），`canvas_gazetteer.test.mjs` +2（表格優先＋截圖）。全套 38。
+
+### 部署注意
+- 改咗 DTR 生產碼（bridge／App／mapLayers／mapImageExport）⇒ 需要 merge＋Vercel deploy，Canvas 先至攞到圖。
+- Canvas 畫面改動靠用戶重新貼 `canvas-app.html`。

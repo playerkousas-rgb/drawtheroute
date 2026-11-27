@@ -34,6 +34,8 @@ export interface BridgeDeps {
   }>;
   naismith: NaismithSettings;
   appVersion: string;
+  /** 可選：截取目前路線地圖（含 CP 地名）做 PNG dataURL，回俾 Canvas 顯示／下載 */
+  captureMap?: () => Promise<{ dataUrl: string; width: number; height: number }>;
 }
 
 export function readEmbedConfig(): EmbedConfig | null {
@@ -54,6 +56,7 @@ export function useEmbedBridge(deps: BridgeDeps): void {
 
     let handshakeDone = false;
     let busy = false;
+    let snapshotBusy = false;
     let currentRequestId: string | null = null;
     let cancelled = false;
     let timeoutTimer: number | null = null;
@@ -200,6 +203,19 @@ export function useEmbedBridge(deps: BridgeDeps): void {
       }
       if (env.type === 'route:cancel') {
         if (env.requestId && env.requestId === currentRequestId) { cancelled = true; sendError(env.requestId, ERROR_CODES.CANCELLED, '已取消。', false); }
+        return;
+      }
+      if (env.type === 'map:snapshot') {
+        if (!handshakeDone) { send('map:snapshot-error', { message: '未完成握手。' }, env.requestId); return; }
+        const cap = depsRef.current.captureMap;
+        if (!cap) { send('map:snapshot-error', { message: '呢個版本未支援地圖截圖。' }, env.requestId); return; }
+        if (snapshotBusy) { send('map:snapshot-error', { message: '截圖進行中，請稍候。' }, env.requestId); return; }
+        snapshotBusy = true;
+        cap().then(img => {
+          send('map:snapshot-result', { image: img.dataUrl, width: img.width, height: img.height }, env.requestId);
+        }).catch(err => {
+          send('map:snapshot-error', { message: err instanceof Error ? err.message : '截圖失敗。' }, env.requestId);
+        }).finally(() => { snapshotBusy = false; });
         return;
       }
     };

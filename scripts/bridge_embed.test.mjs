@@ -50,11 +50,11 @@ const plan = () => ({
   constraints: { targetDistanceToleranceKm: 1 },
 });
 
-function setup(snapped = true) {
+function setup(snapped = true, captureMap = undefined) {
   const sent = [];
   dom.window.__DTR_EMBED__ = { parentOrigin: ORIGIN };
   dom.window.postMessage = (msg, targetOrigin) => { sent.push({ msg, targetOrigin }); };
-  const deps = { planRoute: mockPlanRoute(snapped), naismith: NAISMITH, appVersion: 'test-1.0' };
+  const deps = { planRoute: mockPlanRoute(snapped), naismith: NAISMITH, appVersion: 'test-1.0', captureMap };
   function Harness() { useEmbedBridge(deps); return null; }
   const utils = render(React.createElement(Harness));
   const incoming = (data, origin = ORIGIN) => {
@@ -178,5 +178,65 @@ test('fallback leg → fallbackUsed=true、criteria 不可 pass、有 warning', 
   assert.equal(r.criteria.find(c => c.id === 'target_total_km').status, 'unknown');
   assert.ok(r.warnings.some(w => w.code === 'FALLBACK_STRAIGHT'));
   assert.ok(r.legs.every(l => l.snapped === false));
+  utils.unmount();
+});
+
+test('map:snapshot → map:snapshot-result（dataUrl＋尺寸，精確 targetOrigin）', async () => {
+  const cap = async () => ({ dataUrl: 'data:image/png;base64,AAAA', width: 1600, height: 1200 });
+  const { sent, incoming, flush, utils } = setup(true, cap);
+  await act(async () => {});
+  await act(async () => { incoming(msg('canvas:init', {}, 'i')); });
+  await act(async () => { incoming(msg('map:snapshot', {}, 'snap-1')); });
+  await flush();
+  const res = lastOfType(sent, 'map:snapshot-result');
+  assert.ok(res, '應該回 map:snapshot-result');
+  assert.equal(res.msg.requestId, 'snap-1');
+  assert.equal(res.targetOrigin, ORIGIN);
+  assert.equal(res.msg.image, 'data:image/png;base64,AAAA');
+  assert.equal(res.msg.width, 1600);
+  assert.equal(res.msg.height, 1200);
+  utils.unmount();
+});
+
+test('冇 captureMap dep → map:snapshot-error（唔會 crash）', async () => {
+  const { sent, incoming, flush, utils } = setup();
+  await act(async () => {});
+  await act(async () => { incoming(msg('canvas:init', {}, 'i')); });
+  await act(async () => { incoming(msg('map:snapshot', {}, 'snap-2')); });
+  await flush();
+  const err = lastOfType(sent, 'map:snapshot-error');
+  assert.ok(err, '應該回 map:snapshot-error');
+  assert.equal(err.msg.requestId, 'snap-2');
+  utils.unmount();
+});
+
+test('未握手就 map:snapshot → error', async () => {
+  const cap = async () => ({ dataUrl: 'data:image/png;base64,AAAA', width: 1, height: 1 });
+  const { sent, incoming, flush, utils } = setup(true, cap);
+  await act(async () => {});
+  await act(async () => { incoming(msg('map:snapshot', {}, 'snap-3')); });
+  await flush();
+  const err = lastOfType(sent, 'map:snapshot-error');
+  assert.ok(err);
+  assert.equal(err.msg.requestId, 'snap-3');
+  assert.ok(!lastOfType(sent, 'map:snapshot-result'), '未握手唔可以回圖');
+  utils.unmount();
+});
+
+test('captureMap 拋錯 → map:snapshot-error 帶 message；截圖期間再請求 → busy error', async () => {
+  let calls = 0;
+  const cap = () => { calls++; return new Promise((_, rej) => setTimeout(() => rej(new Error('tiles failed')), 30)); };
+  const { sent, incoming, flush, utils } = setup(true, cap);
+  await act(async () => {});
+  await act(async () => { incoming(msg('canvas:init', {}, 'i')); });
+  await act(async () => { incoming(msg('map:snapshot', {}, 'snap-4')); });
+  await act(async () => { incoming(msg('map:snapshot', {}, 'snap-5')); });
+  await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+  const errs = sent.filter(s => s.msg.type === 'map:snapshot-error');
+  assert.equal(calls, 1, 'busy 期間唔可以再開截圖');
+  assert.ok(errs.some(e => e.msg.requestId === 'snap-5'), '第二個請求要即時收到 busy error');
+  const fail = errs.find(e => e.msg.requestId === 'snap-4');
+  assert.ok(fail, '失敗要回 error');
+  assert.equal(fail.msg.message, 'tiles failed');
   utils.unmount();
 });

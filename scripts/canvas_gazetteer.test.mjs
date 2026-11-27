@@ -42,8 +42,34 @@ test('AI prompt 禁止輸出座標，必須用地點表', () => {
   assert.ok(!html.includes('用你最接近嘅估計'), '唔可以再叫 AI 估座標');
 });
 
-test('有距離回饋循環（最多 3 round）同停止掣', () => {
-  assert.ok(html.includes('MAX_REFINE_ROUNDS=3'), '要有 3 round 上限');
+test('有距離回饋循環（預設 3 round、成員可較 0–5）同停止掣', () => {
+  assert.ok(html.includes('MAX_REFINE_ROUNDS=3'), '要有預設 3 round 上限');
   assert.ok(html.includes('maybeRefine'), '要有回饋循環');
   assert.ok(html.includes('btnStopRefine'), '要有停止掣');
+  assert.ok(html.includes('id="fRefineCap"'), '要有成員可設定嘅調整次數欄');
+  assert.ok(html.includes('function refineCap()'), '上限要由表格讀出');
+  assert.ok(html.includes('Math.min(5,v)'), '上限要夾喺 0–5，唔可以無限');
+  assert.ok(html.includes('refineRound>=cap'), '循環要用成員設定嘅上限');
+});
+
+test('表格優先：第一輪由表格直接生成，唔經 AI、唔塞晒所有營地', () => {
+  assert.ok(html.includes('function buildPlanFromForm()'), '要有表格 plan builder');
+  assert.ok(html.includes('id="fTarget"'), '要有目標公里欄');
+  assert.ok(html.includes('id="fStart"') && html.includes('id="fFinish"'), '要有起終點欄');
+  assert.ok(html.includes('btnAddDay') && html.includes('dayCamp'), '要有每日營地欄＋加日掣');
+  assert.ok(!html.includes('id="req"'), '唔可以再係自由文本 prompt 優先');
+  assert.ok(!html.includes('async function runAI()'), '第一輪唔可以再叫 AI 生成');
+  assert.ok(html.includes('唔係要去晒嘅清單'), 'AI rules 要講明 gazetteer 唔係清單');
+  assert.ok(html.includes('每次最多新增 2 個'), 'AI 每輪最多加 2 個中途點');
+  assert.ok(html.includes('function checkFixed('), '要守住用戶固定點');
+  assert.ok(html.includes('totalPts>prevPts+2'), '要有每輪 +2 點嘅 runtime 護欄');
+});
+
+test('計完路會向 DTR 攞地圖大圖（map:snapshot）並顯示＋下載', () => {
+  assert.ok(html.includes("send('map:snapshot'"), '要送 map:snapshot 請求');
+  assert.ok(html.includes('map:snapshot-result'), '要接截圖結果');
+  assert.ok(html.includes('map:snapshot-error'), '要處理截圖失敗');
+  assert.ok(html.includes('id="mapImagePanel"'), '要有大圖面板');
+  assert.ok(html.includes('download="DrawTheRoute-路線圖.png"'), '要有下載掣');
+  assert.ok(html.includes('scheduleSnapshot()'), 'route:result 後要自動截圖');
 });

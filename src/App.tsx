@@ -18,7 +18,10 @@ import { convertToWgs84 } from './services/geodeticService';
 import ConfirmProvider from './components/Confirm/ConfirmProvider';
 import { useConfirm, kv } from './components/Confirm/confirmShared';
 import MapExportDialog from './components/Export/MapExportDialog';
+import L from 'leaflet';
 import type { Map as LeafletMap } from 'leaflet';
+import { renderMapImage } from './lib/mapImageExport';
+import { LAYER_META } from './lib/mapLayers';
 
 
 
@@ -81,7 +84,28 @@ function AppInner() {
   useItineraryData(waypoints, segments, selectedDate);
 
   // ── Canvas embed bridge（Option A）：只喺 embed mode 啟動，頂層行為不變 ──
-  useEmbedBridge({ planRoute, naismith, appVersion: '1.0.0' });
+  // 截取目前路線地圖（含 CP 地名）做 PNG，回俾 Canvas 顯示／下載，解決 iframe 地圖太細睇唔到 CP。
+  const captureMap = useCallback(async () => {
+    const pts = segments.flatMap(s => s.points);
+    if (pts.length < 2) throw new Error('未有路線，無法截圖');
+    const b = L.latLngBounds(pts.map(p => [p.lat, p.lng] as [number, number]));
+    const dLat = (b.getNorth() - b.getSouth()) * 0.12 || 0.01;
+    const dLng = (b.getEast() - b.getWest()) * 0.12 || 0.01;
+    const bounds = L.latLngBounds([b.getSouth() - dLat, b.getWest() - dLng], [b.getNorth() + dLat, b.getEast() + dLng]);
+    const meta = LAYER_META[mapLayer];
+    const rendered = await renderMapImage({
+      bounds, widthPx: 1600, heightPx: 1200, dpi: 150,
+      base: { url: meta.url, maxZoom: meta.maxZoom },
+      segments, waypoints,
+      title: 'DrawTheRoute 路線總覽',
+      subtitle: `${meta.name} · ${new Date().toLocaleDateString('zh-HK')}`,
+      noteText: '⚠ 規劃路線，部分路段可能未見於地形圖，行進以實地為準',
+      attribution: [meta.credit, '© 香港特別行政區政府地政總署／各底圖提供者'],
+    });
+    return { dataUrl: rendered.canvas.toDataURL('image/png'), width: rendered.canvas.width, height: rendered.canvas.height };
+  }, [segments, waypoints, mapLayer]);
+
+  useEmbedBridge({ planRoute, naismith, appVersion: '1.0.0', captureMap });
 
   // ══════════════════════════════════════════════════════════════════════
   //  CP 位置編輯：把目標點「沿實際路線」平移，唔會拉直路線
