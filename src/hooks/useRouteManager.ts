@@ -351,7 +351,7 @@ export function useRouteManager() {
   //  复用真實 buildSegment（BRouter hiking-mountain + 直線/SRTM 備援），
   //  同時 setWaypoints/setSegments 令地圖畫出完整路線（保留 Option A 完整體驗）。
   //  回傳 legMeta（每段貼路狀態）俾 bridge 組裝 fallback warnings。
-  const planRoute = useCallback(async (points: LatLng[]): Promise<{
+  const planRoute = useCallback(async (points: Array<LatLng & { label?: string }>): Promise<{
     waypoints: WaypointMarker[];
     segments: RouteSegment[];
     legMeta: Array<{ snapped: boolean; snappedLegs: number; totalLegs: number }>;
@@ -382,6 +382,7 @@ export function useRouteManager() {
         latlng: { lat: p.lat, lng: p.lng },
         elevation: elevations[i] ?? 0,
         type: i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'waypoint',
+        label: p.label,
       }));
 
       setWaypoints(newWaypoints);

@@ -45,6 +45,8 @@ export interface WaypointMarker {
   latlng: LatLng;
   elevation: number;
   type: 'start' | 'waypoint' | 'end';
+  /** 地名（由 Canvas bridge / AI 計劃帶入），供行程表／Excel 地理名稱使用 */
+  label?: string;
 }
 
 export interface ElevationProfilePoint {

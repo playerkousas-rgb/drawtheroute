@@ -324,6 +324,16 @@ export default function ElevationChart({
   const [routeRests, setRouteRests] = useState<Record<number, number>>({});
   const [cpRests, setCpRests] = useState<Record<number, number>>({});
 
+  // 由 Canvas bridge / AI 計劃帶入嘅路點地名預填「地理名稱」（仍可人手改；
+  // 路線 CP 組合改變時重置，避免 elevation 刷新等唔相干改動抹走人手輸入）。
+  const routeSig = waypoints.map(w => w.id).join(',');
+  useEffect(() => {
+    const init: Record<number, string> = {};
+    waypoints.forEach((w, i) => { if (w.label) init[i] = w.label; });
+    setWpNames(init);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeSig]);
+
   const schedule = useMemo(() => {
     const dep: string[] = [];
     const arr: string[] = [];

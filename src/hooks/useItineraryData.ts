@@ -109,7 +109,7 @@ export const useItineraryData = (
 
         result.push({
           id: wp.id,
-          name: wp.type === 'start' ? '起點' : wp.type === 'end' ? '終點' : `CP${i}`,
+          name: wp.label || (wp.type === 'start' ? '起點' : wp.type === 'end' ? '終點' : `CP${i}`),
           grid: gridStr,
           bearing: bearing,
           elevation: wp.elevation,

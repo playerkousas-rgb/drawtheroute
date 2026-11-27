@@ -176,30 +176,35 @@ export function validatePlan(raw: unknown): { ok: true; plan: NormalizedPlan } |
   const legCount = points.length - 1;
   const legDays: number[] = new Array(legCount).fill(1);
 
+  // 先用 overnight role 推斷日界（每個 overnight 之後入下一日）。
+  // 呢個對「AI 自動插入中途點」稳健——唔使依赖 stages 齊全。
+  const inferred: number[] = new Array(legCount).fill(1);
+  {
+    let day = 1;
+    for (let i = 0; i < legCount; i++) {
+      inferred[i] = day;
+      if (points[i + 1].role === 'overnight') day++;
+    }
+  }
+
   if (Array.isArray(p.stages) && p.stages.length > 0) {
-    // 用 stages 明確指定每條 leg 嘅 day
+    // stages 係可選 override：有定義嘅 leg 跟 stages，缺漏嘅 leg 用 overnight 推斷補上。
+    // （舊版會因「欠 stage 定義」成個 plan 拒絕；AI 加中途點後 stages 必然唔齊，故放寬。）
     const stageMap = new Map<string, number>();
     for (const s of p.stages as unknown[]) {
-      if (!s || typeof s !== 'object') { errors.push('stage 唔係物件'); continue; }
+      if (!s || typeof s !== 'object') continue;
       const st = s as Record<string, unknown>;
-      if (!isFiniteNumber(st.day) || st.day < 1) { errors.push('stage.day 無效'); continue; }
-      if (typeof st.from !== 'string' || typeof st.to !== 'string') { errors.push('stage.from/to 必須係字串'); continue; }
-      stageMap.set(`${st.from}->${st.to}`, st.day);
+      if (!isFiniteNumber(st.day) || st.day < 1) continue;
+      if (typeof st.from !== 'string' || typeof st.to !== 'string') continue;
+      stageMap.set(`${st.from}->${st.to}`, Math.floor(st.day));
     }
     for (let i = 0; i < legCount; i++) {
       const key = `${points[i].id}->${points[i + 1].id}`;
       const day = stageMap.get(key);
-      if (day === undefined) { errors.push(`欠 stage 定義：${key}`); continue; }
-      legDays[i] = day;
+      legDays[i] = day !== undefined ? day : inferred[i];
     }
-    if (errors.length) return { ok: false, errors };
   } else {
-    // 冇 stages → 用 overnight role 推斷日界（每個 overnight 之後入下一日）
-    let day = 1;
-    for (let i = 0; i < legCount; i++) {
-      legDays[i] = day;
-      if (points[i + 1].role === 'overnight') day++;
-    }
+    for (let i = 0; i < legCount; i++) legDays[i] = inferred[i];
   }
 
   const maxDay = Math.max(...legDays);
