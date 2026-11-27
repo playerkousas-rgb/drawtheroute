@@ -31,7 +31,7 @@
 | `src/bridge/embedBridge.ts` | 新增 | `useEmbedBridge` hook：handshake、嚴格 origin/source 驗證、單一請求、逾時、取消、去重、組裝結果 |
 | `src/App.tsx` | 改 | 接入 `useEmbedBridge({ planRoute, naismith, appVersion })` |
 | `index.html` | 改 | Embed bootstrap：偵測 iframe＋embed=1＋合資格 parentOrigin → 設 `window.__DTR_EMBED__`；embed 用 gate `open`，非 embed 維持 `entry-gate` |
-| `vercel.json` | 改 | 加 CSP `frame-ancestors 'self' https://*.scf.usercontent.goog`（只喺 deploy 生效） |
+| `vercel.json` | 改 | 加 CSP `frame-ancestors 'self' https://gemini.google.com https://*.scf.usercontent.goog`（只喺 deploy 生效；要放行頂層 Gemini＋SCF 兩層祖先） |
 | `embed-test.html`（root，唔入 dist） | 新增 | 本地測試頁（模擬 Canvas parent）；已入 `.vercelignore`，唔上生產 |
 | `.vercelignore` | 改 | 排除 `embed-test.html`（root，唔入 dist） |
 | `scripts/bridge_contract.test.mjs` | 新增 | Contract validator 10 項測試 |
@@ -64,7 +64,8 @@ Error codes：`BAD_ORIGIN／BAD_SOURCE／BAD_MESSAGE／UNSUPPORTED_VERSION／NOT
 
 ## 4. Security 模型（四層）
 
-1. **CSP frame-ancestors**（`vercel.json`，deploy 生效）：`'self' https://*.scf.usercontent.goog` — 只有 Google SCF（Canvas）或 same-origin 嵌到 DTR。**唔係 `'*'`。**
+1. **CSP frame-ancestors**（`vercel.json`，deploy 生效）：`'self' https://gemini.google.com https://*.scf.usercontent.goog` — 只有 Google Gemini（頂層）＋ SCF（Canvas artifact）或 same-origin 嵌到 DTR。**唔係 `'*'`。**
+   ⚠ `frame-ancestors` 會檢查**每一層祖先**：Canvas 係 `gemini.google.com → *.scf.usercontent.goog → DTR`，所以必須同時放行頂層 `gemini.google.com` 同 SCF，漏咗頂層會「拒絕連線」。
 2. **Embed bootstrap**（`index.html`）：`?embed=1` 只係模式選擇；必須 `inIframe` ＋ parentOrigin 係 SCF／same-origin／dev localhost 先設 `__DTR_EMBED__`。頂層非 embed 維持 `entry-gate`，唔會因任意 query 繞過。
 3. **Bridge origin/source 驗證**：`event.origin === parentOrigin` 且 `event.source === window.parent`；targetOrigin 一律精確 parentOrigin（**嚴禁 `'*'`**）。handshake（canvas:init）完成前先至接受 route:plan。
 4. **資源限制**：單一同時請求、180s 逾時、requestId 去重、取消、CP／日數上限、schema 驗證。
