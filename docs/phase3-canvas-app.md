@@ -346,3 +346,26 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 
 ### 測試
 - +1（gazetteer 25）：PLAN_PRINCIPLES／GEN 包含／山頂把關（badStart/badFin/有界重試/誠實拒絕）／refine 最小修改 substring。全套 57（gate 9＋contract 11＋embed 12＋gazetteer 25）。
+
+## Phase 3.16 — AI 策劃報告（透明化）＋水浪窩官方優先＋anti-虛構測站＋分工原則
+
+### 背景（用戶回饋）
+- 用戶策劃哲學：「先將要求嘅點全部 point 出嚟→睇點連貫達標→加入用戶要求→最後交 DTR 精確計算／微調」。
+- 「三角網測站 77 雞公山 未收錄？」——查證：231 官方測站全收錄；**no.77 不存**；真「雞公山 KAI KUNG SHAN」係 no.259（大嶼山），西貢雞公山 399 唔係測站。即 AI 虛構編號，把關啱。
+- 「水浪窩 mark 錯」——gazetteer 已有「水浪窩營地」官方 (22.40274,114.275183)，但 findPlaceExact("水浪窩") 唔 match「水浪窩營地」→ 落 AI 座標（hallucinate）→ mark 錯。
+- 「生成 6 次 0 達標，讓 AI 產出報告睇佢點策劃以便找問題」。
+
+### 修復
+- **findPlaceExact 官方優先**：加「去掉『營地』後精確匹配」→ 水浪窩／已知徑口營地直接用官方座標，AI 俾錯座標都覆蓋。functional 測試確認。
+- **AI 策劃報告**：JSON 加 `report` 欄＋prompt 強制；新 `reportPanel`／`showReport`（escape＋pre-wrap）；gen（runAiPlan）＋refine/manual（applyAdjust）都顯示。透明化 AI 點諗，方便诊断。
+- **PLAN_PRINCIPLES 7/8**：⑦分工（AI 策劃→DTR 精確計算，AI 數字只係預算）；⑧anti-虛構（唔好作測站編號，舉例 77 雞公山不存在；已知徑口優先用官方名）。
+- 版號 v3.16。
+
+### 網上類似工具研究（參考）
+- **Komoot Premium multi-day planner**：先 plan 一條連續山徑路線，再自動拆每日 stage＋stage 末加住宿——同用戶「骨架先行→連貫→計算」哲學一致；sport-aware routing（surface/waytype/elevation）即我哋 hiking-mountain。
+- **AllTrails Peak Route Assistant**：day-by-day split＋campsite/water/resupply/bailout waypoints；強調 curated trail data 而非 AI 估座標。
+- **Outdooractive／Gaia／CalTopo**：professional topo＋terrain analysis；**FarOut**：trail-specific campsites/water/town。
+- 啟示：業界都係「curated 山徑數據＋sport-aware 引擎＋每日 stage 拆分」，AI 只做策劃／研究唔做座標權威——印证我哋 Option A（DTR 引擎精確計算）＋官方座標優先＋報告透明化方向啱。
+
+### 測試
+- +2（gazetteer 27）：報告 panel/showReport/report format/anti-虛構/分工/findPlaceExact substring；水浪窩官方優先 functional（AI 錯座標→官方 22.40274,114.275183、唔標 _aiFound）。全套 59（gate 9＋contract 11＋embed 12＋gazetteer 27）。

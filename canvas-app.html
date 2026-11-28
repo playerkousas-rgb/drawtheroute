@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DrawTheRoute 遠足助手 v3.15 — Gemini Canvas</title>
+<title>DrawTheRoute 遠足助手 v3.16 — Gemini Canvas</title>
 <!--
   DrawTheRoute 遠足助手（Phase 3.3 · 成員畫面 · 表格優先）
   ★ 貼入 Google Gemini Canvas 使用。
@@ -104,7 +104,7 @@
 <header>
   <span class="logo">🥾</span>
   <div>
-    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.15</span></h1>
+    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.16</span></h1>
     <div class="sub">填表格（可留空由 AI 補位／自由發揮），真實地圖即刻畫出路線</div>
   </div>
   <div class="spacer"></div>
@@ -157,6 +157,11 @@
   <div class="panel hidden" id="resultPanel">
     <h3>📊 真實計算結果（DrawTheRoute 引擎）</h3>
     <div id="resultBody"></div>
+  </div>
+
+  <div class="panel hidden" id="reportPanel">
+    <h3>🧠 AI 策劃報告（睇佢點諗）</h3>
+    <div id="reportBody" class="muted"></div>
   </div>
 
   <div class="panel hidden" id="mapImagePanel">
@@ -257,7 +262,7 @@ function findPlaceExact(label){
   const l=String(label||'').trim();
   if(!l) return null;
   const lower=l.toLowerCase();
-  return GAZETTEER.find(p=>p.name===l||(p.nameEn||'').toLowerCase()===lower||(p.aliases||[]).some(a=>a===l))||null;
+  return GAZETTEER.find(p=>p.name===l||p.name.replace(/營地$/,'')===l||(p.nameEn||'').toLowerCase()===lower||(p.aliases||[]).some(a=>a===l))||null;
 }
 /* ═══════════════ Phase 3.14：MGRS／UTM → WGS84 ＋ 用戶指定 CP 解析 ═══════════════ */
 const UTM_A=6378137, UTM_F=1/298.257223563, UTM_E2=UTM_F*(2-UTM_F), UTM_EP2=UTM_E2/(1-UTM_E2), UTM_K0=0.9996, RAD=Math.PI/180;
@@ -392,6 +397,9 @@ function refineCap(){
 const $=id=>document.getElementById(id);
 function setStatus(cls,msg){ const s=$('status'); s.className='status '+cls; s.textContent=msg; }
 function setConn(state,text){ const c=$('conn'); c.className='conn '+state; $('connText').textContent=text; }
+/* Phase 3.16：AI 策劃報告——透明化佢點諗，方便用戶／領隊／我哋诊断 */
+function escRep(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showReport(rep){ const p=$('reportPanel'); if(!rep){ p.classList.add('hidden'); return; } $('reportBody').innerHTML='<div style="white-space:pre-wrap">'+escRep(typeof rep==='string'?rep:JSON.stringify(rep,null,2))+'</div>'; p.classList.remove('hidden'); }
 /* Busy 守衛：AI 生成／調整 或 計路進行中 → 禁用所有動作按鈕，防止狂按／重複觸發彈窗 */
 function refreshBusy(){ const busy=aiBusy||!!pendingId; ['btnPlan','btnDemo','btnNotesAdjust','btnConfirm','btnAddDay'].forEach(id=>{ const e=$(id); if(e) e.disabled=busy; }); }
 function uuid(){ return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2); }
@@ -608,6 +616,7 @@ async function runAiPlan(){
       if(badStart||badFin){ setStatus('bad','AI 仍揀山頂／三角網測站做起終點，唔可行（冇交通）。請自己填返起終點再試。'); return; }
       break;
     }
+    showReport(np.report);
     // 用用戶填咗嘅點做固定點，核對 AI 有冇尊重
     const uf=[]; const uc=[];
     if(startName) uf.push(findPlace(startName).name);
@@ -665,7 +674,8 @@ const PLACE_RULES='【過夜營地】必須從以下 AFCD 官方營地揀名（r
 +'JSON 格式：\n'
 +'{"days":整數,"nights":整數,"targetTotalKm":數字,"start":{"label":"名","lat":數字,"lon":數字},'
 +'"waypoints":[{"id":"cp1","label":"畫路點名","role":"cp","lat":數字,"lon":數字,"source":"來源"},{"id":"camp1","label":"官方營地名","role":"overnight"}],'
-+'"constraints":{"maxMovingMinutesPerDay":數字或null,"maxAscentMPerDay":數字或null,"targetDistanceToleranceKm":數字或null}}\n'
++'"constraints":{"maxMovingMinutesPerDay":數字或null,"maxAscentMPerDay":數字或null,"targetDistanceToleranceKm":數字或null},"report":"字串：你嘅策劃報告"}\n'
++'- 必須輸出 "report"：簡潔具體講你點策劃——起終點點揀（交通）、用邊條山徑／段做骨架、每日距離／爬升預算＋營地位置、點符合用戶要求、座標來源／信心、風險。俾用戶／領隊睇你點諗。\n'
 +'規則：\n'
 +'- 用戶「明確填咗」嘅起點／營地／終點必須原樣保留、順序不變；過夜營地保持 role="overnight" 同官方名。用戶留空（由你揀）嘅點，你調整時可以自由改，唔使鎖死。\n'
 +'- 最後一個 waypoint role 必須係 finish。總點數（起點＋所有 waypoints）唔超過 24。\n'
@@ -683,7 +693,9 @@ const PLAN_PRINCIPLES='【遠足策劃原則・你係領隊】呢個係遠足／
 +'3. 全程山徑：每段主體必須係行山徑；唔好計劃沿行車路／馬路走嘅段（例如兩個車站之間沿馬路）。CP 揀山徑網絡上嘅點（徑口、標距柱、路口、山坳、山峰），唔好揀淨係車路到嘅點。\n'
 +'4. 每日負重合理：露營負重每日距離／爬升要適中、唔好一日行到爆；按用戶目標同日數調整；營地放喺當日段末端。\n'
 +'5. 營地合法：過夜只可以用 AFCD 官方營地，唔好虛構營地。\n'
-+'6. 一次過諗好：第一輪就要出可行、貼路、合理嘅計劃，唔好留一堆爛段等後面慢慢改。\n';
++'6. 一次過諗好：第一輪就要出可行、貼路、合理嘅計劃，唔好留一堆爛段等後面慢慢改。\n'
++'7. 分工：你負責策劃（先將要求嘅點全部 point 出嚟→睇點連貫達標→加入用戶要求），最後交 DrawTheRoute 引擎精確計算／微調；你嘅距離／爬升只係預算，真實數字以引擎為準。\n'
++'8. 唔好虛構：山峰未必係三角網測站，唔好作測站編號（例如「77 雞公山」並不存在）；唔肯定就用山名＋真實座標，或只用確實存在嘅編號／名。已知徑口／營地（如水浪窩）優先用官方名，唔好自俾座標。\n';
 const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶表格生成，你只負責按真實距離加減「畫路中途點 CP」。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 每次最多新增 2 個畫路 CP（role="cp"，用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可；唔好用營地），要揀地理上順路嘅；太長就移除畫路 CP。';
 /* 生成用：用戶留空起終點（或全部留空）→ AI 按已填資料補位／自由發揮 */
 const GEN_RULES='你係資深遠足導師／領隊，策劃切實可行、合理嘅遠足／遠足營路線。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLAN_PRINCIPLES+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（畫路 CP 用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可，唔好塞晒所有營地，唔好虛構座標；起終點冇預設，唔好預設北潭涌，按用戶資料自由揀全港合適起終點）。';
@@ -753,6 +765,7 @@ function startRoute(plan){
 /* ═══════════════ 回饋循環（距離＋爬升）＋共用 AI 調整護欄 ═══════════════ */
 /* 共用：核對 AI 調整結果（＋2 點上限、固定點、地名），通過先至計路 */
 function applyAdjust(np){
+  showReport(np.report);
   const totalPts=1+((np.waypoints||[]).length);
   const prevPts=1+(((currentNamePlan&&currentNamePlan.waypoints)||[]).length);
   if(totalPts>24||totalPts>prevPts+2) return {ok:false,msg:'AI 一次過加咗太多點（'+prevPts+'→'+totalPts+'），違反每輪最多 +2 嘅規則'};

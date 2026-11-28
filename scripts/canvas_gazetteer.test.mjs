@@ -316,7 +316,7 @@ test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞�
   assert.ok(t, 'title 要有版號');
   assert.ok(b, 'header 要有版號 badge');
   assert.equal(t[1], b[1], 'title 同 badge 版號要一致');
-  assert.equal(t[1], '3.15', '而家係 v3.15');
+  assert.equal(t[1], '3.16', '而家係 v3.16');
   // 導師 persona
   assert.ok(html.includes('資深遠足導師／領隊'), 'GEN 要以資深遠足導師／領隊身份策劃');
   assert.ok(html.includes('切實可行'), '要強調切實可行');
@@ -501,4 +501,26 @@ test('Phase 3.15：領隊策劃原則 prompt＋山頂起終點 code 把關＋ref
   assert.ok(html.includes('AI 仍揀山頂／三角網測站做起終點'), '修正後仍山頂要誠實拒絕');
   // refine 最小修改穩定
   assert.ok(html.includes('保持已貼路／達標嘅骨架，只作最小必要修改'), 'refine 要最小修改避免震盪');
+});
+
+test('Phase 3.16：AI 策劃報告＋anti-虛構測站＋水浪窩官方優先＋分工原則', () => {
+  assert.ok(html.includes('id="reportPanel"') && html.includes('id="reportBody"'), '要有策劃報告 panel');
+  assert.ok(html.includes('function showReport('), '要有 showReport');
+  assert.ok(html.includes('showReport(np.report);'), 'gen/refine 要顯示報告');
+  assert.ok(html.includes('"report":"字串：你嘅策劃報告"'), 'JSON 格式要有 report');
+  assert.ok(html.includes('必須輸出 "report"'), 'prompt 要強制報告');
+  assert.ok(html.includes('唔好作測站編號'), 'anti-虛構測站編號');
+  assert.ok(html.includes('77 雞公山」並不存在'), '舉例 77 雞公山不存在');
+  assert.ok(html.includes('最後交 DrawTheRoute 引擎精確計算'), '分工原則：AI 策劃→DTR 計算');
+  assert.ok(html.includes("p.name.replace(/營地$/,'')===l"), 'findPlaceExact 要去營地精確匹配（水浪窩官方優先）');
+});
+
+test('Phase 3.16 水浪窩官方優先：AI 俾錯座標都用官方營地座標（唔再 mark 錯）', () => {
+  const a = html.indexOf('const GAZETTEER');
+  const cut = html.indexOf('/* ═══════════════ 狀態 ═══════════════');
+  const fn = new Function('let userCps=[];' + html.slice(a, cut) + ';return {resolveNamePlan,findPlace};');
+  const { resolveNamePlan } = fn();
+  const r = resolveNamePlan({ days: 1, nights: 0, start: { label: '水浪窩', lat: 22.40, lon: 114.26 }, waypoints: [{ id: 'f', label: '北潭涌', role: 'finish' }] });
+  assert.ok(Math.abs(r.plan.start.lat - 22.40274) < 1e-6 && Math.abs(r.plan.start.lon - 114.275183) < 1e-6, '水浪窩要用官方座標 22.40274,114.275183，唔係 AI 錯座標');
+  assert.ok(!r.plan.start._aiFound, '水浪窩唔應標記做 AI 查找');
 });
