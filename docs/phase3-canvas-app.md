@@ -311,3 +311,21 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 
 ### 留低 3.14
 - 用戶指定畫路 CP 欄（導師指定 CP）：需座標或 HK 網格參考（「kk xxxxxxxx」格式待用戶確認），同營地（按名）唔同。待確認格式後做。
+
+## Phase 3.14 — 用戶（導師）指定畫路 CP：MGRS／UTM＋decimal 座標欄＋鎖死
+
+### 背景（用戶回饋）
+- 「導師會指定 CP，用戶輸入指定 CP 令 AI 易啲查找；CP 同營地唔同，要用戶入座標或 kk xxxxxxxx（童軍 MGRS）先讀到」。
+- 用戶確認：格式＝**MGRS／UTM 網格（童軍常用）＋十進制經緯度（Google Maps）**；用戶指定 CP＝**鎖死**（AI 必須保留、順序不變）。
+
+### 修復
+- **新欄 `fUserCps`**（textarea，每行一個）：`名 MGRS`（如 `榕樹澳 50Q KK 12345 67890`）或 `名 lat,lon`（如 `灣仔半島 22.4123, 114.3456`）。
+- **MGRS→WGS84 轉換器**（純 JS，WGS84 UTM forward/inverse＋MGRS 100km 方格解碼，zone parity／2,000km cycle 用緯度帶解析）；decimal 直接收；全部過 `validAiCoord` HK-bounds 閘。`parseCpLine`／`parseUserCps` 解析，壞格式／離港報錯。
+- **鎖死語義**：`userCps` global；`resolvePoint` 對用戶 CP 直接用用戶座標（`_userFixed`，AI 唔准改）；`checkFixed` 強制用戶 CP 全部保留＋按用戶順序（子序列）；`removableCp` 排除 `_userFixed`（autoClean 唔會移除鎖死 CP；若鎖死 CP 離網，誠實標不合格＋叫 AI 插引導點，唔亂移除）。
+- **注入**：form 路（buildPlanFromForm）將用戶 CP 注入 waypoints（camps 之後、finish 之前）＋fixedLabels；AI 路（runAiPlan）spec 列明「用戶指定畫路 CP（鎖死：必須保留、按順序、用呢個座標）」連座標，resolvePoint 強制座標、checkFixed 強制保留。
+- **showConfirm**：用戶 CP 顯示 ✓ 用戶座標／MGRS（綠），座標列明供成員核實。describeForm 附用戶 CP。
+- 版號 v3.14。
+
+### 測試
+- 3.7／3.10 harness 補 `userCps`；版號斷言 3.14。
+- +3（gazetteer 24）：CP 欄／鎖死 substring；MGRS functional（HK round-trip <1e-4、Honolulu 100km 方格＝4QFJ＋真實 round-trip、decimal／MGRS／壞格式／離港）；checkFixed 鎖 CP（保留＋順序通過、漏咗／調序報錯）。全套 56（gate 9＋contract 11＋embed 12＋gazetteer 24）。
