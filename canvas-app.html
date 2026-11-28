@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DrawTheRoute 遠足助手 v3.11 — Gemini Canvas</title>
+<title>DrawTheRoute 遠足助手 v3.12 — Gemini Canvas</title>
 <!--
   DrawTheRoute 遠足助手（Phase 3.3 · 成員畫面 · 表格優先）
   ★ 貼入 Google Gemini Canvas 使用。
@@ -103,7 +103,7 @@
 <header>
   <span class="logo">🥾</span>
   <div>
-    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.11</span></h1>
+    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.12</span></h1>
     <div class="sub">填表格（可留空由 AI 補位／自由發揮），真實地圖即刻畫出路線</div>
   </div>
   <div class="spacer"></div>
@@ -461,7 +461,7 @@ function runPlan(){
   const built=buildPlanFromForm();
   if(built.error){ setStatus('bad',built.error); return; }
   fixedLabels=built.fixedLabels; fixedCamps=built.campLabels;
-  refineRound=0; stopRefine=false; lastResult=null; cleanDrops=0;
+  refineRound=0; stopRefine=false; lastResult=null; cleanDrops=0; cleanRemoved=new Set();
   $('btnNotesAdjust').classList.add('hidden');
   currentNamePlan=toNamePlan(built.plan);
   originalRequest=describeForm();
@@ -523,7 +523,7 @@ async function runAiPlan(){
     if(Number.isFinite(maxH)&&maxH>0) plan.constraints.maxMovingMinutesPerDay=Math.round(maxH*60);
     if(Number.isFinite(maxAsc)&&maxAsc>0) plan.constraints.maxAscentMPerDay=Math.round(maxAsc);
     if(Number.isFinite(target)&&target>0) plan.targetTotalKm=target;
-    refineRound=0; stopRefine=false; lastResult=null; cleanDrops=0;
+    refineRound=0; stopRefine=false; lastResult=null; cleanDrops=0; cleanRemoved=new Set();
     $('btnNotesAdjust').classList.add('hidden');
     currentNamePlan=np; originalRequest=describeForm(); pendingPlan=plan;
     showConfirm(plan);
@@ -616,7 +616,7 @@ function showConfirm(plan){
 $('btnConfirm').addEventListener('click',()=>{
   if(!pendingPlan) return;
   $('confirmPanel').classList.add('hidden');
-  cleanDrops=0; refineRound=0; stopRefine=false;
+  cleanDrops=0; refineRound=0; stopRefine=false; cleanRemoved=new Set();
   startRoute(pendingPlan);
 });
 $('btnCancelConfirm').addEventListener('click',()=>{ $('confirmPanel').classList.add('hidden'); pendingPlan=null; setStatus('info','已取消。'); });
@@ -657,6 +657,8 @@ function resultSummary(result){
 /* ═══════════════ Phase 3.9：確定性清理（移除離網／掘頭 spur CP）＋回頭路偵測 ═══════════════ */
 const MAX_CLEAN_DROPS=6;
 let cleanDrops=0;
+/* 被系統確定性移除（離網／跨海／掘頭）嘅畫路 CP 名——跨 refine 回合保留，嚴禁 AI 再加返 */
+let cleanRemoved=new Set();
 const NEAR_M=25, OVERLAP_FRAC=0.6;
 function segDistM(p,a,b){
   const ax=a[1],ay=a[0],bx=b[1],by=b[0],px=p[1],py=p[0];
@@ -678,16 +680,19 @@ function detectBacktrack(result){
 function removableCp(end){ const w=((pendingPlan&&pendingPlan.waypoints)||[]).find(x=>x.id===end.id); return !!(w&&w.role==='cp'); }
 /* 確定性清理：移除造成穿海直線／掘頭原路來回嘅畫路 CP，再計——保證地圖乾淨，唔靠 AI */
 function autoClean(result){
-  if(cleanDrops>=MAX_CLEAN_DROPS) return false;
   const drop=new Set();
-  (result.legs||[]).filter(l=>!l.snapped).forEach(l=>{ [l.from,l.to].forEach(e=>{ if(removableCp(e)) drop.add(e.id); }); });
+  const safety=new Set();
+  (result.legs||[]).filter(l=>!l.snapped).forEach(l=>{ [l.from,l.to].forEach(e=>{ if(removableCp(e)){ drop.add(e.id); safety.add(e.id); } }); });
   const legs=result.legs||[];
   for(let i=0;i<legs.length-1;i++){ const a=legs[i],b=legs[i+1]; if(a.snapped&&b.snapped&&mutualOverlap(a,b)>OVERLAP_FRAC){ if(removableCp(a.to)) drop.add(a.to.id); } }
   if(!drop.size) return false;
+  // 離網／跨海 CP 嘅移除係安全嘢，永遠執行（唔受 cap 限制，保證地圖冇游水直線）；cap 只限 spur／回頭路優化移除
+  if(cleanDrops>=MAX_CLEAN_DROPS && safety.size===0) return false;
   const keepW=(pendingPlan.waypoints||[]).filter(w=>!drop.has(w.id));
   if(keepW.length&&keepW[keepW.length-1].role==='cp') keepW[keepW.length-1].role='finish';
   const newPlan=Object.assign({},pendingPlan,{waypoints:keepW});
   if(currentNamePlan) currentNamePlan=Object.assign({},currentNamePlan,{waypoints:((currentNamePlan.waypoints)||[]).filter(w=>!drop.has(w.id))});
+  (pendingPlan.waypoints||[]).filter(w=>drop.has(w.id)).forEach(w=>{ if(w.label) cleanRemoved.add(w.label); });
   pendingPlan=newPlan; cleanDrops++;
   setStatus('info','清理中：移除 '+drop.size+' 個離網／掘頭畫路 CP，重新計路（保證地圖無穿海直線／原路來回）…');
   startRoute(newPlan);
@@ -750,6 +755,7 @@ function maybeRefine(result){
     +resultSummary(result)+'\n'
     +(target?'目標總距離 '+target+' km，容差 '+tol+' km。\n':'')
     +'用戶固定地點（必須原樣保留、順序不變）：'+fixedLabels.join(' → ')+'。\n'
+    +(cleanRemoved.size?'以下畫路 CP 已被系统確定性移除（離網／跨海／掘頭），嚴禁再加返：'+[...cleanRemoved].join('、')+'。\n':'')
     +instr+'保留用戶指定營地同起終點，並保持過夜營地 role="overnight" 同官方名。唔好將全部營地塞入去。\n'
     +'請輸出修改後嘅同一 JSON 格式（過夜營地用官方名；畫路 CP 可用網上搵到嘅真實座標 lat/lon，唔好虛構）。'+originalRequest;
   callGemini(prompt).then(np=>{
@@ -774,6 +780,7 @@ function manualAdjust(){
     +resultSummary(lastResult)+'\n'
     +snapInstr
     +'用戶固定地點（必須原樣保留、順序不變）：'+fixedLabels.join(' → ')+'。\n'
+    +(cleanRemoved.size?'以下畫路 CP 已被系统確定性移除（離網／跨海／掘頭），嚴禁再加返：'+[...cleanRemoved].join('、')+'。\n':'')
     +'用戶其他要求：'+n+'。請盡量配合：優先揀低海拔／沿海嘅畫路 CP（山峰／山坳／路口／海邊點，可網上搵真實座標），避開高山坳，減少上落；可以加減畫路 CP（每次最多新增 2 個，role="cp"，唔好用營地）。保留用戶指定營地同起終點，並保持過夜營地 role="overnight" 同官方名。\n'
     +'注意：引擎沿真實山徑貼路，唔保證完全冇樓梯；唔好虛報話完全避開咗。\n'
     +'請輸出修改後嘅同一 JSON 格式（過夜營地用官方名；畫路 CP 可用網上搵到嘅真實座標 lat/lon，唔好虛構）。'+originalRequest;

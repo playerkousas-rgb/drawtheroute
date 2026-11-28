@@ -242,8 +242,8 @@ test('Phase 3.9：確定性清理（autoClean）＋回頭路偵測（detectBackt
 test('Phase 3.9 autoClean／detectBacktrack 行為：spur／fallback 移除離網 CP、固定點唔移除、到上限停止', () => {
   const slice = html.slice(html.indexOf('const NEAR_M=25'), html.indexOf('function maybeRefine(result){'));
   const factory = new Function('deps',
-    'const MAX_CLEAN_DROPS=6; let pendingPlan=deps.pendingPlan, currentNamePlan=deps.currentNamePlan; const {startRoute,setStatus}=deps; let cleanDrops=deps.cleanDrops||0;'
-    + slice + ';return {autoClean,detectBacktrack,getDrops:()=>cleanDrops,getPlan:()=>pendingPlan};');
+    'const MAX_CLEAN_DROPS=6; let pendingPlan=deps.pendingPlan, currentNamePlan=deps.currentNamePlan; const {startRoute,setStatus}=deps; let cleanDrops=deps.cleanDrops||0; let cleanRemoved=deps.cleanRemoved||new Set();'
+    + slice + ';return {autoClean,detectBacktrack,getDrops:()=>cleanDrops,getPlan:()=>pendingPlan,getRemoved:()=>cleanRemoved};');
   const gOut = [[22.40, 114.30], [22.41, 114.31], [22.42, 114.32]];
   const gBack = [...gOut].reverse();
   const gPerp1 = [[22.40, 114.30], [22.41, 114.30]];
@@ -316,7 +316,7 @@ test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞�
   assert.ok(t, 'title 要有版號');
   assert.ok(b, 'header 要有版號 badge');
   assert.equal(t[1], b[1], 'title 同 badge 版號要一致');
-  assert.equal(t[1], '3.11', '而家係 v3.11');
+  assert.equal(t[1], '3.12', '而家係 v3.12');
   // 導師 persona
   assert.ok(html.includes('資深遠足導師／領隊'), 'GEN 要以資深遠足導師／領隊身份策劃');
   assert.ok(html.includes('切實可行'), '要強調切實可行');
@@ -333,4 +333,50 @@ test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞�
   // 有效性約束保留
   assert.ok(html.includes('唔好原路來回／掘頭 spur'), 'no-backtrack／no-spur 保留');
   assert.ok(html.includes('請改行唔同山徑嘅路徑'), 'backtrack 修理指示保留（唔同山徑，唔係迫環線）');
+});
+
+test('Phase 3.12：blacklist 被移除點（嚴禁加返）＋跨海安全移除唔设 cap＋reset 語義', () => {
+  // blacklist prompt（auto-refine＋manual 兩處）
+  assert.ok(html.includes('已被系统確定性移除（離網／跨海／掘頭），嚴禁再加返'), 'refine prompt 要有 blacklist 嚴禁加返');
+  assert.equal((html.match(/嚴禁再加返/g) || []).length, 2, 'auto-refine 同 manual 兩處都要有 blacklist');
+  assert.ok(html.includes('let cleanRemoved=new Set();'), '要有 cleanRemoved 聲明');
+  // reset 語義：3 個新計劃入口 reset；applyAdjust（每輪 refine）唔 reset（blacklist 要跨回合保留）
+  assert.equal((html.match(/cleanRemoved=new Set\(\);/g) || []).length, 4, '1 聲明＋3 入口 reset＝4');
+  assert.ok(html.includes('currentNamePlan=np; pendingPlan=plan; cleanDrops=0;'), 'applyAdjust 只 reset cleanDrops');
+  assert.ok(!html.includes('currentNamePlan=np; pendingPlan=plan; cleanDrops=0; cleanRemoved'), 'applyAdjust 唔可以 reset cleanRemoved（否則 blacklist 每輪失效）');
+  // 跨海安全移除唔设 cap
+  assert.ok(html.includes('if(cleanDrops>=MAX_CLEAN_DROPS && safety.size===0) return false;'), 'cap 只擋 spur 優化；離網／跨海 safety 移除永遠執行');
+  assert.ok(html.includes('cleanRemoved.add(w.label)'), 'autoClean 要記低被移除 CP 名');
+});
+
+test('Phase 3.12 autoClean 行為：記低被移除名＋到 cap 仍移除跨海 CP（safety bypass）', () => {
+  const slice = html.slice(html.indexOf('const NEAR_M=25'), html.indexOf('function maybeRefine(result){'));
+  const factory = new Function('deps',
+    'const MAX_CLEAN_DROPS=6; let pendingPlan=deps.pendingPlan, currentNamePlan=deps.currentNamePlan; const {startRoute,setStatus}=deps; let cleanDrops=deps.cleanDrops||0; let cleanRemoved=deps.cleanRemoved||new Set();'
+    + slice + ';return {autoClean,getRemoved:()=>cleanRemoved,getDrops:()=>cleanDrops};');
+  const gPerp2 = [[22.41, 114.30], [22.41, 114.31]];
+  function mk(over) {
+    const routed = [];
+    const deps = Object.assign({
+      pendingPlan: { start: { id: 'start' }, waypoints: [{ id: 'cpX', role: 'cp', label: '蛋家灣' }, { id: 'finish', role: 'finish', label: 'C' }] },
+      currentNamePlan: { waypoints: [{ id: 'cpX', role: 'cp', label: '蛋家灣' }, { id: 'finish', role: 'finish' }] },
+      startRoute: p => routed.push(p), setStatus: () => {}, cleanDrops: 0
+    }, over);
+    return { api: factory(deps), routed };
+  }
+  const fbRes = { legs: [{ snapped: false, from: { id: 'start', label: 'A' }, to: { id: 'cpX', label: '蛋家灣' }, geometry: [] }, { snapped: true, from: { id: 'cpX' }, to: { id: 'finish' }, geometry: gPerp2 }] };
+  // 記低被移除名
+  const t1 = mk();
+  assert.equal(t1.api.autoClean(fbRes), true, '跨海 fallback 要触发清理');
+  assert.ok(t1.api.getRemoved().has('蛋家灣'), 'autoClean 要記低被移除嘅蛋家灣');
+  assert.deepEqual(t1.routed[0].waypoints.map(w => w.id), ['finish'], '要移除跨海 CP');
+  // 到 cap（cleanDrops=6）仍然移除跨海 CP（safety bypass）——保證地圖冇游水線
+  const t2 = mk({ cleanDrops: 6 });
+  assert.equal(t2.api.autoClean(fbRes), true, '到 cap 仍要移除跨海 CP（安全嘢唔受 cap 限）');
+  assert.ok(t2.api.getRemoved().has('蛋家灣'), 'cap 下移除都要記低名');
+  // spur-only（全部 snapped）到 cap 就要停（cap 只限優化移除）
+  const gOut = [[22.40, 114.30], [22.41, 114.31], [22.42, 114.32]];
+  const spurRes = { legs: [{ snapped: true, from: { id: 'start' }, to: { id: 'cpX', label: '蛋家灣' }, geometry: gOut }, { snapped: true, from: { id: 'cpX' }, to: { id: 'finish' }, geometry: [...gOut].reverse() }] };
+  const t3 = mk({ cleanDrops: 6 });
+  assert.equal(t3.api.autoClean(spurRes), false, 'spur-only 到 cap 要停（優化移除受 cap 限）');
 });
