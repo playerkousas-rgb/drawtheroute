@@ -113,8 +113,8 @@
   <div class="formgrid">
     <label class="field">目標總距離（km，可留空）<input type="number" id="fTarget" min="1" max="200" step="1" placeholder="例如：40（留空由 AI 建議）"></label>
     <label class="field">距離容差 ±（km）<input type="number" id="fTol" value="2" min="0.5" max="10" step="0.5"></label>
-    <label class="field">起點（可留空）<input id="fStart" list="places" autocomplete="off" placeholder="例如：北潭涌（留空由 AI 揀）"></label>
-    <label class="field">終點（可留空）<input id="fFinish" list="places" autocomplete="off" placeholder="例如：北潭涌（留空由 AI 揀）"></label>
+    <label class="field">起點（可留空）<input id="fStart" list="places" autocomplete="off" placeholder="留空由 AI 揀（全港任何起點）"></label>
+    <label class="field">終點（可留空）<input id="fFinish" list="places" autocomplete="off" placeholder="留空由 AI 揀（可同起點）"></label>
     <label class="field">每日最多行走（小時，可留空）<input type="number" id="fMaxH" min="1" max="16" step="0.5" placeholder="冇限制"></label>
     <label class="field">每日最多爬升（m，可留空）<input type="number" id="fMaxAscent" min="50" max="3000" step="50" placeholder="冇限制"></label>
     <label class="field">最多自動調整次數（0–5）<input type="number" id="fRefineCap" value="3" min="0" max="5" step="1"></label>
@@ -514,8 +514,8 @@ async function runAiPlan(){
     fixedLabels=uf; fixedCamps=uc;
     const ferr=checkFixed(np);
     if(ferr){ setStatus('bad',ferr+'，請再試，或者自己填返起終點。'); return; }
-    // 鎖定生成計劃嘅骨架；之後 refine 只加減可選中途點
-    const sk=skeletonFromPlan(plan); fixedLabels=sk.fixedLabels; fixedCamps=sk.campLabels;
+    // 只鎖用戶「實際填咗」嘅點（uf/uc）；AI 自己揀（用戶留空）嘅起終點／營地唔鎖，
+    // 咁 refine／修理可以自由改佢哋，唔會誤彈「AI 改動咗你指定…」而停止自動調整。
     // 用戶表格嘅約束係權威，覆蓋 AI 輸出
     plan.constraints=plan.constraints||{};
     plan.constraints.targetDistanceToleranceKm=Number.isFinite(tol)&&tol>0?tol:2;
@@ -549,7 +549,7 @@ function checkFixed(np){
 /* ═══════════════ AI（Canvas 免費 fetch 攔截；營地守官方，畫路點可網上搵座標） ═══════════════ */
 const apiKey=""; // 【唔好改】Canvas 會攔截呢個 fetch，用成員自己嘅 Gemini session
 const PLACE_RULES='【過夜營地】必須從以下 AFCD 官方營地揀名（role="overnight"，唔好輸出座標，系統按名填官方座標）。呢個係營地名單，唔係要去晒嘅清單——嚴禁將全部營地塞入路線：'+CAMP_LIST+'。\n'
-+'【畫路中途點 CP／起點／終點】可以用官方地名（'+NONCAMP_LIST+'），或者你喺網上搵到真實座標嘅任何地點（山峰、山坳、路口、海邊觀景點、碼頭）。畫路 CP 唔係營地——嚴禁用營地做畫路 CP 湊距離。網上搵到嘅點要輸出 label＋lat＋lon＋source（來源），座標必須係你真實搵到嘅，唔好虛構／估；搵唔到真實座標就用官方地名。\n'
++'【起點／終點／畫路 CP】你係遠足路線專家，自己諗、自由：全港任何真實地點都得（徑口、山峰、山坳、路口、海邊、碼頭、標距柱…），唔使跟名單、冇預設（唔好預設北潭涌／西貢；按用戶距離／日數／難度／地區揀合適起終點）。可用官方編號／名引用（系統填官方座標），或輸出網上搵到嘅真實座標 label＋lat＋lon＋source；唔好虛構座標。畫路 CP 唔係營地——嚴禁用營地做畫路 CP 湊距離。\n'
 +'【官方準確座標・自由選用】系統內置兩套官方準確座標，你可以自由揀用，亦可以繼續用網上搵到嘅座標——兩者皆可，冇話要優先邊種：\n'
 +'(a) 地政總署三角網測站（山峰／高地控制點）：label 用編號或英文名引用，例如「三角網測站 67.2 大帽山 TAI MO SHAN」、「87 鳳凰山 FUNG WONG SHAN」，系統按編號／名填官方座標，唔使輸出座標。\n'
 +'(b) 漁護署遠足徑標距柱（沿徑每 500 米一支）：label 用編號引用——麥理浩徑 M001–M200、衛奕信徑 W001–W137、港島徑 H001–H100、鳳凰徑 L001–L139、各郊遊徑 C 字頭（如 C1101），例如「麥理浩徑 M020 標距柱」，系統按編號填官方座標，唔使輸出座標。\n'
@@ -559,17 +559,16 @@ const PLACE_RULES='【過夜營地】必須從以下 AFCD 官方營地揀名（r
 +'"waypoints":[{"id":"cp1","label":"畫路點名","role":"cp","lat":數字,"lon":數字,"source":"來源"},{"id":"camp1","label":"官方營地名","role":"overnight"}],'
 +'"constraints":{"maxMovingMinutesPerDay":數字或null,"maxAscentMPerDay":數字或null,"targetDistanceToleranceKm":數字或null}}\n'
 +'規則：\n'
-+'- 用戶指定嘅起點、過夜營地、終點必須原樣保留，順序不變；過夜營地必須保持 role="overnight" 同官方名。\n'
++'- 用戶「明確填咗」嘅起點／營地／終點必須原樣保留、順序不變；過夜營地保持 role="overnight" 同官方名。用戶留空（由你揀）嘅點，你調整時可以自由改，唔使鎖死。\n'
 +'- 最後一個 waypoint role 必須係 finish。總點數（起點＋所有 waypoints）唔超過 24。\n'
 +'- 系統按 overnight 自動分日，stages 可省略（唔好寫唔齊全嘅 stages）。\n'
-+'- 用戶要求「少啲上落／唔行樓梯」時：畫路 CP 優先揀沿海低地中途點（海下、大灘海邊、黃石、灣仔、西灣、鹹田灣、浪茄灣海邊），避開要翻山嘅高地坳位。引擎沿真實山徑貼路，唔保證完全冇樓梯，唔好虛報。\n'
-+'- 畫路 CP 要同起點／營地／終點喺同一連接嘅山徑網絡，引擎先貼到路；唔好揀要跨海／跨水塘先至到嘅點（對面島、水塘對岸、孤立海岬）。沿山徑揀點（標距柱／路口／山坳）最易貼路。\n'
-+'- 畫路 CP 按環線順序排；去程同回程行唔同山徑，唔好原路來回／掘頭 spur（死胡同海岬／觀景點做中途點），除非用戶明確要求來回。\n'
++'- 用戶要求「少啲上落／唔行樓梯」時：畫路 CP 揀沿海低地中途點，避開高地坳；引擎唔保證完全冇樓梯，唔好虛報。\n'
++'- 畫路點揀真實連接山徑上（同起終點同一連接嘅山徑網絡）、唔好跨海／跨水塘；環線去程同回程行唔同山徑、避免原路來回。呢啲係常識提示，唔係硬清單；若貼唔到路或原路來回，系統會自動清理，你放手諗。\n'
 +'- 唔好虛構安全標準；約束只用用戶明確講嘅數字。';
 /* 調整用：第一輪已由表格生成，只加減畫路 CP（唔係營地） */
 const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶表格生成，你只負責按真實距離加減「畫路中途點 CP」。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 每次最多新增 2 個畫路 CP（role="cp"，用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可；唔好用營地），要揀地理上順路嘅；太長就移除畫路 CP。';
 /* 生成用：用戶留空起終點（或全部留空）→ AI 按已填資料補位／自由發揮 */
-const GEN_RULES='你係遠足路線規劃助手。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（畫路 CP 用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可，唔好塞晒所有營地，唔好虛構座標）。';
+const GEN_RULES='你係遠足路線規劃助手。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（畫路 CP 用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可，唔好塞晒所有營地，唔好虛構座標；起終點冇預設，唔好預設北潭涌，按用戶資料自由揀全港合適起終點）。';
 async function callGemini(userText, rules){
   const r=rules||BASE_RULES;
   const resp=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
@@ -738,7 +737,7 @@ function maybeRefine(result){
   if(snapFail){
     instr+='以下路段貼唔到山徑（直線備援，不可接受）：'+legTxt+'。請修理：';
     instr+='對每段出事路段，若果端點係可移除嘅畫路 CP（role="cp"），將佢替換做同一山徑網絡上、唔使跨海／跨水塘嘅點（沿徑標距柱／路口／山坳，可用編號如 M048 或網上真實座標）；';
-    instr+='若果兩端都係固定點（起點／營地／終點），就喺兩端之間插入最多 2 個沿徑畫路 CP 引導貼路。唔好改起點／營地／終點。';
+    instr+='若果兩端都係用戶明確填咗嘅固定點，就喺兩端之間插入最多 2 個沿徑畫路 CP 引導貼路。唔好改用戶明確填咗嘅起點／營地／終點；用戶留空（由你揀）嘅起終點／營地可以自由改。';
   }
   if(!distOk) instr+=(distKm<target?'而家太短，請插入最多 2 個地理上順路嘅畫路 CP（role="cp"，沿徑點；唔好用營地做 CP）绕路。':'而家太長，請移除畫路 CP（role="cp"）。');
   if(ascFail) instr+='每日爬升超過上限 '+maxAsc+' m，請改揀低海拔／沿海嘅畫路 CP，避開高山坳，減少上落。';
