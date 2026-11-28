@@ -19,6 +19,7 @@ import {
   CHANNEL, PROTOCOL_VERSION, BRIDGE_VERSION, LIMITS, ERROR_CODES,
   parseEnvelope, validatePlan, isAllowedParentOrigin,
   NormalizedPlan, RouteResult, LegResult, DayResult, BridgeWarning, CriterionResult, ErrorCode,
+  DetourBaseLeg, DetourCandidate, DetourOption,
 } from './contract';
 
 export interface EmbedConfig { parentOrigin: string; }
@@ -197,6 +198,50 @@ export function useEmbedBridge(deps: BridgeDeps): void {
       }
     };
 
+    /* Phase 3.17：route:options —— DTR 淨係計數：每個候選插入骨架後真實加幾多 km／爬升＋貼路與否。
+       AI 喺 Canvas 只喺返嚟嘅清單度揀，唔使估座標／距離。 */
+    const handleOptions = async (requestId: string | undefined, payload: Record<string, unknown>) => {
+      if (!handshakeDone) { sendError(requestId, ERROR_CODES.NOT_READY, '未完成 canvas:init 握手。', false); return; }
+      if (!requestId || requestId.length > LIMITS.MAX_REQUEST_ID_LEN) { sendError(requestId, ERROR_CODES.BAD_MESSAGE, 'requestId 無效。', false); return; }
+      if (processed.has(requestId)) { sendError(requestId, ERROR_CODES.DUPLICATE, 'requestId 重複。', false); return; }
+      if (busy) { sendError(requestId, ERROR_CODES.BUSY, '已有規劃進行中，請等完成或取消。', true); return; }
+      const baseLegs = (Array.isArray(payload.baseLegs) ? payload.baseLegs : []) as DetourBaseLeg[];
+      const rawCands = (Array.isArray(payload.candidates) ? payload.candidates : []) as DetourCandidate[];
+      const cands = rawCands.slice(0, LIMITS.MAX_OPTION_CANDIDATES).filter(c =>
+        c && Number.isFinite(c.lat) && Number.isFinite(c.lon) && Number.isInteger(c.legIndex) && !!baseLegs[c.legIndex]);
+      processed.add(requestId);
+      busy = true; currentRequestId = requestId; cancelled = false;
+      clearTimer();
+      timeoutTimer = window.setTimeout(() => {
+        if (currentRequestId === requestId) { cancelled = true; sendError(requestId, ERROR_CODES.TIMEOUT, 'options 逾時。', true); }
+      }, LIMITS.REQUEST_TIMEOUT_MS);
+      try {
+        const options: DetourOption[] = [];
+        for (const c of cands) {
+          if (cancelled || currentRequestId !== requestId) return;
+          const bl = baseLegs[c.legIndex];
+          const pts = [
+            { lat: bl.from.lat, lng: bl.from.lon, label: bl.from.label },
+            { lat: c.lat, lng: c.lon, label: c.label },
+            { lat: bl.to.lat, lng: bl.to.lon, label: bl.to.label },
+          ];
+          const { segments, legMeta } = await depsRef.current.planRoute(pts);
+          const { stats } = analyzeRoute(segments, depsRef.current.naismith);
+          const snapped = legMeta.every(m => !!m && m.snapped);
+          const addKm = (stats.totalDistance * 1000 - bl.distanceM) / 1000;
+          const addAscentM = Math.round(stats.totalAscent - (bl.ascentM || 0));
+          options.push({ id: c.id, label: c.label, lat: c.lat, lon: c.lon, legIndex: c.legIndex, addKm: +addKm.toFixed(2), addAscentM, snapped });
+        }
+        if (cancelled || currentRequestId !== requestId) return;
+        send('route:options-result', { options }, requestId);
+      } catch (e) {
+        if (cancelled || currentRequestId !== requestId) return;
+        sendError(requestId, ERROR_CODES.ENGINE_ERROR, e instanceof Error ? e.message : 'options 計算失敗。', true);
+      } finally {
+        if (currentRequestId === requestId) { busy = false; currentRequestId = null; clearTimer(); }
+      }
+    };
+
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== parentOrigin) return;          // 錯誤 origin → 靜默拒絕
       if (e.source !== parent) return;                // 錯誤 source → 拒絕
@@ -212,6 +257,10 @@ export function useEmbedBridge(deps: BridgeDeps): void {
       if (env.type === 'route:plan') {
         const planRaw = (e.data as Record<string, unknown>).plan;
         void handlePlan(env.requestId, planRaw);
+        return;
+      }
+      if (env.type === 'route:options') {
+        void handleOptions(env.requestId, e.data as Record<string, unknown>);
         return;
       }
       if (env.type === 'route:cancel') {

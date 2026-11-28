@@ -369,3 +369,22 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 
 ### 測試
 - +2（gazetteer 27）：報告 panel/showReport/report format/anti-虛構/分工/findPlaceExact substring；水浪窩官方優先 functional（AI 錯座標→官方 22.40274,114.275183、唔標 _aiFound）。全套 59（gate 9＋contract 11＋embed 12＋gazetteer 27）。
+
+## Phase 3.17 — DTR 繞路清單橋（route:options）：AI 只揀唔估，根治 12 回合震盪
+
+### 背景（用戶轉述另一人方向，採納）
+v3.15/16 死結＝「AI 估座標／距離 → DTR 否決 → 12 次用晒」。正確分工：**AI 諗方向／偏好（Canvas），DTR 淨係計數**。加一條橋：Canvas 問「骨架差 X km，附近有咩貼路點可以繞、每個加幾多？」DTR 計完俾清單；AI 喺清單度**揀**，唔使估。
+
+### 實現
+- **contract.ts**：`LIMITS.MAX_OPTION_CANDIDATES=12`；`DetourBaseLeg/DetourCandidate/DetourOption` 型別。
+- **embedBridge.ts**：`route:options` handler——對每個候選 c，用 `planRoute([legFrom, c, legTo])`＋`analyzeRoute` 計真實 `addKm=(子路由距離-原leg距離)`、`addAscentM`、`snapped=legMeta.every(snapped)`；回 `route:options-result {options}`。沿用 handshake/busy/timeout/requestId 去重／精確 targetOrigin。
+- **Canvas**：`buildCandidatePool`（DP/trig/gazetteer 非營地點，距骨架 leg ≤2km、唔喺計劃內，取最近 12）；`requestDetourOptions`（送 baseLegs＋candidates）；`onDetourOptions`（過濾 snapped&&addKm>0 → 用 `PICK_RULES` 叫 AI 只輸出 {"pick":[ids]}，按用戶偏好＋真實 addKm/addAscent 揀）；`insertDetours`（按 origLegIndex 插入 waypoints，骨架順序不變，重新計路）。
+- **maybeRefine**：太短（!snapFail&&!backFail&&distKm<target）→ 行 DTR 清單流程；冇候選先 fall through 舊 AI 流程。
+- 版號 v3.17。
+
+### 效果
+AI 唔再估座標／距離（唔會再「估西灣山→離網→估鹹田灣→跨海」）；DTR 保證清單個個貼路、個個知加幾多；AI 只按偏好揀 → 收斂快、唔浪費回合。
+
+### 測試
+- embed +2（14）：route:options 真實 addKm=1／snapped=true；fallback→snapped=false。
+- gazetteer +2（29）：橋 substring（send/接/pool/PICK_RULES/太短攔截）；insertDetours functional（origLegIndex 插入位置＋重新計路）。全套 63（gate 9＋contract 11＋embed 14＋gazetteer 29）。

@@ -242,3 +242,37 @@ test('captureMap 拋錯 → map:snapshot-error 帶 message；截圖期間再請�
   assert.equal(fail.msg.message, 'tiles failed');
   utils.unmount();
 });
+
+test('Phase 3.17 route:options → DTR 計每個候選真實 addKm／addAscent＋snapped（AI 只揀唔估）', async () => {
+  const { sent, incoming, flush, utils } = setup();
+  await act(async () => {});
+  await act(async () => { incoming(msg('canvas:init', {}, 'i')); });
+  const baseLegs = [{ index: 0, from: { id: 'start', label: 'A', lat: 22.4, lon: 114.3 }, to: { id: 'b', label: 'B', lat: 22.41, lon: 114.31 }, distanceM: 1000, ascentM: 20 }];
+  const candidates = [{ id: 'opt0', label: 'M048', lat: 22.405, lon: 114.305, legIndex: 0 }];
+  await act(async () => { incoming(msg('route:options', { baseLegs, candidates }, 'opt-1')); });
+  await flush();
+  const res = lastOfType(sent, 'route:options-result');
+  assert.ok(res, '應該回 route:options-result');
+  assert.equal(res.msg.requestId, 'opt-1');
+  assert.equal(res.targetOrigin, ORIGIN);
+  const o = res.msg.options[0];
+  assert.equal(o.id, 'opt0');
+  assert.equal(o.addKm, 1, 'mock 2km 子路由 - 1km 原 leg = 加 1km');
+  assert.equal(o.snapped, true);
+  assert.ok(Number.isFinite(o.addAscentM), 'addAscentM 要係數字');
+  utils.unmount();
+});
+
+test('Phase 3.17 route:options fallback → snapped=false（Canvas 會過濾）', async () => {
+  const { sent, incoming, flush, utils } = setup(false);
+  await act(async () => {});
+  await act(async () => { incoming(msg('canvas:init', {}, 'i')); });
+  const baseLegs = [{ index: 0, from: { id: 'start', label: 'A', lat: 22.4, lon: 114.3 }, to: { id: 'b', label: 'B', lat: 22.41, lon: 114.31 }, distanceM: 1000, ascentM: 20 }];
+  const candidates = [{ id: 'opt0', label: 'X', lat: 22.405, lon: 114.305, legIndex: 0 }];
+  await act(async () => { incoming(msg('route:options', { baseLegs, candidates }, 'opt-2')); });
+  await flush();
+  const res = lastOfType(sent, 'route:options-result');
+  assert.ok(res);
+  assert.equal(res.msg.options[0].snapped, false);
+  utils.unmount();
+});

@@ -18,6 +18,7 @@ export const LIMITS = {
   REQUEST_TIMEOUT_MS: 180000,   // 整體規劃逾時（BRouter 每段本身有 15–20s timeout）
   HANDSHAKE_TIMEOUT_MS: 30000,
   MAX_CONCURRENT: 1,         // 單一同時 route request
+  MAX_OPTION_CANDIDATES: 12, // route:options 每次最多計幾多個繞路候選（DoS 防護）
 } as const;
 
 /** 穩定 error code */
@@ -257,6 +258,23 @@ export interface CriterionResult {
   status: 'pass' | 'fail' | 'unknown';
   detail: string;
 }
+/* ════════════════════════════════════════════════════════════════
+   Phase 3.17：route:options（DTR 繞路清單）——AI 只揀唔估
+   Canvas 俾骨架 baseLegs＋候選點；DTR 計每個插入後真實加幾多 km／爬升＋貼路與否。
+   ════════════════════════════════════════════════════════════════ */
+export interface DetourBaseLeg {
+  index: number;
+  from: { id: string; label: string; lat: number; lon: number };
+  to: { id: string; label: string; lat: number; lon: number };
+  distanceM: number;
+  ascentM: number;
+}
+export interface DetourCandidate { id: string; label: string; lat: number; lon: number; legIndex: number; }
+export interface DetourOption {
+  id: string; label: string; lat: number; lon: number; legIndex: number;
+  addKm: number; addAscentM: number; snapped: boolean;
+}
+
 export interface RouteResult {
   source: 'drawtheroute';
   engineVersion: string;

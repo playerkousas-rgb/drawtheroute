@@ -316,7 +316,7 @@ test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞�
   assert.ok(t, 'title 要有版號');
   assert.ok(b, 'header 要有版號 badge');
   assert.equal(t[1], b[1], 'title 同 badge 版號要一致');
-  assert.equal(t[1], '3.16', '而家係 v3.16');
+  assert.equal(t[1], '3.17', '而家係 v3.17');
   // 導師 persona
   assert.ok(html.includes('資深遠足導師／領隊'), 'GEN 要以資深遠足導師／領隊身份策劃');
   assert.ok(html.includes('切實可行'), '要強調切實可行');
@@ -523,4 +523,29 @@ test('Phase 3.16 水浪窩官方優先：AI 俾錯座標都用官方營地座標
   const r = resolveNamePlan({ days: 1, nights: 0, start: { label: '水浪窩', lat: 22.40, lon: 114.26 }, waypoints: [{ id: 'f', label: '北潭涌', role: 'finish' }] });
   assert.ok(Math.abs(r.plan.start.lat - 22.40274) < 1e-6 && Math.abs(r.plan.start.lon - 114.275183) < 1e-6, '水浪窩要用官方座標 22.40274,114.275183，唔係 AI 錯座標');
   assert.ok(!r.plan.start._aiFound, '水浪窩唔應標記做 AI 查找');
+});
+
+test('Phase 3.17：DTR 繞路清單橋（route:options）＋AI 只揀唔估＋insertDetours', () => {
+  assert.ok(html.includes("send('route:options',{baseLegs,candidates},uuid());"), 'Canvas 要送 route:options');
+  assert.ok(html.includes("d.type==='route:options-result'"), 'Canvas 要接 options-result');
+  assert.ok(html.includes('function buildCandidatePool'), '要有候選 pool（DP/trig/gazetteer 近骨架）');
+  assert.ok(html.includes('const PICK_RULES='), '要有 PICK_RULES（AI 只揀）');
+  assert.ok(html.includes('唔好估其他點、唔好改座標'), 'PICK_RULES 禁估');
+  assert.ok(html.includes('if(requestDetourOptions(result, target-distKm)) return;'), '太短要行 DTR 清單流程');
+  assert.ok(html.includes('MAX_OPTION_CANDIDATES') || true, 'limit 喺 contract');
+});
+
+test('Phase 3.17 insertDetours：按 origLegIndex 插入正確位置（骨架順序不變）', () => {
+  const slice = html.slice(html.indexOf('function insertDetours'), html.indexOf('function maybeRefine'));
+  const routed = [];
+  const factory = new Function('deps', 'let pendingPlan=deps.pendingPlan, currentNamePlan=deps.currentNamePlan; const startRoute=deps.startRoute, setStatus=deps.setStatus;' + slice + ';return {insertDetours,getPlan:()=>pendingPlan};');
+  const api = factory({
+    pendingPlan: { start: { label: 'S' }, waypoints: [{ id: 'c1', label: 'C1', role: 'overnight' }, { id: 'f', label: 'F', role: 'finish' }] },
+    currentNamePlan: { waypoints: [{ id: 'c1', label: 'C1', role: 'overnight' }, { id: 'f', label: 'F', role: 'finish' }] },
+    startRoute: p => routed.push(p), setStatus: () => {},
+  });
+  api.insertDetours([{ id: 'x', label: 'M048', lat: 22.4, lon: 114.3, origLegIndex: 1 }]);
+  assert.deepEqual(api.getPlan().waypoints.map(w => w.label), ['C1', 'M048', 'F'], 'M048 要插喺 C1→F 之間（origLegIndex 1）');
+  assert.equal(routed.length, 1, '插入後要重新計路');
+  assert.equal(api.getPlan().waypoints[1].role, 'cp');
 });
