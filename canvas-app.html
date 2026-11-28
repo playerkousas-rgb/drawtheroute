@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DrawTheRoute 遠足助手 v3.16 — Gemini Canvas</title>
+<title>DrawTheRoute 遠足助手 v3.17 — Gemini Canvas</title>
 <!--
   DrawTheRoute 遠足助手（Phase 3.3 · 成員畫面 · 表格優先）
   ★ 貼入 Google Gemini Canvas 使用。
@@ -104,7 +104,7 @@
 <header>
   <span class="logo">🥾</span>
   <div>
-    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.16</span></h1>
+    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.17</span></h1>
     <div class="sub">填表格（可留空由 AI 補位／自由發揮），真實地圖即刻畫出路線</div>
   </div>
   <div class="spacer"></div>
@@ -426,6 +426,8 @@ window.addEventListener('message',e=>{
     if(autoClean(d.result)) return;   // 確定性清理中：重新計路，snapshot 等乾淨結果
     maybeRefine(d.result);
     scheduleSnapshot();
+  } else if(d.type==='route:options-result'){
+    onDetourOptions(d.options);
   } else if(d.type==='route:error'){
     if(pendingId&&d.requestId!==pendingId) return;
     pendingId=null; refreshBusy();
@@ -836,6 +838,65 @@ function autoClean(result){
   startRoute(newPlan);
   return true;
 }
+/* ═══════════════ Phase 3.17：DTR 繞路清單橋——AI 只揀唔估 ═══════════════ */
+let pendingOptions=null;
+function legNearDist(p,g){ let m=1e9; for(let i=0;i<g.length-1;i++){ const d=segDistM(p,g[i],g[i+1]); if(d<m)m=d; } return m; }
+function buildCandidatePool(result){
+  const legs=(result.legs||[]).filter(l=>l.snapped&&l.geometry&&l.geometry.length>1);
+  const inPlan=new Set([pendingPlan.start.label,...(pendingPlan.waypoints||[]).map(w=>w.label)]);
+  const sources=[];
+  DP_DATA.forEach(d=>sources.push({label:d[0]+' 標距柱',lat:d[1],lon:d[2]}));
+  TRIG_DATA.forEach(t=>sources.push({label:t[1],lat:t[2],lon:t[3]}));
+  GAZETTEER.filter(g=>g.kind!=='campsite').forEach(g=>sources.push({label:g.name,lat:g.lat,lon:g.lon}));
+  const pool=[];
+  for(const s of sources){ if(inPlan.has(s.label)) continue;
+    let bi=-1,bd=1e9;
+    for(let i=0;i<legs.length;i++){ const d=legNearDist([s.lat,s.lon],legs[i].geometry); if(d<bd){bd=d;bi=i;} }
+    if(bi>=0&&bd<=2000) pool.push({id:'opt'+pool.length,label:s.label,lat:s.lat,lon:s.lon,legIndex:bi,origLegIndex:legs[bi].index,near:bd});
+  }
+  pool.sort((a,b)=>a.near-b.near);
+  return {legs, pool:pool.slice(0,12)};
+}
+function requestDetourOptions(result, shortfall){
+  const built=buildCandidatePool(result); const legs=built.legs, pool=built.pool;
+  if(!pool.length) return false;
+  pendingOptions={shortfall, pool};
+  const baseLegs=legs.map(l=>({index:l.index,from:l.from,to:l.to,distanceM:l.distanceM,ascentM:l.ascentM}));
+  const candidates=pool.map(c=>({id:c.id,label:c.label,lat:c.lat,lon:c.lon,legIndex:c.legIndex}));
+  setStatus('info','DTR 計緊骨架附近嘅貼路繞路選項（AI 之後只喺清單揀，唔使估）…');
+  send('route:options',{baseLegs,candidates},uuid());
+  return true;
+}
+const PICK_RULES='你係遠足領隊。DTR 已經計好以下繞路選項（全部貼路、真實加幾多 km／爬升）。你只需要按用戶偏好喺清單度，唔好估其他點、唔好改座標。只輸出 JSON {"pick":["id",...]}。';
+function onDetourOptions(options){
+  if(!pendingOptions) return;
+  const shortfall=pendingOptions.shortfall, pool=pendingOptions.pool; pendingOptions=null;
+  const good=(options||[]).filter(o=>o.snapped&&o.addKm>0);
+  if(!good.length){ setStatus('warn','DTR 搵唔到貼路嘅繞路選項。請喺地圖手動加 CP，或改表格。'); return; }
+  const list=good.map(o=>{ const c=pool.find(p=>p.id===o.id)||{}; return {id:o.id,label:o.label,lat:o.lat,lon:o.lon,addKm:o.addKm,addAscentM:o.addAscentM,origLegIndex:c.origLegIndex}; });
+  const n=notes();
+  const prompt='DTR 繞路清單（真實數字，全部貼路）：\n'+list.map(o=>'- '+o.id+' '+o.label+'：加 '+o.addKm+' km、爬升 +'+o.addAscentM+' m').join('\n')+'\n目標仲差 '+shortfall.toFixed(1)+' km。用戶要求：'+(n||'（冇特別）')+'。請揀一個或多個 id，令總加距離最接近差額（可略超），並按用戶偏好（少上落／沿海等）揀。只輸出 {"pick":[...]}。';
+  refineRound++;
+  callGemini(prompt, PICK_RULES).then(pk=>{
+    const ids=(pk&&Array.isArray(pk.pick))?pk.pick:[];
+    const chosen=list.filter(o=>ids.includes(o.id));
+    if(!chosen.length){ setStatus('warn','AI 喺清單揀唔到合適選項。請手動調整。'); return; }
+    insertDetours(chosen);
+  }).catch(err=>{ setStatus('warn','揀選失敗（'+err.message+'）。'); });
+}
+function insertDetours(chosen){
+  const wp=(pendingPlan.waypoints||[]).slice();
+  const nameWp=((currentNamePlan&&currentNamePlan.waypoints)||[]).slice();
+  const sorted=chosen.slice().sort((a,b)=>(b.origLegIndex||0)-(a.origLegIndex||0));
+  sorted.forEach((o,i)=>{ const idx=Math.max(0,Math.min(wp.length,o.origLegIndex||0)); const id='det'+Date.now()+'_'+i;
+    wp.splice(idx,0,{id,label:o.label,lat:o.lat,lon:o.lon,role:'cp',_source:'DTR 繞路清單'});
+    nameWp.splice(idx,0,{id,label:o.label,role:'cp'});
+  });
+  pendingPlan=Object.assign({},pendingPlan,{waypoints:wp});
+  if(currentNamePlan) currentNamePlan=Object.assign({},currentNamePlan,{waypoints:nameWp});
+  setStatus('info','AI 喺 DTR 清單揀咗 '+chosen.length+' 個繞路點，重新計路…');
+  startRoute(pendingPlan);
+}
 function maybeRefine(result){
   const plan=pendingPlan;
   const target=plan&&plan.targetTotalKm;
@@ -874,6 +935,10 @@ function maybeRefine(result){
     else{ setStatus('warn','已調整 '+refineRound+'／'+cap+' 次（到你設定嘅上限），而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升仍超標':'')+'。請喺地圖手動加減 CP，或者改表格再計。'); }
     $('btnStopRefine').classList.add('hidden');
     return;
+  }
+  // 太短 → 交 DTR 計繞路清單，AI 只喺清單（唔估座標／距離）；冇候選先至 fall through 舊流程
+  if(!snapFail&&!backFail&&!distOk&&distKm<target){
+    if(requestDetourOptions(result, target-distKm)) return;
   }
   refineRound++;
   $('btnStopRefine').classList.remove('hidden');
