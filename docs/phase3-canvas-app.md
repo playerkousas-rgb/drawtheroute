@@ -388,3 +388,24 @@ AI 唔再估座標／距離（唔會再「估西灣山→離網→估鹹田灣�
 ### 測試
 - embed +2（14）：route:options 真實 addKm=1／snapped=true；fallback→snapped=false。
 - gazetteer +2（29）：橋 substring（send/接/pool/PICK_RULES/太短攔截）；insertDetours functional（origLegIndex 插入位置＋重新計路）。全套 63（gate 9＋contract 11＋embed 14＋gazetteer 29）。
+
+## Phase 3.18 — options 並行＋watchdog（修卡死）＋報告易複製＋簡潔视图 toggle
+
+### 背景（用戶回饋）
+- 「DTR 計緊繞路選項…好似卡死」——sequential 12 個 BRouter＋elevation 呼叫太慢。
+- 「🧠 策劃報告找唔到係邊度拿比你」——panel 隱藏／冇複製掣。
+- 版面諗法：使唔使成個 iframe，定只留大圖＋橫切面＋路程表。
+
+### 修復
+- **options 並行**：embedBridge handleOptions 改 concurrency-4 worker pool；個別候選失敗跳過唔 abort；候選上限 12→8（Canvas pool）。快幾倍。
+- **watchdog**：Canvas optionsTimer 60s；逾時／route:error 清 pendingOptions＋誠實提示「逾時，請手動／改表格」。
+- **報告易拿**：reportPanel 常駐（冇報告都顯示提示）、加「📋 複製報告」掣（navigator.clipboard＋execCommand fallback）、有報告時 scrollIntoView。
+- **簡潔视图**：btnToggleMap 隱藏／顯示 mapwrap（iframe）。預設顯示；隱藏後只看大圖＋結果＋報告。註明高程剖面／拖曳／GPX 只喺互動地圖有。
+- 版號 v3.18。
+
+### 版面建議（回覆用戶）
+保留 iframe（唯一有 live 拖曳 CP＋高程剖面＋GPX 匯出）；用簡潔视图 toggle 收起佢做乾淨讀出（大圖＋路程表＋報告）。高程剖面喺 iframe 內，故建議預設展開或需要時展開；若將來想完全唔要 iframe，要 DTR 另送 profile PNG／數據（未做）。
+
+### 測試
+- embed +1（15）：options 5 候選並行全返。
+- gazetteer +1（30）：watchdog／複製／常駐／toggle substring。全套 65（gate 9＋contract 11＋embed 15＋gazetteer 30）。
