@@ -48,13 +48,13 @@ test('過夜營地必須 AFCD 官方（唔准 AI 座標）；畫路 CP 可用網
   assert.ok(!html.includes('用你最接近嘅估計'), '唔可以再叫 AI 估座標');
 });
 
-test('有距離回饋循環（預設 3 round、成員可較 0–5）同停止掣', () => {
-  assert.ok(html.includes('MAX_REFINE_ROUNDS=3'), '要有預設 3 round 上限');
+test('有距離回饋循環（預設 6 round、成員可較 0–12）同停止掣', () => {
+  assert.ok(html.includes('MAX_REFINE_ROUNDS=6'), '要有預設 6 round 上限');
   assert.ok(html.includes('maybeRefine'), '要有回饋循環');
   assert.ok(html.includes('btnStopRefine'), '要有停止掣');
   assert.ok(html.includes('id="fRefineCap"'), '要有成員可設定嘅調整次數欄');
   assert.ok(html.includes('function refineCap()'), '上限要由表格讀出');
-  assert.ok(html.includes('Math.min(5,v)'), '上限要夾喺 0–5，唔可以無限');
+  assert.ok(html.includes('Math.min(12,v)'), '上限要夾喺 0–12，唔可以無限');
   assert.ok(html.includes('refineRound>=cap'), '循環要用成員設定嘅上限');
 });
 
@@ -316,7 +316,7 @@ test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞�
   assert.ok(t, 'title 要有版號');
   assert.ok(b, 'header 要有版號 badge');
   assert.equal(t[1], b[1], 'title 同 badge 版號要一致');
-  assert.equal(t[1], '3.12', '而家係 v3.12');
+  assert.equal(t[1], '3.13', '而家係 v3.13');
   // 導師 persona
   assert.ok(html.includes('資深遠足導師／領隊'), 'GEN 要以資深遠足導師／領隊身份策劃');
   assert.ok(html.includes('切實可行'), '要強調切實可行');
@@ -379,4 +379,49 @@ test('Phase 3.12 autoClean 行為：記低被移除名＋到 cap 仍移除跨海
   const spurRes = { legs: [{ snapped: true, from: { id: 'start' }, to: { id: 'cpX', label: '蛋家灣' }, geometry: gOut }, { snapped: true, from: { id: 'cpX' }, to: { id: 'finish' }, geometry: [...gOut].reverse() }] };
   const t3 = mk({ cleanDrops: 6 });
   assert.equal(t3.api.autoClean(spurRes), false, 'spur-only 到 cap 要停（優化移除受 cap 限）');
+});
+
+test('Phase 3.13：refine cap 放寬 0–12＋busy 防止狂按＋status 置頂＋DP 編號後備座標', () => {
+  // cap 放寬
+  assert.ok(html.includes('id="fRefineCap" value="6" min="0" max="12"'), 'cap input 要 0–12，預設 6');
+  assert.ok(html.includes('Math.max(0,Math.min(12,v))'), 'refineCap clamp 要去到 12');
+  assert.ok(html.includes('（0–12）'), 'label 要寫 0–12');
+  // busy 守衛
+  assert.ok(html.includes('function refreshBusy()'), '要有 refreshBusy');
+  assert.ok(html.includes('aiBusy=true; refreshBusy();'), 'callGemini 要設 aiBusy');
+  assert.ok(html.includes('finally{ aiBusy=false; refreshBusy(); }'), 'callGemini 完成要解除 busy');
+  assert.ok(html.includes('pendingId=uuid(); refreshBusy();'), '計路開始要 busy');
+  assert.ok(html.includes("['btnPlan','btnDemo','btnNotesAdjust','btnConfirm','btnAddDay']"), 'busy 要禁用所有動作按鈕');
+  // status 置頂＋sticky
+  assert.ok(html.includes('#status{position:sticky;top:0;z-index:80'), 'status 要 sticky 置頂');
+  assert.ok(html.indexOf('id="status"') < html.indexOf('class="inputbar"'), 'status 元素要喺 inputbar 之上（頂部可見）');
+  // DP 編號後備座標
+  assert.ok(html.includes('【編號後備座標】'), 'prompt 要叫 AI 為編號附後備座標');
+  assert.ok(html.includes('若編號未收錄就用你嘅真實座標'), '未收錄編號用 AI 座標後備');
+});
+
+test('Phase 3.13 detectBacktrack 單向包含：出段繼續行好遠（min 稀釋）仍捉到掘頭 spur', () => {
+  const slice = html.slice(html.indexOf('const NEAR_M=25'), html.indexOf('function maybeRefine(result){'));
+  const factory = new Function('deps',
+    'const MAX_CLEAN_DROPS=6; let pendingPlan=deps.pendingPlan, currentNamePlan=deps.currentNamePlan; const {startRoute,setStatus}=deps; let cleanDrops=deps.cleanDrops||0; let cleanRemoved=deps.cleanRemoved||new Set();'
+    + slice + ';return {autoClean,detectBacktrack,mutualOverlap,overlapFrac};');
+  const routed = [];
+  const deps = {
+    pendingPlan: { start: { id: 'start' }, waypoints: [{ id: 'cpTip', role: 'cp', label: '榕樹澳' }, { id: 'finish', role: 'finish', label: 'C' }] },
+    currentNamePlan: { waypoints: [{ id: 'cpTip', role: 'cp', label: '榕樹澳' }, { id: 'finish', role: 'finish' }] },
+    startRoute: p => routed.push(p), setStatus: () => {}, cleanDrops: 0
+  };
+  const api = factory(deps);
+  // 入 tip 短廊；出 tip 原路折返之後繼續行好遠 → mutualOverlap(min) 被稀釋 < 0.6
+  const gIn = [[22.40, 114.30], [22.41, 114.30], [22.42, 114.30]];
+  const gOut = [...gIn].reverse().concat([[22.41, 114.32], [22.41, 114.34], [22.41, 114.36], [22.41, 114.38]]);
+  const res = { legs: [
+    { snapped: true, from: { id: 'start', label: 'A' }, to: { id: 'cpTip', label: '榕樹澳' }, geometry: gIn },
+    { snapped: true, from: { id: 'cpTip', label: '榕樹澳' }, to: { id: 'finish', label: 'C' }, geometry: gOut }
+  ] };
+  assert.ok(api.mutualOverlap(res.legs[0], res.legs[1]) <= 0.6, '呢個 case mutualOverlap(min) 應該被稀釋（舊偵測會漏）');
+  assert.ok(api.overlapFrac(gIn, gOut) > 0.6, '入 tip 段應該被出段包含');
+  assert.equal(api.detectBacktrack(res).length, 1, '單向包含要捉到掘頭 spur（榕樹澳）');
+  assert.equal(api.autoClean(res), true, 'spur 要触发清理');
+  assert.deepEqual(routed[0].waypoints.map(w => w.id), ['finish'], '要移除掘頭 tip CP');
 });
