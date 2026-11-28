@@ -329,3 +329,20 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 ### 測試
 - 3.7／3.10 harness 補 `userCps`；版號斷言 3.14。
 - +3（gazetteer 24）：CP 欄／鎖死 substring；MGRS functional（HK round-trip <1e-4、Honolulu 100km 方格＝4QFJ＋真實 round-trip、decimal／MGRS／壞格式／離港）；checkFixed 鎖 CP（保留＋順序通過、漏咗／調序報錯）。全套 56（gate 9＋contract 11＋embed 12＋gazetteer 24）。
+
+## Phase 3.15 — 領隊策劃原則 prompt＋山頂起終點 code 把關＋refine 最小修改（AI 識策劃遠足營）
+
+### 背景（用戶回饋）
+- 「又出現番山頂開始」（MA ON SHAN 測站 661 做 start）——3.11 prompt 規則被 AI 忽略（因官方座標 section 主動提供測站，AI 貪準確座標揀做 start）。
+- 「成日當自己唔係行山，成日行車路」（大學站→烏溪沙站、黃石→西貢市 沿馬路）。
+- 「用曬 12 次都搵唔到好路線」——初始計劃爛＋refine 震盪。
+- 用戶定調：「DTR 工具完美，問題係讓 AI 知道正常如何策劃遠足／遠足營路線，即係寫 prompt 嘅問題」。
+
+### 修復
+- **PLAN_PRINCIPLES（領隊策劃原則，原則唔係點名單）**置於 GEN_RULES 開頭：①骨架先行（起→每日營地→終，再補 CP）；②起終點交通可達、嚴禁山頂／測站做起終點；③全程山徑、禁車路段、CP 揀山徑網絡點；④每日負重合理、營地放当日段末；⑤營地 AFCD 官方；⑥第一輪就要出可行計劃。
+- **山頂起終點 code 把關**：runAiPlan 生成後偵測 start/finish 係 trig（findTrigStation）且用戶留空（AI 揀）→ 自動追加修正指示重生成一次（有界 attempt<2，唔計 refine 回合）；仍山頂→誠實拒絕。用戶明確填咗就尊重。
+- **refine 最小修改**：instr 開頭加「保持已貼路／達標骨架，只作最小必要修改，唔好成個計劃重砌」→ 減少震盪、避免用盡 12 回合。
+- 版號 v3.15。
+
+### 測試
+- +1（gazetteer 25）：PLAN_PRINCIPLES／GEN 包含／山頂把關（badStart/badFin/有界重試/誠實拒絕）／refine 最小修改 substring。全套 57（gate 9＋contract 11＋embed 12＋gazetteer 25）。

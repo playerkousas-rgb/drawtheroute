@@ -316,7 +316,7 @@ test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞�
   assert.ok(t, 'title 要有版號');
   assert.ok(b, 'header 要有版號 badge');
   assert.equal(t[1], b[1], 'title 同 badge 版號要一致');
-  assert.equal(t[1], '3.14', '而家係 v3.14');
+  assert.equal(t[1], '3.15', '而家係 v3.15');
   // 導師 persona
   assert.ok(html.includes('資深遠足導師／領隊'), 'GEN 要以資深遠足導師／領隊身份策劃');
   assert.ok(html.includes('切實可行'), '要強調切實可行');
@@ -483,4 +483,22 @@ test('Phase 3.14 checkFixed 鎖用戶 CP：保留＋順序通過；漏咗／調�
   assert.ok(miss({ start: { label: 'S' }, waypoints: [{ label: 'CP甲' }, { label: 'F', role: 'finish' }] }), '漏咗 CP乙 要報錯');
   const rev = factory({ userCps: uc, findPlace: norm });
   assert.ok(rev({ start: { label: 'S' }, waypoints: [{ label: 'CP乙' }, { label: 'CP甲' }, { label: 'F', role: 'finish' }] }), '調序要報錯');
+});
+
+test('Phase 3.15：領隊策劃原則 prompt＋山頂起終點 code 把關＋refine 最小修改', () => {
+  // 策劃原則（原則唔係點名單）
+  assert.ok(html.includes('const PLAN_PRINCIPLES='), '要有策劃原則 block');
+  assert.ok(html.includes('【遠足策劃原則・你係領隊】'), '原則要以領隊身份');
+  assert.ok(html.includes('骨架先行'), '原則：骨架先行');
+  assert.ok(html.includes('全程山徑'), '原則：全程山徑（唔好行車路）');
+  assert.ok(html.includes('唔好計劃沿行車路／馬路走嘅段'), '原則：禁車路段');
+  assert.ok(html.includes('嚴禁山頂／三角網測站做起終點'), '原則：山頂唔做起終點');
+  assert.ok(html.includes('PLAN_PRINCIPLES+PLACE_RULES'), 'GEN_RULES 要包含策劃原則');
+  // 山頂起終點 code 把關（自動修正一次）
+  assert.ok(html.includes('const badStart=!startName&&!!findTrigStation'), '起點山頂把關（AI 揀先改）');
+  assert.ok(html.includes('const badFin=!finishName&&!!(finW&&findTrigStation(finW.label))'), '終點山頂把關');
+  assert.ok(html.includes('for(let attempt=0; attempt<2; attempt++)'), '把關要有界重試（一次修正）');
+  assert.ok(html.includes('AI 仍揀山頂／三角網測站做起終點'), '修正後仍山頂要誠實拒絕');
+  // refine 最小修改穩定
+  assert.ok(html.includes('保持已貼路／達標嘅骨架，只作最小必要修改'), 'refine 要最小修改避免震盪');
 });

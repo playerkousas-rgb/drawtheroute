@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DrawTheRoute 遠足助手 v3.14 — Gemini Canvas</title>
+<title>DrawTheRoute 遠足助手 v3.15 — Gemini Canvas</title>
 <!--
   DrawTheRoute 遠足助手（Phase 3.3 · 成員畫面 · 表格優先）
   ★ 貼入 Google Gemini Canvas 使用。
@@ -104,7 +104,7 @@
 <header>
   <span class="logo">🥾</span>
   <div>
-    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.14</span></h1>
+    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.15</span></h1>
     <div class="sub">填表格（可留空由 AI 補位／自由發揮），真實地圖即刻畫出路線</div>
   </div>
   <div class="spacer"></div>
@@ -590,10 +590,24 @@ async function runAiPlan(){
   setStatus('info','AI 按你填咗嘅資料規劃中…');
   $('btnPlan').disabled=true;
   try{
-    const np=await callGemini(spec, GEN_RULES);
-    const {plan,unresolved}=resolveNamePlan(np);
-    if(unresolved.length){ setStatus('bad','AI 揀咗未收录地点：'+unresolved.join('、')+'。請再試。'); return; }
-    if(1+(plan.waypoints||[]).length>24){ setStatus('bad','AI 計劃太多點（>24），請再試。'); return; }
+    let np=null, plan=null, unresolved=[];
+    for(let attempt=0; attempt<2; attempt++){
+      np=await callGemini(spec, GEN_RULES);
+      const r=resolveNamePlan(np); plan=r.plan; unresolved=r.unresolved;
+      if(unresolved.length){ setStatus('bad','AI 揀咗未收录地点：'+unresolved.join('、')+'。請再試。'); return; }
+      if(1+(plan.waypoints||[]).length>24){ setStatus('bad','AI 計劃太多點（>24），請再試。'); return; }
+      // 山頂／三角網測站起終點把關：AI 自己揀（用戶留空）先至自動修正一次；用戶明確填咗就尊重
+      const finW=(plan.waypoints||[]).filter(w=>w.role==='finish').pop();
+      const badStart=!startName&&!!findTrigStation(plan.start&&plan.start.label);
+      const badFin=!finishName&&!!(finW&&findTrigStation(finW.label));
+      if((badStart||badFin)&&attempt===0){
+        spec+='- 修正：你上次揀咗山頂／三角網測站做'+(badStart?'起點':'')+(badFin?'終點':'')+'，唔可行（冇交通到）。請改用交通可達嘅徑口／碼頭／巴士站／村／車站旁徑口做起終點；山頂／測站只做中途 CP。\n';
+        setStatus('info','AI 揀咗山頂／測站做起終點，自動要求修正中…');
+        continue;
+      }
+      if(badStart||badFin){ setStatus('bad','AI 仍揀山頂／三角網測站做起終點，唔可行（冇交通）。請自己填返起終點再試。'); return; }
+      break;
+    }
     // 用用戶填咗嘅點做固定點，核對 AI 有冇尊重
     const uf=[]; const uc=[];
     if(startName) uf.push(findPlace(startName).name);
@@ -662,9 +676,17 @@ const PLACE_RULES='【過夜營地】必須從以下 AFCD 官方營地揀名（r
 +'- 畫路點揀真實連接山徑上（同起終點同一連接嘅山徑網絡）、唔好跨海／跨水塘；唔好原路來回／掘頭 spur（除非用戶明確要求來回）。\n'
 +'- 唔好虛構安全標準；約束只用用戶明確講嘅數字。';
 /* 調整用：第一輪已由表格生成，只加減畫路 CP（唔係營地） */
+/* Phase 3.15：領隊策劃原則——教 AI 點樣策劃一條合理遠足／遠足營路線（原則，唔係點名單） */
+const PLAN_PRINCIPLES='【遠足策劃原則・你係領隊】呢個係遠足／遠足營，唔係自駕／市區散步。跟呢啲原則策劃（地點你自己揀，唔使跟名單）：\n'
++'1. 骨架先行：先諗「起點→每日營地→終點」一條連貫、地理順序合理嘅山徑路線，再補畫路 CP；唔好逐點亂砌。\n'
++'2. 起終點交通可達：起點／終點必須係人搭車／船到嘅徑口、碼頭、巴士／小巴站、村、車站旁徑口；嚴禁山頂／三角網測站做起終點（嗰啲只可以做中途 CP，行上去行落嚟）。\n'
++'3. 全程山徑：每段主體必須係行山徑；唔好計劃沿行車路／馬路走嘅段（例如兩個車站之間沿馬路）。CP 揀山徑網絡上嘅點（徑口、標距柱、路口、山坳、山峰），唔好揀淨係車路到嘅點。\n'
++'4. 每日負重合理：露營負重每日距離／爬升要適中、唔好一日行到爆；按用戶目標同日數調整；營地放喺當日段末端。\n'
++'5. 營地合法：過夜只可以用 AFCD 官方營地，唔好虛構營地。\n'
++'6. 一次過諗好：第一輪就要出可行、貼路、合理嘅計劃，唔好留一堆爛段等後面慢慢改。\n';
 const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶表格生成，你只負責按真實距離加減「畫路中途點 CP」。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 每次最多新增 2 個畫路 CP（role="cp"，用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可；唔好用營地），要揀地理上順路嘅；太長就移除畫路 CP。';
 /* 生成用：用戶留空起終點（或全部留空）→ AI 按已填資料補位／自由發揮 */
-const GEN_RULES='你係資深遠足導師／領隊，策劃切實可行、合理嘅遠足路線。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（畫路 CP 用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可，唔好塞晒所有營地，唔好虛構座標；起終點冇預設，唔好預設北潭涌，按用戶資料自由揀全港合適起終點）。';
+const GEN_RULES='你係資深遠足導師／領隊，策劃切實可行、合理嘅遠足／遠足營路線。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLAN_PRINCIPLES+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（畫路 CP 用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可，唔好塞晒所有營地，唔好虛構座標；起終點冇預設，唔好預設北潭涌，按用戶資料自由揀全港合適起終點）。';
 async function callGemini(userText, rules){
   const r=rules||BASE_RULES;
   aiBusy=true; refreshBusy();
@@ -843,7 +865,7 @@ function maybeRefine(result){
   refineRound++;
   $('btnStopRefine').classList.remove('hidden');
   setStatus('info','第 '+refineRound+'／'+cap+' 次調整：'+(snapFail?'有 '+badLegs.length+' 段貼唔到山徑，AI 替換離網 CP 中…':(backFail?'偵測到回頭路，AI 改路中…':'而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升超標':'')+'，AI 加減中途點中…')));
-  let instr='';
+  let instr='保持已貼路／達標嘅骨架，只作最小必要修改，唔好成個計劃重砌（避免來回震盪、用盡回合）。';
   if(backFail) instr+='偵測到回頭路／同一條山徑原路來回（路段重疊）：'+backTxt+'。請改行唔同山徑嘅路徑，移除掘頭 spur／死胡同中途點，唔好原路來回（除非用戶明確要求來回）。';
   if(snapFail){
     instr+='以下路段貼唔到山徑（直線備援，不可接受）：'+legTxt+'。請修理：';
