@@ -140,7 +140,7 @@ test('Phase 3.7：官方準確座標（三角網測站＋標距柱）係自由�
 test('Phase 3.7 lookup 行為：海拔碰撞唔誤配、營地守衛、refine 按名重解析', () => {
   const a = html.indexOf('const GAZETTEER');
   const cut = html.indexOf('/* ═══════════════ 狀態 ═══════════════');
-  const fn = new Function(html.slice(a, cut) + ';return {findTrigStation,findDistancePost,resolveNamePlan,findPlace};');
+  const fn = new Function('let userCps=[];' + html.slice(a, cut) + ';return {findTrigStation,findDistancePost,resolveNamePlan,findPlace};');
   const { findTrigStation, findDistancePost, resolveNamePlan, findPlace } = fn();
   // 海拔碰撞：「飛鵝山 605」嘅 605 係海拔，要解析去飛鵝山（137），唔係編號 605 嘅測站
   assert.equal(findTrigStation('飛鵝山 605')._stnNo, 137);
@@ -296,7 +296,7 @@ test('Phase 3.10：拆鎖（只鎖用戶填咗）＋放寬（唔迫揀名單）�
 
 test('Phase 3.10 checkFixed 語義：fixed 只係用戶點；用戶留空（fixed=[]）時 AI 改起點唔會誤停', () => {
   const src = html.slice(html.indexOf('function checkFixed('), html.indexOf('const apiKey='));
-  const factory = new Function('deps', 'let fixedLabels=deps.fixedLabels, fixedCamps=deps.fixedCamps; const findPlace=deps.findPlace;' + src + ';return checkFixed;');
+  const factory = new Function('deps', 'let fixedLabels=deps.fixedLabels, fixedCamps=deps.fixedCamps, userCps=deps.userCps||[]; const findPlace=deps.findPlace;' + src + ';return checkFixed;');
   const norm = l => ({ name: String(l || '').trim() }); // stub：名即 canonical
   const checkFixed = factory({ fixedLabels: [], fixedCamps: [], findPlace: norm });
   const np = { start: { label: '大帽山' }, waypoints: [{ label: '青山', role: 'cp' }, { label: '屯門', role: 'finish' }] };
@@ -316,7 +316,7 @@ test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞�
   assert.ok(t, 'title 要有版號');
   assert.ok(b, 'header 要有版號 badge');
   assert.equal(t[1], b[1], 'title 同 badge 版號要一致');
-  assert.equal(t[1], '3.13', '而家係 v3.13');
+  assert.equal(t[1], '3.14', '而家係 v3.14');
   // 導師 persona
   assert.ok(html.includes('資深遠足導師／領隊'), 'GEN 要以資深遠足導師／領隊身份策劃');
   assert.ok(html.includes('切實可行'), '要強調切實可行');
@@ -424,4 +424,63 @@ test('Phase 3.13 detectBacktrack 單向包含：出段繼續行好遠（min 稀�
   assert.equal(api.detectBacktrack(res).length, 1, '單向包含要捉到掘頭 spur（榕樹澳）');
   assert.equal(api.autoClean(res), true, 'spur 要触发清理');
   assert.deepEqual(routed[0].waypoints.map(w => w.id), ['finish'], '要移除掘頭 tip CP');
+});
+
+test('Phase 3.14：用戶指定 CP 欄（MGRS＋decimal）＋鎖死（checkFixed/removableCp/prompt）', () => {
+  assert.ok(html.includes('id="fUserCps"'), '要有指定 CP textarea');
+  assert.ok(html.includes('let userCps=[]'), '要有 userCps global');
+  assert.ok(html.includes('function mgrsToLatLon'), '要有 MGRS 轉換器');
+  assert.ok(html.includes('_userFixed:true'), 'resolvePoint/buildPlan 要標記用戶 CP');
+  assert.ok(html.includes("w.role==='cp'&&!w._userFixed"), 'removableCp 要排除用戶鎖死 CP');
+  assert.ok(html.includes('AI 改動咗你指定嘅畫路 CP'), 'checkFixed 要鎖用戶 CP');
+  assert.ok(html.includes('用戶指定畫路 CP（導師指定，鎖死'), 'AI spec 要列明鎖死 CP');
+});
+
+test('Phase 3.14 MGRS/UTM 轉換＋parseCpLine：HK round-trip＋已知向量＋decimal／MGRS／壞格式', () => {
+  const slice = html.slice(html.indexOf('const UTM_A='), html.indexOf('function resolveNamePlan'));
+  const factory = new Function('deps', 'const validAiCoord=deps.validAiCoord; const $=deps.$;' + slice + ';return {mgrsToLatLon,latLonToUtm,utmToLatLon,parseCpLine};');
+  const api = factory({ validAiCoord: (lat, lon) => lat >= 22.0 && lat <= 22.65 && lon >= 113.8 && lon <= 114.55, $: () => ({ value: '' }) });
+  // HK round-trip：forward → 砌 MGRS → inverse 應返原座標
+  const lat0 = 22.4123, lon0 = 114.3456;
+  const u = api.latLonToUtm(lat0, lon0);
+  const colSets = ['ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'];
+  const rows = 'ABCDEFGHJKLMNPQRSTUV';
+  const colL = colSets[(u.zone - 1) % 3][Math.floor(u.easting / 100000) - 1];
+  const rowL = rows[(Math.floor(u.northing / 100000) + (u.zone % 2 === 0 ? 5 : 0)) % 20];
+  const e5 = String(Math.round(u.easting % 100000)).padStart(5, '0');
+  const n5 = String(Math.round(u.northing % 100000)).padStart(5, '0');
+  const mgrs = u.zone + 'Q' + colL + rowL + e5 + n5;
+  const ll = api.mgrsToLatLon(mgrs);
+  assert.ok(ll && Math.abs(ll.lat - lat0) < 1e-4 && Math.abs(ll.lon - lon0) < 1e-4, 'HK MGRS round-trip 要準確（' + mgrs + '）');
+  // 已知 100km 方格（mgrs README：Honolulu 21.3094,-157.916 → 4QFJ）；README 嘅 1234567890 只係示例數字，
+  // 所以用「方格字母＝4QFJ」驗證 zone/band/col/row，再用真實數字 round-trip 驗證 decode 精度
+  const honU = api.latLonToUtm(21.3094, -157.916);
+  const honCol = colSets[(honU.zone - 1) % 3][Math.floor(honU.easting / 100000) - 1];
+  const honRow = rows[(Math.floor(honU.northing / 100000) + (honU.zone % 2 === 0 ? 5 : 0)) % 20];
+  assert.equal(honU.zone + 'Q' + honCol + honRow, '4QFJ', 'Honolulu 100km 方格要係 4QFJ（zone/band/parity 啱）');
+  const honMgrs = '4QFJ' + String(Math.round(honU.easting % 100000)).padStart(5, '0') + String(Math.round(honU.northing % 100000)).padStart(5, '0');
+  const hon = api.mgrsToLatLon(honMgrs);
+  assert.ok(hon && Math.abs(hon.lat - 21.3094) < 1e-4 && Math.abs(hon.lon - (-157.916)) < 1e-4, 'Honolulu 真實 MGRS round-trip 要準確');
+  // parseCpLine decimal
+  const d = api.parseCpLine('灣仔半島 22.4123, 114.3456');
+  assert.ok(d && !d.error && d.label === '灣仔半島' && Math.abs(d.lat - 22.4123) < 1e-9, 'decimal CP 要解析');
+  // parseCpLine MGRS
+  const g = api.parseCpLine('榕樹澳 ' + mgrs);
+  assert.ok(g && !g.error && g.label === '榕樹澳' && Math.abs(g.lat - lat0) < 1e-4, 'MGRS CP 要解析');
+  // 壞格式
+  assert.ok(api.parseCpLine(' foo bar ').error, '壞格式要報錯');
+  assert.ok(api.parseCpLine('外島 10.0, 100.0').error, 'HK 範圍外要報錯');
+});
+
+test('Phase 3.14 checkFixed 鎖用戶 CP：保留＋順序通過；漏咗／調序要報錯', () => {
+  const src = html.slice(html.indexOf('function checkFixed('), html.indexOf('const apiKey='));
+  const factory = new Function('deps', 'let fixedLabels=deps.fixedLabels||[], fixedCamps=deps.fixedCamps||[], userCps=deps.userCps||[]; const findPlace=deps.findPlace;' + src + ';return checkFixed;');
+  const norm = l => ({ name: String(l || '').trim() });
+  const uc = [{ label: 'CP甲' }, { label: 'CP乙' }];
+  const ok = factory({ userCps: uc, findPlace: norm });
+  assert.equal(ok({ start: { label: 'S' }, waypoints: [{ label: 'CP甲' }, { label: 'X' }, { label: 'CP乙' }, { label: 'F', role: 'finish' }] }), null, '用戶 CP 保留＋順序 → 通過');
+  const miss = factory({ userCps: uc, findPlace: norm });
+  assert.ok(miss({ start: { label: 'S' }, waypoints: [{ label: 'CP甲' }, { label: 'F', role: 'finish' }] }), '漏咗 CP乙 要報錯');
+  const rev = factory({ userCps: uc, findPlace: norm });
+  assert.ok(rev({ start: { label: 'S' }, waypoints: [{ label: 'CP乙' }, { label: 'CP甲' }, { label: 'F', role: 'finish' }] }), '調序要報錯');
 });
