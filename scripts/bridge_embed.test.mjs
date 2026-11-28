@@ -276,3 +276,17 @@ test('Phase 3.17 route:options fallback → snapped=false（Canvas 會過濾）'
   assert.equal(res.msg.options[0].snapped, false);
   utils.unmount();
 });
+
+test('Phase 3.18 route:options 並行：多個候選全部返（唔 sequential 卡死）', async () => {
+  const { sent, incoming, flush, utils } = setup();
+  await act(async () => {});
+  await act(async () => { incoming(msg('canvas:init', {}, 'i')); });
+  const baseLegs = [{ index: 0, from: { id: 'start', label: 'A', lat: 22.4, lon: 114.3 }, to: { id: 'b', label: 'B', lat: 22.41, lon: 114.31 }, distanceM: 1000, ascentM: 20 }];
+  const candidates = [0, 1, 2, 3, 4].map(i => ({ id: 'opt' + i, label: 'P' + i, lat: 22.405 + i * 0.001, lon: 114.305, legIndex: 0 }));
+  await act(async () => { incoming(msg('route:options', { baseLegs, candidates }, 'opt-par')); });
+  await flush();
+  const res = lastOfType(sent, 'route:options-result');
+  assert.ok(res, '應該回 options-result');
+  assert.equal(res.msg.options.length, 5, '5 個候選要全部計返（並行）');
+  utils.unmount();
+});

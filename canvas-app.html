@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DrawTheRoute 遠足助手 v3.17 — Gemini Canvas</title>
+<title>DrawTheRoute 遠足助手 v3.18 — Gemini Canvas</title>
 <!--
   DrawTheRoute 遠足助手（Phase 3.3 · 成員畫面 · 表格優先）
   ★ 貼入 Google Gemini Canvas 使用。
@@ -104,7 +104,7 @@
 <header>
   <span class="logo">🥾</span>
   <div>
-    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.17</span></h1>
+    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.18</span></h1>
     <div class="sub">填表格（可留空由 AI 補位／自由發揮），真實地圖即刻畫出路線</div>
   </div>
   <div class="spacer"></div>
@@ -160,7 +160,7 @@
   </div>
 
   <div class="panel hidden" id="reportPanel">
-    <h3>🧠 AI 策劃報告（睇佢點諗）</h3>
+    <h3>🧠 AI 策劃報告（睇佢點諗） <button class="btn ghost" id="btnCopyReport" style="padding:4px 10px;font-size:12px">📋 複製報告</button></h3>
     <div id="reportBody" class="muted"></div>
   </div>
 
@@ -169,9 +169,10 @@
     <div id="mapImageBody"></div>
   </div>
 
-  <div class="mapwrap">
+  <div class="actions"><button class="btn ghost" id="btnToggleMap">🗺 隱藏互動地圖（簡潔视图：只看大圖＋結果＋報告）</button></div>
+  <div class="mapwrap" id="mapwrap">
     <iframe id="dtr" title="DrawTheRoute 真實地圖"></iframe>
-    <div class="mapnote">🗺 呢個係真實 DrawTheRoute：計路後你可以拖曳 CP 微調、睇高程剖面、匯出 GPX／地圖。</div>
+    <div class="mapnote">🗺 呢個係真實 DrawTheRoute：計路後你可以拖曳 CP 微調、睇高程剖面、匯出 GPX／地圖。高程剖面／拖曳／GPX 只喺呢個互動地圖有；簡潔视图會隱藏佢。</div>
   </div>
 
 </main>
@@ -399,7 +400,10 @@ function setStatus(cls,msg){ const s=$('status'); s.className='status '+cls; s.t
 function setConn(state,text){ const c=$('conn'); c.className='conn '+state; $('connText').textContent=text; }
 /* Phase 3.16：AI 策劃報告——透明化佢點諗，方便用戶／領隊／我哋诊断 */
 function escRep(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function showReport(rep){ const p=$('reportPanel'); if(!rep){ p.classList.add('hidden'); return; } $('reportBody').innerHTML='<div style="white-space:pre-wrap">'+escRep(typeof rep==='string'?rep:JSON.stringify(rep,null,2))+'</div>'; p.classList.remove('hidden'); }
+function showReport(rep){ const p=$('reportPanel'); const txt=rep==null?'':(typeof rep==='string'?rep:JSON.stringify(rep,null,2)); lastReportText=txt;
+  $('reportBody').innerHTML=txt?('<div style="white-space:pre-wrap">'+escRep(txt)+'</div>'):'<div class="muted">AI 今次冇返回策劃報告（模型可能省略咗）。可再叫 AI 調整一次，或手動調整。</div>';
+  p.classList.remove('hidden'); if(txt) p.scrollIntoView({block:'nearest'}); }
+function fallbackCopy(t){ const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(_){} document.body.removeChild(ta); }
 /* Busy 守衛：AI 生成／調整 或 計路進行中 → 禁用所有動作按鈕，防止狂按／重複觸發彈窗 */
 function refreshBusy(){ const busy=aiBusy||!!pendingId; ['btnPlan','btnDemo','btnNotesAdjust','btnConfirm','btnAddDay'].forEach(id=>{ const e=$(id); if(e) e.disabled=busy; }); }
 function uuid(){ return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2); }
@@ -429,6 +433,8 @@ window.addEventListener('message',e=>{
   } else if(d.type==='route:options-result'){
     onDetourOptions(d.options);
   } else if(d.type==='route:error'){
+    if(pendingOptions){ pendingOptions=null; }
+    if(optionsTimer){ clearTimeout(optionsTimer); optionsTimer=null; }
     if(pendingId&&d.requestId!==pendingId) return;
     pendingId=null; refreshBusy();
     setStatus('bad','計路錯誤：'+(d.code||'')+' '+(d.message||''));
@@ -840,6 +846,8 @@ function autoClean(result){
 }
 /* ═══════════════ Phase 3.17：DTR 繞路清單橋——AI 只揀唔估 ═══════════════ */
 let pendingOptions=null;
+let optionsTimer=null;
+let lastReportText='';
 function legNearDist(p,g){ let m=1e9; for(let i=0;i<g.length-1;i++){ const d=segDistM(p,g[i],g[i+1]); if(d<m)m=d; } return m; }
 function buildCandidatePool(result){
   const legs=(result.legs||[]).filter(l=>l.snapped&&l.geometry&&l.geometry.length>1);
@@ -855,7 +863,7 @@ function buildCandidatePool(result){
     if(bi>=0&&bd<=2000) pool.push({id:'opt'+pool.length,label:s.label,lat:s.lat,lon:s.lon,legIndex:bi,origLegIndex:legs[bi].index,near:bd});
   }
   pool.sort((a,b)=>a.near-b.near);
-  return {legs, pool:pool.slice(0,12)};
+  return {legs, pool:pool.slice(0,8)};
 }
 function requestDetourOptions(result, shortfall){
   const built=buildCandidatePool(result); const legs=built.legs, pool=built.pool;
@@ -863,12 +871,15 @@ function requestDetourOptions(result, shortfall){
   pendingOptions={shortfall, pool};
   const baseLegs=legs.map(l=>({index:l.index,from:l.from,to:l.to,distanceM:l.distanceM,ascentM:l.ascentM}));
   const candidates=pool.map(c=>({id:c.id,label:c.label,lat:c.lat,lon:c.lon,legIndex:c.legIndex}));
-  setStatus('info','DTR 計緊骨架附近嘅貼路繞路選項（AI 之後只喺清單揀，唔使估）…');
+  setStatus('info','DTR 並行計緊 '+candidates.length+' 個貼路繞路選項（AI 之後只喺清單揀，唔使估）…');
+  if(optionsTimer) clearTimeout(optionsTimer);
+  optionsTimer=setTimeout(()=>{ if(pendingOptions){ pendingOptions=null; setStatus('warn','DTR 繞路選項逾時（太慢／冇回應）。請喺地圖手動加 CP，或改表格再計。'); } },60000);
   send('route:options',{baseLegs,candidates},uuid());
   return true;
 }
 const PICK_RULES='你係遠足領隊。DTR 已經計好以下繞路選項（全部貼路、真實加幾多 km／爬升）。你只需要按用戶偏好喺清單度，唔好估其他點、唔好改座標。只輸出 JSON {"pick":["id",...]}。';
 function onDetourOptions(options){
+  if(optionsTimer){ clearTimeout(optionsTimer); optionsTimer=null; }
   if(!pendingOptions) return;
   const shortfall=pendingOptions.shortfall, pool=pendingOptions.pool; pendingOptions=null;
   const good=(options||[]).filter(o=>o.snapped&&o.addKm>0);
@@ -994,6 +1005,8 @@ function manualAdjust(){
 }
 $('btnStopRefine').addEventListener('click',()=>{ stopRefine=true; $('btnStopRefine').classList.add('hidden'); setStatus('info','已停止自動調整。'); });
 $('btnNotesAdjust').addEventListener('click',manualAdjust);
+$('btnCopyReport').addEventListener('click',()=>{ const t=lastReportText||($('reportBody').textContent||''); if(!t.trim()){ setStatus('warn','未有報告可複製。'); return; } const done=()=>setStatus('ok','已複製策劃報告——可以貼俾領隊／我睇。'); if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done).catch(()=>{ fallbackCopy(t); done(); }); } else { fallbackCopy(t); done(); } });
+$('btnToggleMap').addEventListener('click',()=>{ const w=$('mapwrap'); const hidden=w.style.display==='none'; w.style.display=hidden?'':'none'; $('btnToggleMap').textContent=hidden?'🗺 隱藏互動地圖（簡潔视图：只看大圖＋結果＋報告）':'🗺 顯示互動地圖（拖曳 CP／高程剖面／GPX）'; });
 
 /* ═══════════════ 結果 ═══════════════ */
 function renderResult(r){

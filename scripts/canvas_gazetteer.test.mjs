@@ -316,7 +316,7 @@ test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞�
   assert.ok(t, 'title 要有版號');
   assert.ok(b, 'header 要有版號 badge');
   assert.equal(t[1], b[1], 'title 同 badge 版號要一致');
-  assert.equal(t[1], '3.17', '而家係 v3.17');
+  assert.equal(t[1], '3.18', '而家係 v3.18');
   // 導師 persona
   assert.ok(html.includes('資深遠足導師／領隊'), 'GEN 要以資深遠足導師／領隊身份策劃');
   assert.ok(html.includes('切實可行'), '要強調切實可行');
@@ -548,4 +548,15 @@ test('Phase 3.17 insertDetours：按 origLegIndex 插入正確位置（骨架順
   assert.deepEqual(api.getPlan().waypoints.map(w => w.label), ['C1', 'M048', 'F'], 'M048 要插喺 C1→F 之間（origLegIndex 1）');
   assert.equal(routed.length, 1, '插入後要重新計路');
   assert.equal(api.getPlan().waypoints[1].role, 'cp');
+});
+
+test('Phase 3.18：options watchdog＋報告複製/常駐＋互動地圖 toggle（簡潔视图）', () => {
+  assert.ok(html.includes('let optionsTimer=null;'), '要有 options watchdog timer');
+  assert.ok(html.includes('DTR 繞路選項逾時'), 'watchdog 逾時要誠實提示');
+  assert.ok(html.includes('pool.slice(0,8)'), '候選減到 8 個（快啲）');
+  assert.ok(html.includes('id="btnCopyReport"'), '報告要有複製 button');
+  assert.ok(html.includes('function fallbackCopy('), '要有 clipboard fallback');
+  assert.ok(html.includes('AI 今次冇返回策劃報告'), '冇報告都要常駐 panel（搵得到）');
+  assert.ok(html.includes('id="btnToggleMap"'), '要有互動地圖 toggle');
+  assert.ok(html.includes('id="mapwrap"'), 'mapwrap 要有 id 供 toggle');
 });

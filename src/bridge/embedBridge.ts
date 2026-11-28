@@ -217,21 +217,29 @@ export function useEmbedBridge(deps: BridgeDeps): void {
       }, LIMITS.REQUEST_TIMEOUT_MS);
       try {
         const options: DetourOption[] = [];
-        for (const c of cands) {
-          if (cancelled || currentRequestId !== requestId) return;
-          const bl = baseLegs[c.legIndex];
-          const pts = [
-            { lat: bl.from.lat, lng: bl.from.lon, label: bl.from.label },
-            { lat: c.lat, lng: c.lon, label: c.label },
-            { lat: bl.to.lat, lng: bl.to.lon, label: bl.to.label },
-          ];
-          const { segments, legMeta } = await depsRef.current.planRoute(pts);
-          const { stats } = analyzeRoute(segments, depsRef.current.naismith);
-          const snapped = legMeta.every(m => !!m && m.snapped);
-          const addKm = (stats.totalDistance * 1000 - bl.distanceM) / 1000;
-          const addAscentM = Math.round(stats.totalAscent - (bl.ascentM || 0));
-          options.push({ id: c.id, label: c.label, lat: c.lat, lon: c.lon, legIndex: c.legIndex, addKm: +addKm.toFixed(2), addAscentM, snapped });
-        }
+        // 並行（concurrency 4）計候選——sequential 12 個 BRouter 呼叫會慢到似卡死；個別失敗唔 abort 全部
+        let idx = 0;
+        const worker = async () => {
+          while (idx < cands.length) {
+            if (cancelled || currentRequestId !== requestId) return;
+            const c = cands[idx++];
+            try {
+              const bl = baseLegs[c.legIndex];
+              const pts = [
+                { lat: bl.from.lat, lng: bl.from.lon, label: bl.from.label },
+                { lat: c.lat, lng: c.lon, label: c.label },
+                { lat: bl.to.lat, lng: bl.to.lon, label: bl.to.label },
+              ];
+              const { segments, legMeta } = await depsRef.current.planRoute(pts);
+              const { stats } = analyzeRoute(segments, depsRef.current.naismith);
+              const snapped = legMeta.every(m => !!m && m.snapped);
+              const addKm = (stats.totalDistance * 1000 - bl.distanceM) / 1000;
+              const addAscentM = Math.round(stats.totalAscent - (bl.ascentM || 0));
+              options.push({ id: c.id, label: c.label, lat: c.lat, lon: c.lon, legIndex: c.legIndex, addKm: +addKm.toFixed(2), addAscentM, snapped });
+            } catch { /* 单个候選計失敗 → 跳過，唔拖死成張清單 */ }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(4, cands.length) }, () => worker()));
         if (cancelled || currentRequestId !== requestId) return;
         send('route:options-result', { options }, requestId);
       } catch (e) {
