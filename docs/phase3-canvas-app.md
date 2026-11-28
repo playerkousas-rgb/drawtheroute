@@ -272,3 +272,19 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 ### 測試
 - 3.9 測試斷言更新：環線解釋句**已刪**（`!includes('去程同回程行唔同山徑')`），no-backtrack 保留。
 - +1（gazetteer 17）：版號 title/badge 一致 v3.11、導師 persona、交通可達＋山頂唔做起終點、最直接山徑＋CP 引導繞路、環線句全删（prompt/instr/status）、spur 約束保留。全套 49（gate 9＋contract 11＋embed 12＋gazetteer 17）。
+
+## Phase 3.12 — 跨海游水線根治：blacklist 被移除點＋安全移除唔设 cap
+
+### 背景（用戶回饋＋截圖）
+- 截圖：黃石／大灘一條直線跨大灘海峽去蛋家灣（塔門方向，冇山徑駁過去）→ BRouter 貼唔到路 → fallback 直線。「佢成日游水過去」。
+- Root cause（read-only 诊断確認）：autoClean **有**移除蛋家灣（role=cp、腿 !snapped），但 **refine 完全冇 blacklist**——只笼统講「替換離網 CP」，冇話 AI「蛋家灣已被移除、嚴禁加返」。AI 念念不忘又加返 → autoClean 又移除 → 循環到 refine cap 用盡 → 最後條跨海直線留喺地圖。
+
+### 修復
+- **Blacklist（`cleanRemoved` Set）**：autoClean 每移除一個 CP 記低佢個名；跨 refine 回合保留（只喺 3 個新計劃入口 reset：form／runAiPlan／btnConfirm；**applyAdjust 每輪 refine 唔 reset**，否則 blacklist 失效）。auto-refine＋manual 兩個 prompt 都加：「以下畫路 CP 已被系统確定性移除（離網／跨海／掘頭），嚴禁再加返：…」。呢個係有效性回饋（系統證實離網），唔係列清單迫揀。
+- **跨海安全移除唔设 cap**：autoClean 分開 `safety`（離網／跨海，!snapped 腿嘅 CP）同 spur 優化移除。cap 檢查改 `if(cleanDrops>=MAX_CLEAN_DROPS && safety.size===0) return false;`——離網／跨海 CP 永遠移除（保證地圖最終冇游水直線），cap 只擋 spur／回頭路優化。配合 blacklist 唔會被加返，唔會無限循環。
+- **版號 v3.12**（title＋badge）。
+- 保留：用戶明確固定點照鎖（用戶自指跨海起終點＝不可能請求，誠實標不合格，唔亂移除固定點）；3.9 spur／回頭路偵測照行。
+
+### 測試
+- 3.9 functional harness 補 `cleanRemoved` deps＋`getRemoved`；3.11 版號斷言改 3.12。
+- +2（gazetteer 19）：blacklist substring（兩處 prompt、聲明、4 次 new Set＝1 聲明＋3 入口、applyAdjust 唔 reset、safety bypass cap、記名）；functional（autoClean 記低蛋家灣、到 cap 仍移除跨海 CP、spur-only 到 cap 停）。全套 51（gate 9＋contract 11＋embed 12＋gazetteer 19）。
