@@ -251,3 +251,24 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 
 ### 測試
 - `canvas_gazetteer.test.mjs` +2（gazetteer 16）：拆鎖 regression（冇 skeleton overwrite、fixed=uf/uc、prompt 只鎖用戶點）＋放寬（冇官方名單 forcing、專家自由、唔使跟名單）＋移除 priming（placeholder 中性、唔好預設北潭涌）＋安全保留；functional `checkFixed` 語義（fixed=[] 時 AI 改起點通過；用戶填咗被改則報錯；用戶起點保留＋AI 加中途點通過）。全套 48（gate 9＋contract 11＋embed 12＋gazetteer 16）。
+
+## Phase 3.11 — 版號可見＋導師 persona＋起終點可行性＋繞路靠 CP（淨刪＋最小新增）
+
+### 背景（用戶回饋）
+- 示例路線「MA ON SHAN 山頂（測站 661）出發→M001→…→西貢市」不可行：山頂冇交通（「塔直升機遊繩去出發嗎？」）、順序跳序。AI 淨係揀點，唔係以領隊思維策劃可行路線。
+- 用戶連環纠正過度規範：**唔強制環線**（起終點可以不同，毅行者 100km 就係 point-to-point）；**跨區完全合理**（5 日唔跨區冇路可想）；「若起==終先環線」呢種條件式解釋係**完全冇用嘅 prompt**（起==終當然係環線，AI 自己識）——成句刪，唔留任何環線／point-to-point 解釋。
+- 「html 頂同入到去都睇到版號」——一眼知有冇改到。
+- 「DTR 喺 CP 之間行最直接；要佢行第二條就加 CP 引導」——繞路嘅正確機制。
+
+### 修復（淨刪＋最小新增，唔再加枷鎖）
+- **版號**：`<title>`＋header `<span class="ver">v3.11</span>`（每次更新 bump；測試斷言兩者一致）。
+- **導師 persona**：GEN_RULES 開頭「你係資深遠足導師／領隊，策劃切實可行、合理嘅遠足路線」。
+- **兩句最小新增**（PLACE_RULES，gen/refine 共用）：
+  1. 起終點必須交通可達（徑口、碼頭、巴士／小巴站、村）；山頂／三角網測站只可以做中途 CP，唔好做起終點。
+  2. 引擎喺相鄰點之間行最直接山徑；要行長啲／指定路徑，加中途 CP 引導繞路，唔好靠引擎自動繞遠。
+- **刪**：「環線去程同回程行唔同山徑」成句＋「呢啲係常識提示…你放手諗」meta 噪音；refine 指示／狀態訊息嘅「改做環線」全部去環線化（「改行唔同山徑嘅路徑」）。
+- **留**：唔好原路來回／掘頭 spur（有效性約束）；3.9 autoClean／detectBacktrack 照行；跨區／point-to-point／環線點樣排——全部唔寫，AI 自己諗。
+
+### 測試
+- 3.9 測試斷言更新：環線解釋句**已刪**（`!includes('去程同回程行唔同山徑')`），no-backtrack 保留。
+- +1（gazetteer 17）：版號 title/badge 一致 v3.11、導師 persona、交通可達＋山頂唔做起終點、最直接山徑＋CP 引導繞路、環線句全删（prompt/instr/status）、spur 約束保留。全套 49（gate 9＋contract 11＋embed 12＋gazetteer 17）。

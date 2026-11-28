@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DrawTheRoute 遠足助手 — Gemini Canvas</title>
+<title>DrawTheRoute 遠足助手 v3.11 — Gemini Canvas</title>
 <!--
   DrawTheRoute 遠足助手（Phase 3.3 · 成員畫面 · 表格優先）
   ★ 貼入 Google Gemini Canvas 使用。
@@ -63,6 +63,7 @@
   table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
   th,td{border:1px solid var(--line);padding:5px 8px;text-align:left}
   th{background:var(--green-bg);color:var(--green-d);font-weight:600}
+  .ver{font-size:12px;font-weight:700;opacity:.7;border:1px solid currentColor;border-radius:999px;padding:1px 8px;vertical-align:middle;margin-left:6px}
   .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700}
   .badge.pass{background:var(--green-bg);color:var(--green-d)}
   .badge.fail{background:var(--red-bg);color:var(--red)}
@@ -102,7 +103,7 @@
 <header>
   <span class="logo">🥾</span>
   <div>
-    <h1>DrawTheRoute 遠足助手</h1>
+    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.11</span></h1>
     <div class="sub">填表格（可留空由 AI 補位／自由發揮），真實地圖即刻畫出路線</div>
   </div>
   <div class="spacer"></div>
@@ -563,12 +564,14 @@ const PLACE_RULES='【過夜營地】必須從以下 AFCD 官方營地揀名（r
 +'- 最後一個 waypoint role 必須係 finish。總點數（起點＋所有 waypoints）唔超過 24。\n'
 +'- 系統按 overnight 自動分日，stages 可省略（唔好寫唔齊全嘅 stages）。\n'
 +'- 用戶要求「少啲上落／唔行樓梯」時：畫路 CP 揀沿海低地中途點，避開高地坳；引擎唔保證完全冇樓梯，唔好虛報。\n'
-+'- 畫路點揀真實連接山徑上（同起終點同一連接嘅山徑網絡）、唔好跨海／跨水塘；環線去程同回程行唔同山徑、避免原路來回。呢啲係常識提示，唔係硬清單；若貼唔到路或原路來回，系統會自動清理，你放手諗。\n'
++'- 起點／終點必須交通可達（徑口、碼頭、巴士／小巴站、村）；山頂／三角網測站只可以做中途 CP，唔好做起終點。\n'
++'- 引擎喺相鄰點之間行最直接山徑；要行長啲或者指定路徑，加中途 CP 引導繞路，唔好靠引擎自動繞遠。\n'
++'- 畫路點揀真實連接山徑上（同起終點同一連接嘅山徑網絡）、唔好跨海／跨水塘；唔好原路來回／掘頭 spur（除非用戶明確要求來回）。\n'
 +'- 唔好虛構安全標準；約束只用用戶明確講嘅數字。';
 /* 調整用：第一輪已由表格生成，只加減畫路 CP（唔係營地） */
 const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶表格生成，你只負責按真實距離加減「畫路中途點 CP」。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 每次最多新增 2 個畫路 CP（role="cp"，用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可；唔好用營地），要揀地理上順路嘅；太長就移除畫路 CP。';
 /* 生成用：用戶留空起終點（或全部留空）→ AI 按已填資料補位／自由發揮 */
-const GEN_RULES='你係遠足路線規劃助手。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（畫路 CP 用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可，唔好塞晒所有營地，唔好虛構座標；起終點冇預設，唔好預設北潭涌，按用戶資料自由揀全港合適起終點）。';
+const GEN_RULES='你係資深遠足導師／領隊，策劃切實可行、合理嘅遠足路線。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（畫路 CP 用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可，唔好塞晒所有營地，唔好虛構座標；起終點冇預設，唔好預設北潭涌，按用戶資料自由揀全港合適起終點）。';
 async function callGemini(userText, rules){
   const r=rules||BASE_RULES;
   const resp=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
@@ -724,16 +727,16 @@ function maybeRefine(result){
   }
   if(refineRound>=cap){
     if(snapFail){ setStatus('bad','✗ 已調整 '+refineRound+'／'+cap+' 次，仍有 '+badLegs.length+' 段貼唔到山徑（'+legTxt+'）——結果不可用、不可導航。請喺地圖手動改 CP，或改表格再計。'); }
-    else if(backFail){ setStatus('warn','已調整 '+refineRound+'／'+cap+' 次，仍有回頭路／同一條山徑來回（'+backTxt+'）。請喺地圖手動改 CP 做環線，或改表格再計。'); }
+    else if(backFail){ setStatus('warn','已調整 '+refineRound+'／'+cap+' 次，仍有回頭路／同一條山徑來回（'+backTxt+'）。請喺地圖手動改 CP 避免原路來回，或改表格再計。'); }
     else{ setStatus('warn','已調整 '+refineRound+'／'+cap+' 次（到你設定嘅上限），而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升仍超標':'')+'。請喺地圖手動加減 CP，或者改表格再計。'); }
     $('btnStopRefine').classList.add('hidden');
     return;
   }
   refineRound++;
   $('btnStopRefine').classList.remove('hidden');
-  setStatus('info','第 '+refineRound+'／'+cap+' 次調整：'+(snapFail?'有 '+badLegs.length+' 段貼唔到山徑，AI 替換離網 CP 中…':(backFail?'偵測到回頭路，AI 改做環線中…':'而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升超標':'')+'，AI 加減中途點中…')));
+  setStatus('info','第 '+refineRound+'／'+cap+' 次調整：'+(snapFail?'有 '+badLegs.length+' 段貼唔到山徑，AI 替換離網 CP 中…':(backFail?'偵測到回頭路，AI 改路中…':'而家 '+distKm.toFixed(1)+' km'+(ascFail?'，爬升超標':'')+'，AI 加減中途點中…')));
   let instr='';
-  if(backFail) instr+='偵測到回頭路／同一條山徑原路來回（路段重疊）：'+backTxt+'。請改做環線：去程同回程行唔同山徑，移除掘頭 spur／死胡同中途點，唔好原路來回（除非用戶明確要求來回）。';
+  if(backFail) instr+='偵測到回頭路／同一條山徑原路來回（路段重疊）：'+backTxt+'。請改行唔同山徑嘅路徑，移除掘頭 spur／死胡同中途點，唔好原路來回（除非用戶明確要求來回）。';
   if(snapFail){
     instr+='以下路段貼唔到山徑（直線備援，不可接受）：'+legTxt+'。請修理：';
     instr+='對每段出事路段，若果端點係可移除嘅畫路 CP（role="cp"），將佢替換做同一山徑網絡上、唔使跨海／跨水塘嘅點（沿徑標距柱／路口／山坳，可用編號如 M048 或網上真實座標）；';

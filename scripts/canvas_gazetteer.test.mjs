@@ -234,7 +234,7 @@ test('Phase 3.9：確定性清理（autoClean）＋回頭路偵測（detectBackt
   assert.ok(html.includes('MAX_CLEAN_DROPS'), '清理要有次数上限');
   assert.ok(html.includes('if(autoClean(d.result)) return;'), 'route:result 要先做確定性清理');
   assert.ok(html.includes('backFail'), 'maybeRefine 要把回頭路纳入觸發');
-  assert.ok(html.includes('去程同回程行唔同山徑'), 'prompt 要有環線／唔同山徑守則');
+  assert.ok(!html.includes('去程同回程行唔同山徑'), '3.11：環線解釋句已刪（起==終 AI 自己識係環線，唔使教）');
   assert.ok(html.includes('原路來回'), 'prompt 要禁止原路來回');
   assert.ok(html.includes('.geometry'), 'Canvas 要用 leg geometry 偵測');
 });
@@ -307,4 +307,30 @@ test('Phase 3.10 checkFixed 語義：fixed 只係用戶點；用戶留空（fixe
   const checkFixed3 = factory({ fixedLabels: ['北潭涌'], fixedCamps: [], findPlace: norm });
   const np3 = { start: { label: '北潭涌' }, waypoints: [{ label: '大帽山', role: 'cp' }, { label: '北潭涌', role: 'finish' }] };
   assert.equal(checkFixed3(np3), null, '用戶起點保留＋AI 自由加中途點 → 通過');
+});
+
+test('Phase 3.11：版號可見＋導師 persona＋起終點交通可達＋繞路靠 CP＋刪環線廢句', () => {
+  // 版號：title 同 header badge 一致，一眼知係咪最新
+  const t = html.match(/<title>[^<]*v(\d+\.\d+)[^<]*<\/title>/);
+  const b = html.match(/<span class="ver">v(\d+\.\d+)<\/span>/);
+  assert.ok(t, 'title 要有版號');
+  assert.ok(b, 'header 要有版號 badge');
+  assert.equal(t[1], b[1], 'title 同 badge 版號要一致');
+  assert.equal(t[1], '3.11', '而家係 v3.11');
+  // 導師 persona
+  assert.ok(html.includes('資深遠足導師／領隊'), 'GEN 要以資深遠足導師／領隊身份策劃');
+  assert.ok(html.includes('切實可行'), '要強調切實可行');
+  // 起終點可行性
+  assert.ok(html.includes('交通可達'), '起終點要交通可達');
+  assert.ok(html.includes('山頂／三角網測站只可以做中途 CP，唔好做起終點'), '山頂／測站唔好做起終點');
+  // 繞路靠 CP
+  assert.ok(html.includes('最直接山徑'), '要講明引擎行最直接山徑');
+  assert.ok(html.includes('加中途 CP 引導繞路'), '要教 AI 用 CP 引導繞路');
+  // 環線廢句全删（prompt＋refine 指示＋狀態訊息）
+  assert.ok(!html.includes('請改做環線'), 'refine 指示唔再迫改環線');
+  assert.ok(!html.includes('改做環線中'), '狀態訊息唔再講環線');
+  assert.ok(!html.includes('手動改 CP 做環線'), 'cap 警告唔再講環線');
+  // 有效性約束保留
+  assert.ok(html.includes('唔好原路來回／掘頭 spur'), 'no-backtrack／no-spur 保留');
+  assert.ok(html.includes('請改行唔同山徑嘅路徑'), 'backtrack 修理指示保留（唔同山徑，唔係迫環線）');
 });
