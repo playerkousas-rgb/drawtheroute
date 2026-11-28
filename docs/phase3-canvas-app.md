@@ -288,3 +288,26 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 ### 測試
 - 3.9 functional harness 補 `cleanRemoved` deps＋`getRemoved`；3.11 版號斷言改 3.12。
 - +2（gazetteer 19）：blacklist substring（兩處 prompt、聲明、4 次 new Set＝1 聲明＋3 入口、applyAdjust 唔 reset、safety bypass cap、記名）；functional（autoClean 記低蛋家灣、到 cap 仍移除跨海 CP、spur-only 到 cap 停）。全套 51（gate 9＋contract 11＋embed 12＋gazetteer 19）。
+
+## Phase 3.13 — 放寬 refine cap＋busy 防止狂按＋status 置頂＋DP 編號後備座標＋掘頭 spur 單向包含偵測
+
+### 背景（用戶回饋，5 項之 4；CP 指定欄留 3.14）
+1. 「AI 揀咗未收录地点：北潭郊遊徑 C5314 標距柱」——AI 用編號但系統 DP 名單未收錄，且 prompt 叫佢唔使輸出座標 → 冇後備 → 拒絕。
+2. 「提示字句放太底，用戶留意不到會狂按，彈窗檔著用戶」——status 喺 main 底部；busy 時冇禁用按鈕。
+3. 「0–5 次太小，5 次完成不了，要放寬」。
+4. 「點解話無回頭路？明明榕樹澳、灣仔半島兩個回頭路」——detectBacktrack 用 mutualOverlap=min(雙向)，掘頭 spur 出段折返後繼續行好遠會稀釋 min → 漏偵測。
+
+### 修復
+- **DP 編號後備座標**：prompt 加「【編號後備座標】…用編號引用時請同時輸出 lat/lon＋source 做後備；系統優先用官方座標，若編號未收錄就用你嘅真實座標」。resolvePoint 已有 validAiCoord 後備，而家 AI 會附座標 → C5314 呢類未收錄編號唔再被拒。
+- **busy 防止狂按**：`aiBusy`＋`refreshBusy()`——AI 生成／調整（callGemini try/finally）或計路（pendingId）進行中 → 禁用 btnPlan/btnDemo/btnNotesAdjust/btnConfirm/btnAddDay。startRoute／route:result／route:error 接線。
+- **status 置頂 sticky**：`#status` 移去 header 之下＋`position:sticky;top:0;z-index:80`——用戶滾動都見到「規劃中／計路中／完成」，配合 busy 禁用防止狂按。
+- **cap 放寬 0–12**：fRefineCap max 12、預設 6；MAX_REFINE_ROUNDS=6；refineCap clamp 12。
+- **掘頭 spur 單向包含**：detectBacktrack 除 mutualOverlap 外，加「相邻腿共享 tip 且 overlapFrac(入段,出段)>0.6」→ 出段折返後繼續行好遠都捉到；autoClean spur  loop 同步加呢個條件 → 移除榕樹澳／灣仔半島呢類掘頭 tip CP。
+- 版號 v3.13。
+
+### 測試
+- 舊 cap 測試更新（預設 6／0–12）；版號斷言 3.13。
+- +2（gazetteer 21）：cap/busy/status 置頂/DP 後備 substring；functional 單向包含（mutualOverlap 稀釋 ≤0.6 但 overlapFrac(入,出)>0.6 → detectBacktrack 捉到、autoClean 移除 tip）。全套 53（gate 9＋contract 11＋embed 12＋gazetteer 21）。
+
+### 留低 3.14
+- 用戶指定畫路 CP 欄（導師指定 CP）：需座標或 HK 網格參考（「kk xxxxxxxx」格式待用戶確認），同營地（按名）唔同。待確認格式後做。

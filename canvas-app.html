@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DrawTheRoute 遠足助手 v3.12 — Gemini Canvas</title>
+<title>DrawTheRoute 遠足助手 v3.13 — Gemini Canvas</title>
 <!--
   DrawTheRoute 遠足助手（Phase 3.3 · 成員畫面 · 表格優先）
   ★ 貼入 Google Gemini Canvas 使用。
@@ -59,6 +59,7 @@
   .status.ok{background:var(--green-bg);color:var(--green-d)}
   .status.warn{background:var(--amber-bg);color:var(--amber)}
   .status.bad{background:var(--red-bg);color:var(--red)}
+  #status{position:sticky;top:0;z-index:80;box-shadow:0 1px 6px rgba(0,0,0,.18);border-radius:0}
   .status.info{background:#eef2ff;color:var(--blue)}
   table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
   th,td{border:1px solid var(--line);padding:5px 8px;text-align:left}
@@ -103,12 +104,14 @@
 <header>
   <span class="logo">🥾</span>
   <div>
-    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.12</span></h1>
+    <h1>DrawTheRoute 遠足助手 <span class="ver">v3.13</span></h1>
     <div class="sub">填表格（可留空由 AI 補位／自由發揮），真實地圖即刻畫出路線</div>
   </div>
   <div class="spacer"></div>
   <div class="conn" id="conn"><span class="dot"></span><span id="connText">連接中…</span></div>
 </header>
+
+<p class="status info" id="status">初始化…</p>
 
 <div class="inputbar">
   <div class="formgrid">
@@ -118,7 +121,7 @@
     <label class="field">終點（可留空）<input id="fFinish" list="places" autocomplete="off" placeholder="留空由 AI 揀（可同起點）"></label>
     <label class="field">每日最多行走（小時，可留空）<input type="number" id="fMaxH" min="1" max="16" step="0.5" placeholder="冇限制"></label>
     <label class="field">每日最多爬升（m，可留空）<input type="number" id="fMaxAscent" min="50" max="3000" step="50" placeholder="冇限制"></label>
-    <label class="field">最多自動調整次數（0–5）<input type="number" id="fRefineCap" value="3" min="0" max="5" step="1"></label>
+    <label class="field">最多自動調整次數（0–12）<input type="number" id="fRefineCap" value="6" min="0" max="12" step="1"></label>
   </div>
   <label class="field notesfield">其他要求（例如：唔行樓梯、少啲上落、想沿海行）
     <textarea id="fNotes" rows="2" placeholder="例如：唔行樓梯，唔好咁多上落，想沿海行"></textarea>
@@ -163,7 +166,6 @@
     <div class="mapnote">🗺 呢個係真實 DrawTheRoute：計路後你可以拖曳 CP 微調、睇高程剖面、匯出 GPX／地圖。</div>
   </div>
 
-  <p class="status info" id="status">初始化…</p>
 </main>
 
 <footer id="footer">DrawTheRoute × Gemini Canvas · 結果只供參考，出發前請由領隊核實 · <span id="dtrUrlLabel"></span></footer>
@@ -299,19 +301,22 @@ function resolveNamePlan(np){
 
 /* ═══════════════ 狀態 ═══════════════ */
 let ready=false, acked=false, pendingId=null, pendingPlan=null;
+let aiBusy=false;   // AI 生成／調整進行中；配合 pendingId（計路中）防止用戶狂按
 let originalRequest='', currentNamePlan=null, refineRound=0, stopRefine=false;
 let fixedLabels=[], fixedCamps=[];                 // 用戶表格指定嘅固定點（AI 唔准郁）
 let lastResult=null;                               // 最近一次真實結果（俾手動「按其他要求調整」用）
 let snapshotId=null, snapDelayTimer=null, snapWaitTimer=null;
-const MAX_REFINE_ROUNDS=3;                          // 預設上限；成員可喺表格較 0–5
+const MAX_REFINE_ROUNDS=6;                          // 預設上限；成員可喺表格較 0–12
 const MAX_DAY_ROWS=13;                              // 13 個營地 = 14 日（bridge MAX_DAYS=14）
 function refineCap(){
   const v=parseInt($('fRefineCap').value,10);
-  return Number.isFinite(v)?Math.max(0,Math.min(5,v)):MAX_REFINE_ROUNDS;
+  return Number.isFinite(v)?Math.max(0,Math.min(12,v)):MAX_REFINE_ROUNDS;
 }
 const $=id=>document.getElementById(id);
 function setStatus(cls,msg){ const s=$('status'); s.className='status '+cls; s.textContent=msg; }
 function setConn(state,text){ const c=$('conn'); c.className='conn '+state; $('connText').textContent=text; }
+/* Busy 守衛：AI 生成／調整 或 計路進行中 → 禁用所有動作按鈕，防止狂按／重複觸發彈窗 */
+function refreshBusy(){ const busy=aiBusy||!!pendingId; ['btnPlan','btnDemo','btnNotesAdjust','btnConfirm','btnAddDay'].forEach(id=>{ const e=$(id); if(e) e.disabled=busy; }); }
 function uuid(){ return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2); }
 function send(type,payload,requestId){
   if(!DTR_ORIGIN) return;
@@ -331,14 +336,14 @@ window.addEventListener('message',e=>{
     setStatus('ok','已連接 DrawTheRoute。填好表格撳「生成計劃」，或者撳「示範路線」。');
   } else if(d.type==='route:result'){
     if(d.requestId!==pendingId) return;
-    pendingId=null; lastResult=d.result; renderResult(d.result);
+    pendingId=null; lastResult=d.result; renderResult(d.result); refreshBusy();
     $('btnNotesAdjust').classList.remove('hidden');
     if(autoClean(d.result)) return;   // 確定性清理中：重新計路，snapshot 等乾淨結果
     maybeRefine(d.result);
     scheduleSnapshot();
   } else if(d.type==='route:error'){
     if(pendingId&&d.requestId!==pendingId) return;
-    pendingId=null;
+    pendingId=null; refreshBusy();
     setStatus('bad','計路錯誤：'+(d.code||'')+' '+(d.message||''));
     setConn('ok','✓ DrawTheRoute 已就緒');
     $('btnStopRefine').classList.add('hidden');
@@ -555,6 +560,7 @@ const PLACE_RULES='【過夜營地】必須從以下 AFCD 官方營地揀名（r
 +'(a) 地政總署三角網測站（山峰／高地控制點）：label 用編號或英文名引用，例如「三角網測站 67.2 大帽山 TAI MO SHAN」、「87 鳳凰山 FUNG WONG SHAN」，系統按編號／名填官方座標，唔使輸出座標。\n'
 +'(b) 漁護署遠足徑標距柱（沿徑每 500 米一支）：label 用編號引用——麥理浩徑 M001–M200、衛奕信徑 W001–W137、港島徑 H001–H100、鳳凰徑 L001–L139、各郊遊徑 C 字頭（如 C1101），例如「麥理浩徑 M020 標距柱」，系統按編號填官方座標，唔使輸出座標。\n'
 +'你可以揀呢啲官方點，亦可以唔揀、改用網上搵到座標嘅其他地點；自由選擇，唔使刻意偏好任何一種。\n'
++'【編號後備座標】系統內置嘅標距柱／測站名單未必收錄所有編號（例如某郊遊徑 C 字頭）。用編號引用時，請同時輸出該點嘅 lat/lon＋source 做後備：系統優先用官方座標，若編號未收錄就用你嘅真實座標，唔會因「未收錄」而拒絕。唔好虛構座標。\n'
 +'JSON 格式：\n'
 +'{"days":整數,"nights":整數,"targetTotalKm":數字,"start":{"label":"名","lat":數字,"lon":數字},'
 +'"waypoints":[{"id":"cp1","label":"畫路點名","role":"cp","lat":數字,"lon":數字,"source":"來源"},{"id":"camp1","label":"官方營地名","role":"overnight"}],'
@@ -574,16 +580,19 @@ const BASE_RULES='你係遠足路線調整助手。第一輪計劃已由用戶�
 const GEN_RULES='你係資深遠足導師／領隊，策劃切實可行、合理嘅遠足路線。按用戶填咗嘅資料生成完整路線計劃；留空嘅欄位由你按用戶其他資料合理揀選。只輸出 JSON，唔好有其他文字。\n'+PLACE_RULES+'\n- 用戶已填嘅起點／終點／營地／目標公里必須尊重；留空嘅由你。全部留空就自由發揮揀一條合理路線（畫路 CP 用山峰／山坳／路口／海邊點，官方測站／標距柱或網上座標皆可，唔好塞晒所有營地，唔好虛構座標；起終點冇預設，唔好預設北潭涌，按用戶資料自由揀全港合適起終點）。';
 async function callGemini(userText, rules){
   const r=rules||BASE_RULES;
-  const resp=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({contents:[{role:'user',parts:[{text:r+'\n\n'+userText}]}]})
-  });
-  if(!resp.ok) throw new Error('HTTP '+resp.status);
-  const data=await resp.json();
-  const raw=(data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts||[]).map(p=>p.text||'').join('');
-  const np=extractJSON(raw);
-  if(!np||!np.start||!Array.isArray(np.waypoints)) throw new Error('AI 輸出格式唔正確');
-  return np;
+  aiBusy=true; refreshBusy();
+  try{
+    const resp=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:r+'\n\n'+userText}]}]})
+    });
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    const raw=(data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts||[]).map(p=>p.text||'').join('');
+    const np=extractJSON(raw);
+    if(!np||!np.start||!Array.isArray(np.waypoints)) throw new Error('AI 輸出格式唔正確');
+    return np;
+  }finally{ aiBusy=false; refreshBusy(); }
 }
 function extractJSON(raw){
   const s=raw.indexOf('{'), e=raw.lastIndexOf('}');
@@ -624,7 +633,7 @@ $('btnCancelConfirm').addEventListener('click',()=>{ $('confirmPanel').classList
 /* ═══════════════ 計路 ═══════════════ */
 function startRoute(plan){
   if(pendingId){ setStatus('warn','已有計路進行中。'); return; }
-  pendingId=uuid();
+  pendingId=uuid(); refreshBusy();
   $('resultPanel').classList.remove('hidden');
   $('resultBody').innerHTML='<div class="muted">⏳ DrawTheRoute 用真實 BRouter 山徑引擎計路中…（可能要十幾秒）</div>';
   setStatus('info','計路中…'+(refineRound>0?('（第 '+refineRound+' 次調整）'):''));
@@ -673,8 +682,15 @@ function overlapFrac(g1,g2){ if(!g1||!g2||g1.length<2||g2.length<2) return 0; le
 function mutualOverlap(l1,l2){ return Math.min(overlapFrac(l1.geometry,l2.geometry),overlapFrac(l2.geometry,l1.geometry)); }
 function detectBacktrack(result){
   const legs=(result.legs||[]).filter(l=>l.snapped&&l.geometry&&l.geometry.length>1);
-  const pairs=[];
-  for(let i=0;i<legs.length;i++) for(let j=i+1;j<legs.length;j++){ if(mutualOverlap(legs[i],legs[j])>OVERLAP_FRAC) pairs.push([legs[i],legs[j]]); }
+  const pairs=[]; const seen=new Set();
+  const add=(a,b)=>{ const k=(a.from&&a.from.id)+'>'+(a.to&&a.to.id)+'|'+(b.from&&b.from.id)+'>'+(b.to&&b.to.id); if(!seen.has(k)){ seen.add(k); pairs.push([a,b]); } };
+  for(let i=0;i<legs.length;i++) for(let j=i+1;j<legs.length;j++){
+    const a=legs[i],b=legs[j];
+    if(mutualOverlap(a,b)>OVERLAP_FRAC){ add(a,b); continue; }
+    // 掘頭 spur：入 tip 嗰段被出 tip 嗰段原路折返——出段之後就算繼續行好遠（mutualOverlap 嘅 min 會稀釋），用單向包含捉
+    if(a.to&&b.from&&a.to.id===b.from.id&&overlapFrac(a.geometry,b.geometry)>OVERLAP_FRAC) add(a,b);
+    else if(b.to&&a.from&&b.to.id===a.from.id&&overlapFrac(b.geometry,a.geometry)>OVERLAP_FRAC) add(a,b);
+  }
   return pairs;
 }
 function removableCp(end){ const w=((pendingPlan&&pendingPlan.waypoints)||[]).find(x=>x.id===end.id); return !!(w&&w.role==='cp'); }
@@ -684,7 +700,7 @@ function autoClean(result){
   const safety=new Set();
   (result.legs||[]).filter(l=>!l.snapped).forEach(l=>{ [l.from,l.to].forEach(e=>{ if(removableCp(e)){ drop.add(e.id); safety.add(e.id); } }); });
   const legs=result.legs||[];
-  for(let i=0;i<legs.length-1;i++){ const a=legs[i],b=legs[i+1]; if(a.snapped&&b.snapped&&mutualOverlap(a,b)>OVERLAP_FRAC){ if(removableCp(a.to)) drop.add(a.to.id); } }
+  for(let i=0;i<legs.length-1;i++){ const a=legs[i],b=legs[i+1]; if(a.snapped&&b.snapped&&(mutualOverlap(a,b)>OVERLAP_FRAC||(a.to&&b.from&&a.to.id===b.from.id&&overlapFrac(a.geometry,b.geometry)>OVERLAP_FRAC))){ if(removableCp(a.to)) drop.add(a.to.id); } }
   if(!drop.size) return false;
   // 離網／跨海 CP 嘅移除係安全嘢，永遠執行（唔受 cap 限制，保證地圖冇游水直線）；cap 只限 spur／回頭路優化移除
   if(cleanDrops>=MAX_CLEAN_DROPS && safety.size===0) return false;
