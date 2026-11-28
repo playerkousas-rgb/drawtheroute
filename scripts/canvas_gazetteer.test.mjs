@@ -275,3 +275,36 @@ test('Phase 3.9 autoClean／detectBacktrack 行為：spur／fallback 移除離�
   const t4 = mk({ cleanDrops: 6 });
   assert.equal(t4.api.autoClean(spurRes), false, '到清理上限要停止');
 });
+
+test('Phase 3.10：拆鎖（只鎖用戶填咗）＋放寬（唔迫揀名單）＋移除北潭涌 priming', () => {
+  // 拆鎖：唔再用 skeleton overwrite 把 AI 揀嘅點當用戶固定點
+  assert.ok(!html.includes('fixedLabels=sk.fixedLabels'), '唔可以再 overwrite fixedLabels 做全計劃骨架（會鎖死 AI 揀嘅起終點）');
+  assert.ok(html.includes('fixedLabels=uf; fixedCamps=uc;'), 'fixed 只保留用戶實際填咗嘅點');
+  assert.ok(html.includes('用戶「明確填咗」'), 'prompt 要講明只鎖用戶明確填咗嘅點');
+  assert.ok(html.includes('用戶留空（由你揀）嘅點，你調整時可以自由改'), 'AI 揀（留空）嘅點要可以自由改');
+  // 放寬：移除起終點／CP 嘅官方名單 forcing
+  assert.ok(!html.includes('可以用官方地名（'), '唔再迫起終點／CP 跟官方地名名單');
+  assert.ok(html.includes('你係遠足路線專家'), 'prompt 要當 AI 係專家、自由揀');
+  assert.ok(html.includes('唔使跟名單'), '要明言唔使跟名單');
+  // 移除北潭涌 priming＋冇預設
+  assert.ok(!html.includes('例如：北潭涌'), 'placeholder 唔再 prime 北潭涌');
+  assert.ok(html.includes('唔好預設北潭涌'), '要明言唔好預設北潭涌');
+  // 安全保留：過夜營地仍 AFCD 官方
+  assert.ok(html.includes('過夜必須係 AFCD 官方營地'), '營地安全硬要求保留');
+  assert.ok(html.includes('嚴禁用營地做畫路 CP'), '營地唔做畫路 CP 保留');
+});
+
+test('Phase 3.10 checkFixed 語義：fixed 只係用戶點；用戶留空（fixed=[]）時 AI 改起點唔會誤停', () => {
+  const src = html.slice(html.indexOf('function checkFixed('), html.indexOf('const apiKey='));
+  const factory = new Function('deps', 'let fixedLabels=deps.fixedLabels, fixedCamps=deps.fixedCamps; const findPlace=deps.findPlace;' + src + ';return checkFixed;');
+  const norm = l => ({ name: String(l || '').trim() }); // stub：名即 canonical
+  const checkFixed = factory({ fixedLabels: [], fixedCamps: [], findPlace: norm });
+  const np = { start: { label: '大帽山' }, waypoints: [{ label: '青山', role: 'cp' }, { label: '屯門', role: 'finish' }] };
+  assert.equal(checkFixed(np), null, '用戶留空（fixed=[]）→ AI 任何起終點都唔算改動用戶點');
+  const checkFixed2 = factory({ fixedLabels: ['北潭涌'], fixedCamps: [], findPlace: norm });
+  const np2 = { start: { label: '大帽山' }, waypoints: [{ label: '屯門', role: 'finish' }] };
+  assert.ok(checkFixed2(np2), '用戶明確填咗北潭涌 → AI 改咗就要報錯');
+  const checkFixed3 = factory({ fixedLabels: ['北潭涌'], fixedCamps: [], findPlace: norm });
+  const np3 = { start: { label: '北潭涌' }, waypoints: [{ label: '大帽山', role: 'cp' }, { label: '北潭涌', role: 'finish' }] };
+  assert.equal(checkFixed3(np3), null, '用戶起點保留＋AI 自由加中途點 → 通過');
+});

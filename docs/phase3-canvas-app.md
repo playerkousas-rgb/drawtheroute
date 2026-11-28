@@ -235,3 +235,19 @@ Phase 3.7 後用戶自由規劃實測：AI 揀咗跨海／離網嘅畫路 CP（�
 ### 保證
 - 最終地圖**確定性**無穿海直線（fallback 離網 CP 會被移除再計），唔再靠 AI 合作先至乾淨。
 - 回頭路／原路來回會被偵測＋確定性移除 spur CP；剩餘（非相鄰重疊／固定點）交 AI 改環線或手動。
+
+## Phase 3.10 — 拆鎖（只鎖用戶填咗）＋放寬（唔迫 AI 揀名單）＋移除北潭涌 priming
+
+### 背景（用戶回饋）
+- 「一改就彈『AI 改動咗你指定嘅起點／營地／終點，已停止自動調整』」：`runAiPlan` 先計 user-only `uf/uc`，但隨後 `skeletonFromPlan(plan)` **overwrite** `fixedLabels/fixedCamps` 做全計劃骨架（包括 AI 自己揀、用戶留空嘅起終點／營地）→ refine 時 AI 改佢自己揀嘅點被 `checkFixed` 誤判 → 停止。
+- 「唔使列出太多／迫佢揀仲難搞；佢係 AI 識自己諗」：收回「列一大堆起點」方向，改为**拆鎖＋放寬**，信任 AI；幾何問題交 3.9 `autoClean` 確定性執。
+- 「先天性 lock 死北潭涌」：prompt 偏置（`NONCAMP_LIST` 全西貢、北潭涌排首＋placeholder 例子＋冇反預設指示）。
+
+### 修復
+- **拆鎖**：移除 `runAiPlan` 嘅 `skeletonFromPlan` overwrite；`fixedLabels/fixedCamps` 只保留用戶實際填咗（`uf/uc`）。AI 揀（用戶留空）嘅起終點／營地可自由改，唔再誤停。`checkFixed` 語義不變（只 guard fixed），而家 fixed 只係用戶點。
+- **放寬 prompt**：移除「起終點／CP 可以用官方地名（`NONCAMP_LIST`）」forcing；改「你係遠足路線專家，自己諗、自由揀全港任何真實地點，唔使跟名單、冇預設」。連貫／環線提示合併做一句輕量常識提示（明言「唔係硬清單；系統會自動清理，你放手諗」）。低地提示移除具體點列。保留硬安全：過夜營地 AFCD 官方、嚴禁營地做畫路 CP、唔虛構座標、≤24 點、只鎖用戶明確填咗。
+- **移除 priming**：placeholder「例如：北潭涌」→「留空由 AI 揀（全港任何起點）」；prompt＋GEN_RULES 加「唔好預設北潭涌／西貢」。
+- **修理指示跟住拆鎖**：snapFail 修理明言「唔好改用戶明確填咗嘅點；用戶留空由你揀嘅起終點／營地可以自由改」。
+
+### 測試
+- `canvas_gazetteer.test.mjs` +2（gazetteer 16）：拆鎖 regression（冇 skeleton overwrite、fixed=uf/uc、prompt 只鎖用戶點）＋放寬（冇官方名單 forcing、專家自由、唔使跟名單）＋移除 priming（placeholder 中性、唔好預設北潭涌）＋安全保留；functional `checkFixed` 語義（fixed=[] 時 AI 改起點通過；用戶填咗被改則報錯；用戶起點保留＋AI 加中途點通過）。全套 48（gate 9＋contract 11＋embed 12＋gazetteer 16）。
